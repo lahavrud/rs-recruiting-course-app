@@ -95,6 +95,35 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
    DATABASE_URL=sqlite+aiosqlite:///./data/rs_recruitment.db
    ```
 
+   **AWS Configuration (Optional):**
+   
+   For production, configure AWS S3 and SES:
+   ```bash
+   # Storage Provider: 's3' or 'local' (default: 'local')
+   STORAGE_PROVIDER=s3
+   AWS_ACCESS_KEY_ID=your-access-key-id
+   AWS_SECRET_ACCESS_KEY=your-secret-access-key
+   AWS_REGION=us-east-1
+   AWS_S3_BUCKET_NAME=your-bucket-name
+   
+   # Email Provider: 'ses' or 'smtp' (default: 'smtp')
+   EMAIL_PROVIDER=ses
+   AWS_SES_FROM_EMAIL=noreply@yourdomain.com
+   ```
+   
+   For development/testing with SMTP:
+   ```bash
+   EMAIL_PROVIDER=smtp
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASSWORD=your-app-password
+   SMTP_FROM_EMAIL=your-email@gmail.com
+   SMTP_USE_TLS=true
+   ```
+   
+   See [AWS Setup](#aws-setup) section for detailed instructions.
+
 5. Run database migrations:
    ```bash
    alembic upgrade head
@@ -164,6 +193,24 @@ The API will be available at `http://localhost:8000`.
 - `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration in minutes (default: 30)
 - `DATABASE_URL` - Database connection string (default: `sqlite+aiosqlite:///./data/rs_recruitment.db` for both local and Docker)
 
+**AWS & Storage Configuration:**
+- `STORAGE_PROVIDER` - Storage provider: `s3` or `local` (default: `local`)
+- `AWS_ACCESS_KEY_ID` - AWS access key ID (required for S3)
+- `AWS_SECRET_ACCESS_KEY` - AWS secret access key (required for S3)
+- `AWS_REGION` - AWS region (default: `us-east-1`)
+- `AWS_S3_BUCKET_NAME` - S3 bucket name (required when using S3)
+- `LOCAL_STORAGE_PATH` - Local storage directory (default: `./storage`)
+
+**Email Configuration:**
+- `EMAIL_PROVIDER` - Email provider: `ses` or `smtp` (default: `smtp`)
+- `AWS_SES_FROM_EMAIL` - SES sender email (required when using SES, must be verified)
+- `SMTP_HOST` - SMTP server hostname (default: `localhost`)
+- `SMTP_PORT` - SMTP server port (default: `587`)
+- `SMTP_USER` - SMTP username (optional)
+- `SMTP_PASSWORD` - SMTP password (optional)
+- `SMTP_FROM_EMAIL` - SMTP sender email (optional)
+- `SMTP_USE_TLS` - Use TLS encryption (default: `true`)
+
 ---
 
 ## Testing
@@ -232,6 +279,74 @@ ruff format .
 
 ---
 
+## AWS Setup
+
+### AWS S3 Setup (File Storage)
+
+1. **Create an S3 Bucket:**
+   - Log in to AWS Console
+   - Navigate to S3 service
+   - Create a new bucket (choose a unique name)
+   - Configure bucket permissions and CORS if needed for frontend uploads
+
+2. **Create IAM User with S3 Permissions:**
+   - Navigate to IAM service
+   - Create a new user (e.g., `rs-recruitment-s3`)
+   - Attach policy: `AmazonS3FullAccess` (or create custom policy with least privilege)
+   - Create access keys and save them securely
+
+3. **Configure Environment Variables:**
+   ```bash
+   STORAGE_PROVIDER=s3
+   AWS_ACCESS_KEY_ID=your-access-key-id
+   AWS_SECRET_ACCESS_KEY=your-secret-access-key
+   AWS_REGION=us-east-1
+   AWS_S3_BUCKET_NAME=your-bucket-name
+   ```
+
+### AWS SES Setup (Email Service)
+
+1. **Verify Email Address/Domain:**
+   - Log in to AWS Console
+   - Navigate to SES service
+   - Verify the email address or domain you want to send from
+   - If in SES sandbox, verify recipient emails too
+
+2. **Request Production Access (if needed):**
+   - By default, SES is in sandbox mode (can only send to verified emails)
+   - Request production access to send to any email address
+
+3. **Create IAM User with SES Permissions:**
+   - Navigate to IAM service
+   - Create a new user (e.g., `rs-recruitment-ses`)
+   - Attach policy: `AmazonSESFullAccess` (or create custom policy)
+   - Create access keys and save them securely
+
+4. **Configure Environment Variables:**
+   ```bash
+   EMAIL_PROVIDER=ses
+   AWS_SES_FROM_EMAIL=noreply@yourdomain.com
+   AWS_ACCESS_KEY_ID=your-access-key-id  # Can reuse S3 keys if same user
+   AWS_SECRET_ACCESS_KEY=your-secret-access-key
+   AWS_REGION=us-east-1
+   ```
+
+### Security Best Practices
+
+- **Never commit AWS credentials to the repository**
+- Use environment variables or AWS IAM roles (when deploying to EC2/ECS/Lambda)
+- Use least-privilege IAM policies (only grant necessary permissions)
+- Rotate access keys regularly
+- Use separate IAM users for different services if needed
+
+### Development/Testing
+
+For local development, you can use:
+- **Storage:** `STORAGE_PROVIDER=local` (files stored in `./storage` directory)
+- **Email:** `EMAIL_PROVIDER=smtp` with Gmail or other SMTP provider
+
+---
+
 ## Seeding Admin User
 
 To create an admin user for testing:
@@ -244,3 +359,18 @@ Example:
 ```bash
 python scripts/seed_admin.py admin@example.com securepassword123
 ```
+
+## Testing AWS Integration
+
+To manually test your AWS S3 and SES configuration with real credentials:
+
+```bash
+python scripts/test_aws_integration.py
+```
+
+This script will:
+- Test file upload/download/delete with your configured storage provider (S3 or Local)
+- Optionally send a test email to verify email configuration (SES or SMTP)
+- Show detailed results for each operation
+
+**Note:** Make sure your `.env` file is configured with your AWS credentials before running this script.
