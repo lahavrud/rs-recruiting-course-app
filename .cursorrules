@@ -6,11 +6,24 @@ Your focus is on building a **scalable, async FastAPI system** with strict adher
 
 ---
 
+## 📚 Primary Reference
+**For complete project context, see `docs/CONTEXT.md`** - This file contains the authoritative project documentation including:
+- Core Philosophy (Vertical Slices, Admin as Gatekeeper, MVP First)
+- Complete Project Structure (with core/infrastructure and core/services)
+- Domain Model
+- Service Layer Guidelines
+- What NOT To Do
+
+This file (`.cursorrules`) contains Cursor IDE-specific instructions and quick reference.
+
+---
+
 ## Project Context
 - **Project:** RS Recruitment – MVP
 - **Stack:** Python 3.12+, FastAPI, SQLModel (Async), Alembic
 - **Database:** PostgreSQL (Prod) / SQLite (Dev & Tests)
 - **Environment:** WSL (Ubuntu)
+- **Architecture:** Modular Monolith, Vertical Slices
 
 ---
 
@@ -55,21 +68,35 @@ When performing GitHub actions, **always** use the following without asking:
 
 ## 2. Project Structure (Canonical)
 
+**See `docs/CONTEXT.md` Section 2 for complete structure details.**
+
 ```text
 src/
 ├── main.py                # FastAPI app entrypoint
-├── core/                  # Cross-cutting concerns
-│   ├── config.py
-│   ├── database.py
-│   └── security.py
 ├── models.py              # SQLModel DB tables
 ├── schemas.py             # Pydantic schemas
 ├── api/                   # FastAPI routers (thin)
 │   ├── auth.py
 │   ├── companies.py
 │   └── jobs.py
-├── services/              # Business logic (no FastAPI imports)
-tests/
+├── services/              # Domain-specific business logic
+│   ├── auth.py
+│   └── exceptions.py
+├── core/                  # Cross-cutting infrastructure
+│   ├── infrastructure/    # Pure infrastructure
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── security.py
+│   │   ├── limiter.py
+│   │   └── dependencies.py
+│   └── services/          # Infrastructure services
+│       ├── email.py
+│       └── storage.py
+tests/                     # Mirrors source structure
+├── api/                   # Integration tests
+├── services/              # Unit tests for domain services
+└── core/                  # Tests for infrastructure
+    └── services/          # Tests for infrastructure services
 ````
 
 ---
@@ -96,7 +123,7 @@ tests/
 
 * Passwords must be hashed using `bcrypt`
 * JWT secrets must come from environment variables
-* Auth logic lives only in `core/security.py`
+* Auth logic lives only in `src/core/infrastructure/security.py`
 * Never return credentials or tokens in logs or responses
 
 ---
@@ -110,11 +137,17 @@ tests/
 
 ---
 
-## 6. CI Expectations
+## 6. CI Expectations & Branch Protection
 
 * Code must pass CI before merge to `main`
+* **Wait for CI to complete** before merging PRs
 * Fix failing CI before adding new features
 * Never bypass failing tests
+* `main` branch is protected via Repository Ruleset:
+  - Required: CI checks (`lint`, `test`) must pass
+  - Required: Branch must be up to date before merging
+  - Required: Pull requests required (no direct pushes)
+  - **No bypass:** Even administrators cannot bypass rules
 
 ---
 
@@ -123,3 +156,4 @@ tests/
 * Work on **one vertical slice at a time**
 * Do not over-engineer future features
 * If unsure: choose the **simpler, documented** solution
+* See `docs/CONTEXT.md` for Core Philosophy and Domain Model

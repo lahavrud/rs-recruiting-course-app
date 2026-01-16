@@ -30,7 +30,7 @@
 ## 2. Coding Standards
 
 - **Language & Typing**
-  - Python 3.11+
+  - Python 3.12+
   - Strict type hints required
   - Prefer explicit return types
 
@@ -80,6 +80,24 @@
   - `pytest` must pass before merging
   - Prefer simple unit tests over complex mocks
 
+- **Async Database Rules**
+  - ALWAYS use `await session.execute(...)` or `await session.get(...)`
+  - NEVER use blocking I/O inside async functions
+  - ALWAYS inject DB session via `get_session` dependency
+  - Services must not manage DB lifecycle directly
+
+- **Pydantic & SQLModel**
+  - Keep **schemas** (`schemas.py`) separate from **models** (`models.py`)
+  - Use `Create / Read / Update` schema patterns
+  - Never expose sensitive fields (passwords, tokens)
+  - All DB tables must use `table=True`
+
+- **Security Baseline**
+  - Passwords must be hashed using `bcrypt`
+  - JWT secrets must come from environment variables
+  - Auth logic lives only in `src/core/infrastructure/security.py`
+  - Never return credentials or tokens in logs or responses
+
 ---
 
 ## 3. Domain Model (Source of Truth)
@@ -119,14 +137,73 @@ If there is a conflict, defer to `ARCHITECTURE.md`.
 
 ---
 
-## 5. Environment Notes
+## 5. Git & GitHub Workflow
 
-- SQLite is used for local development only
-- Database engine may change without impacting domain logic
+### Commit Messages
+Always use **Conventional Commits**:
+- `feat(scope): description`
+- `fix(scope): description`
+- `chore(infra): description`
+- `refactor(scope): description`
+- `docs(scope): description`
+
+### Branch Naming
+- Features: `feat/short-description`
+- Fixes: `fix/short-description`
+- Chores: `chore/short-description`
+- Documentation: `docs/short-description`
+- Refactoring: `refactor/short-description`
+
+### Trunk-Based Development
+- Short-lived branches (hours → 1 day), merged via PR
+- Keep `main` always deployable
+- All changes to `main` must go through PR (no direct pushes)
+
+### GitHub CLI (`gh`) Defaults
+When performing GitHub actions, use the following:
+
+#### Creating Issues (`gh issue create`)
+- `--assignee "@me"`
+- `--project "RS Recruitment - MVP"`
+- `--label` (Choose appropriately, always include P1 / P2 / P3)
+- **Body:** Use `.github/ISSUE_TEMPLATE/task.md`
+  - Goal
+  - Tasks (Checklist)
+  - Definition of Done
+
+#### Creating Pull Requests (`gh pr create`)
+- `--assignee "@me"`
+- `--base main`
+- **Body:** Clear summary of changes + related issue
+
+### Branch Protection (Repository Ruleset)
+- `main` branch is protected via GitHub Repository Ruleset
+- **Required:** CI checks must pass (`lint`, `test`)
+- **Required:** Branch must be up to date before merging
+- **Required:** Pull requests required (no direct pushes)
+- **No bypass:** Even administrators cannot bypass rules
+- **No force pushes:** Non-fast-forward protection enabled
+- **No deletion:** Branch deletion prevented
+
+### CI/CD Expectations
+- Code must pass CI before merge to `main`
+- Wait for CI to complete before merging PRs
+- Fix failing CI before adding new features
+- Never bypass failing tests
 
 ---
 
-## 6. Immediate Goal
+## 6. Environment Notes
+
+- SQLite is used for local development only
+- Database engine may change without impacting domain logic
+- **Stack:** Python 3.12+, FastAPI, SQLModel (Async), Alembic
+- **Database:** PostgreSQL (Prod) / SQLite (Dev & Tests)
+- **Environment:** WSL (Ubuntu)
+
+---
+
+## 7. Immediate Goal
 
 Focus exclusively on the **current active vertical slice**.
 Deliver working functionality over theoretical completeness.
