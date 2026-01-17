@@ -26,12 +26,16 @@ What infrastructure change or improvement is needed?
 - [ ] Task 2
 - [ ] Task 3
 
+## 🎯 Milestone
+**Select milestone:** Infrastructure Phase | Company Slice | Job Slice | Candidate Slice | Match Slice | Frontend | Deployment
+
 ## ✅ Definition of Done (DoD)
 - [ ] Implementation complete
 - [ ] Tests added or updated
 - [ ] Documentation updated
 - [ ] No breaking changes (or migration plan documented)
 - [ ] CI/CD passes
+- [ ] Milestone assigned
 
 ## 🔗 Related Issues/PRs
 Links to related issues or PRs.

@@ -23,6 +23,9 @@ Other solutions or features you've considered.
 - [ ] Criterion 2
 - [ ] Criterion 3
 
+## 🎯 Milestone
+**Select milestone:** Infrastructure Phase | Company Slice | Job Slice | Candidate Slice | Match Slice | Frontend | Deployment
+
 ## 🔗 Related Issues/PRs
 Links to related issues or PRs.
 

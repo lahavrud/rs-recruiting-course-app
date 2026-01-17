@@ -33,5 +33,8 @@ If applicable, add screenshots to help explain your problem.
 ## 📋 Additional Context
 Any other context about the problem.
 
+## 🎯 Milestone
+**Select milestone:** Infrastructure Phase | Company Slice | Job Slice | Candidate Slice | Match Slice | Frontend | Deployment
+
 ## 🔗 Related Issues/PRs
 Links to related issues or PRs.

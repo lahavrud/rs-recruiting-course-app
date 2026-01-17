@@ -1,0 +1,89 @@
+name: Assign Milestone to PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  assign-milestone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract linked issues
+        id: extract-issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const prNumber = context.payload.pull_request.number;
+
+            // Match patterns like "Closes #123", "Fixes #456", "Resolves #789", etc.
+            const issuePattern = /(?:closes?|fixes?|resolves?)\s+#(\d+)/gi;
+            const matches = [...prBody.matchAll(issuePattern)];
+            const issueNumbers = matches.map(m => parseInt(m[1]));
+
+            // Also check PR title for issue references
+            const titlePattern = /#(\d+)/g;
+            const titleMatches = [...(context.payload.pull_request.title || '').matchAll(titlePattern)];
+            const titleIssueNumbers = titleMatches.map(m => parseInt(m[1]));
+
+            const allIssueNumbers = [...new Set([...issueNumbers, ...titleIssueNumbers])];
+
+            core.setOutput('issue_numbers', JSON.stringify(allIssueNumbers));
+            return allIssueNumbers;
+
+      - name: Get milestone from linked issues
+        id: get-milestone
+        uses: actions/github-script@v7
+        if: steps.extract-issues.outputs.issue_numbers != '[]'
+        with:
+          script: |
+            const issueNumbers = JSON.parse('${{ steps.extract-issues.outputs.issue_numbers }}');
+            let milestone = null;
+
+            // Fetch each issue individually to get its milestone
+            for (const issueNumber of issueNumbers) {
+              try {
+                const { data: issue } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                });
+
+                if (issue && issue.milestone) {
+                  milestone = issue.milestone;
+                  console.log(`Found milestone "${milestone.title}" from issue #${issueNumber}`);
+                  break;
+                }
+              } catch (error) {
+                console.log(`Could not fetch issue #${issueNumber}: ${error.message}`);
+              }
+            }
+
+            if (milestone) {
+              core.setOutput('milestone_number', milestone.number);
+              core.setOutput('milestone_title', milestone.title);
+            } else {
+              console.log('No milestone found in linked issues');
+            }
+
+      - name: Assign milestone to PR
+        if: steps.get-milestone.outputs.milestone_number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const milestoneNumber = '${{ steps.get-milestone.outputs.milestone_number }}';
+            const milestoneTitle = '${{ steps.get-milestone.outputs.milestone_title }}';
+            const prNumber = context.payload.pull_request.number;
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              milestone: parseInt(milestoneNumber),
+            });
+
+            console.log(`✅ Assigned milestone "${milestoneTitle}" to PR #${prNumber}`);

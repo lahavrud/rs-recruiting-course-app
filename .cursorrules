@@ -54,6 +54,7 @@ When performing GitHub actions, **always** use the following without asking:
 - `--assignee "@me"`
 - `--project "RS Recruitment - MVP"`
 - `--label` (Choose appropriately, always include P1 / P2 / P3)
+- `--milestone` (Choose appropriate milestone: "Infrastructure Phase", "Company Slice", "Job Slice", "Candidate Slice", "Match Slice", "Frontend", "Deployment")
 - **Body:** Use `.github/ISSUE_TEMPLATE/task.md`
   - Goal
   - Tasks (Checklist)
@@ -62,6 +63,7 @@ When performing GitHub actions, **always** use the following without asking:
 #### Creating Pull Requests (`gh pr create`)
 - `--assignee "@me"`
 - `--base main`
+- `--milestone` (Should match the milestone of the linked issue)
 - **Body:** Clear summary of changes + related issue
 
 ---
