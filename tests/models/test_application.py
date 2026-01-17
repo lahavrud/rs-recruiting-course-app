@@ -359,3 +359,42 @@ async def test_application_updated_at_changes(session: AsyncSession, job_and_can
     # Note: updated_at behavior depends on database trigger/onupdate implementation
     # This test documents the expected behavior
     assert application.admin_notes == "Updated notes"
+
+
+@pytest.mark.asyncio
+async def test_application_unique_constraint_prevents_duplicates(
+    session: AsyncSession, job_and_candidate
+):
+    """Test that unique constraint prevents duplicate applications.
+
+    A candidate should not be able to submit multiple applications for the same job.
+    """
+    job = job_and_candidate["job"]
+    candidate = job_and_candidate["candidate"]
+    assert isinstance(job, Job)
+    assert isinstance(candidate, CandidateProfile)
+    assert job.id is not None
+    assert candidate.id is not None
+
+    # Create first application
+    application1 = Application(
+        job_id=job.id,  # type: ignore[arg-type]
+        candidate_id=candidate.id,  # type: ignore[arg-type]
+    )
+    session.add(application1)
+    await session.commit()
+    await session.refresh(application1)
+
+    # Verify first application was created
+    assert application1.id is not None
+
+    # Attempt to create duplicate application (same job_id and candidate_id)
+    application2 = Application(
+        job_id=job.id,  # type: ignore[arg-type]
+        candidate_id=candidate.id,  # type: ignore[arg-type]
+    )
+    session.add(application2)
+
+    # Should raise IntegrityError due to unique constraint violation
+    with pytest.raises(IntegrityError):
+        await session.commit()

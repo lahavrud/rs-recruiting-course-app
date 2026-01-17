@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 
 from pydantic import field_validator
-from sqlalchemy import Text
+from sqlalchemy import Text, UniqueConstraint
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 from src.enums import ApplicationStatus, JobStatus, UserRole
@@ -152,6 +152,10 @@ class Application(SQLModel, table=True):
 
     Links a Candidate to a Job. Represents the recruitment match.
     """
+
+    __table_args__ = (
+        UniqueConstraint("job_id", "candidate_id", name="uq_application_job_candidate"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="job.id", index=True)
