@@ -177,3 +177,106 @@ async def test_candidate_profile_no_authentication(session: AsyncSession):
     assert not hasattr(candidate, "hashed_password")
     assert not hasattr(candidate, "is_active")
     assert not hasattr(candidate, "role")
+
+
+# Security Tests: Path Traversal Prevention
+# Note: field_validator runs during model_validate(), not during direct instantiation
+# These tests use model_validate() which simulates API input validation
+
+
+def test_candidate_profile_path_traversal_parent_directory():
+    """Test that paths with '..' are rejected (path traversal attack)."""
+    with pytest.raises(ValueError, match="Path cannot contain '..'"):
+        CandidateProfile.model_validate(
+            {
+                "full_name": "Malicious User",
+                "email": "malicious1@example.com",
+                "resume_path": "../../../../etc/passwd",
+            }
+        )
+
+
+def test_candidate_profile_path_traversal_relative_parent():
+    """Test that relative parent paths are rejected."""
+    with pytest.raises(ValueError, match="Path cannot contain '..'"):
+        CandidateProfile.model_validate(
+            {
+                "full_name": "Malicious User",
+                "email": "malicious2@example.com",
+                "resume_path": "../config.py",
+            }
+        )
+
+
+def test_candidate_profile_absolute_path_rejected():
+    """Test that absolute paths are rejected."""
+    with pytest.raises(ValueError, match="Path cannot be absolute"):
+        CandidateProfile.model_validate(
+            {
+                "full_name": "Malicious User",
+                "email": "malicious3@example.com",
+                "resume_path": "/root/sensitive_file",
+            }
+        )
+
+
+def test_candidate_profile_path_outside_uploads_directory():
+    """Test that paths outside uploads/resumes/ are rejected."""
+    with pytest.raises(ValueError, match="Path must be within 'uploads/resumes/'"):
+        CandidateProfile.model_validate(
+            {
+                "full_name": "Malicious User",
+                "email": "malicious4@example.com",
+                "resume_path": "config/secrets.env",
+            }
+        )
+
+
+@pytest.mark.asyncio
+async def test_candidate_profile_valid_resume_path(session: AsyncSession):
+    """Test that valid paths within uploads/resumes/ are accepted."""
+    candidate_data = {
+        "full_name": "Valid User",
+        "email": "valid@example.com",
+        "resume_path": "uploads/resumes/valid_resume.pdf",
+    }
+    candidate = CandidateProfile.model_validate(candidate_data)
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(candidate)
+
+    assert candidate.id is not None
+    assert candidate.resume_path == "uploads/resumes/valid_resume.pdf"
+
+
+@pytest.mark.asyncio
+async def test_candidate_profile_none_resume_path_allowed(session: AsyncSession):
+    """Test that None is allowed for optional resume_path field."""
+    candidate = CandidateProfile(
+        full_name="No Resume User",
+        email="noresume@example.com",
+        resume_path=None,
+    )
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(candidate)
+
+    assert candidate.id is not None
+    assert candidate.resume_path is None
+
+
+@pytest.mark.asyncio
+async def test_candidate_profile_nested_valid_path(session: AsyncSession):
+    """Test that nested paths within uploads/resumes/ are accepted."""
+    candidate_data = {
+        "full_name": "Nested Path User",
+        "email": "nested@example.com",
+        "resume_path": "uploads/resumes/2026/01/resume.pdf",
+    }
+    candidate = CandidateProfile.model_validate(candidate_data)
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(candidate)
+
+    assert candidate.id is not None
+    assert candidate.resume_path == "uploads/resumes/2026/01/resume.pdf"

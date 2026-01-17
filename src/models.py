@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
+from pydantic import field_validator
 from sqlalchemy import Text
 from sqlmodel import Column, Field, Relationship, SQLModel
 
@@ -102,6 +104,47 @@ class CandidateProfile(SQLModel, table=True):
     # Note: One-way relationships only (SQLModel 0.0.22 limitation)
     # Access applications via:
     # session.exec(select(Application).where(Application.candidate_id == candidate.id))
+
+    @field_validator("resume_path")
+    @classmethod
+    def validate_resume_path(cls, v: str | None) -> str | None:
+        """Validate resume path to prevent path traversal attacks.
+
+        Security Rules:
+        - Reject paths containing '..' (parent directory traversal)
+        - Reject absolute paths (starting with '/')
+        - Normalize path and ensure it stays within uploads/resumes/
+        - Allow None values (optional field)
+
+        Args:
+            v: The resume path to validate
+
+        Returns:
+            The validated path or None
+
+        Raises:
+            ValueError: If path contains malicious patterns
+        """
+        if v is None:
+            return None
+
+        # Reject paths with parent directory traversal
+        if ".." in v:
+            raise ValueError("Path cannot contain '..' (parent directory reference)")
+
+        # Reject absolute paths
+        if v.startswith("/"):
+            raise ValueError("Path cannot be absolute (must not start with '/')")
+
+        # Normalize the path to resolve any redundant separators or references
+        normalized = os.path.normpath(v)
+
+        # Ensure normalized path doesn't escape the expected directory
+        # All resume paths should be within uploads/resumes/
+        if not normalized.startswith("uploads/resumes/"):
+            raise ValueError("Path must be within 'uploads/resumes/' directory")
+
+        return normalized
 
 
 class Application(SQLModel, table=True):

@@ -1,8 +1,9 @@
 """Pydantic schemas for request/response validation."""
 
+import os
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from src.enums import ApplicationStatus, JobStatus, UserRole
 
@@ -126,6 +127,47 @@ class CandidateProfileCreate(BaseModel):
     personality_weakness: str | None = None
     personality_strength: str | None = None
 
+    @field_validator("resume_path")
+    @classmethod
+    def validate_resume_path(cls, v: str | None) -> str | None:
+        """Validate resume path to prevent path traversal attacks.
+
+        Security Rules:
+        - Reject paths containing '..' (parent directory traversal)
+        - Reject absolute paths (starting with '/')
+        - Normalize path and ensure it stays within uploads/resumes/
+        - Allow None values (optional field)
+
+        Args:
+            v: The resume path to validate
+
+        Returns:
+            The validated path or None
+
+        Raises:
+            ValueError: If path contains malicious patterns
+        """
+        if v is None:
+            return None
+
+        # Reject paths with parent directory traversal
+        if ".." in v:
+            raise ValueError("Path cannot contain '..' (parent directory reference)")
+
+        # Reject absolute paths
+        if v.startswith("/"):
+            raise ValueError("Path cannot be absolute (must not start with '/')")
+
+        # Normalize the path to resolve any redundant separators or references
+        normalized = os.path.normpath(v)
+
+        # Ensure normalized path doesn't escape the expected directory
+        # All resume paths should be within uploads/resumes/
+        if not normalized.startswith("uploads/resumes/"):
+            raise ValueError("Path must be within 'uploads/resumes/' directory")
+
+        return normalized
+
 
 class CandidateProfileUpdate(BaseModel):
     """Schema for updating a candidate profile."""
@@ -141,6 +183,47 @@ class CandidateProfileUpdate(BaseModel):
     transportation: str | None = None
     personality_weakness: str | None = None
     personality_strength: str | None = None
+
+    @field_validator("resume_path")
+    @classmethod
+    def validate_resume_path(cls, v: str | None) -> str | None:
+        """Validate resume path to prevent path traversal attacks.
+
+        Security Rules:
+        - Reject paths containing '..' (parent directory traversal)
+        - Reject absolute paths (starting with '/')
+        - Normalize path and ensure it stays within uploads/resumes/
+        - Allow None values (optional field)
+
+        Args:
+            v: The resume path to validate
+
+        Returns:
+            The validated path or None
+
+        Raises:
+            ValueError: If path contains malicious patterns
+        """
+        if v is None:
+            return None
+
+        # Reject paths with parent directory traversal
+        if ".." in v:
+            raise ValueError("Path cannot contain '..' (parent directory reference)")
+
+        # Reject absolute paths
+        if v.startswith("/"):
+            raise ValueError("Path cannot be absolute (must not start with '/')")
+
+        # Normalize the path to resolve any redundant separators or references
+        normalized = os.path.normpath(v)
+
+        # Ensure normalized path doesn't escape the expected directory
+        # All resume paths should be within uploads/resumes/
+        if not normalized.startswith("uploads/resumes/"):
+            raise ValueError("Path must be within 'uploads/resumes/' directory")
+
+        return normalized
 
 
 class CandidateProfileRead(BaseModel):
