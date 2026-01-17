@@ -20,7 +20,11 @@ What problem does this task solve?
 - [ ]
 - [ ]
 
+## 🎯 Milestone
+**Select milestone:** Infrastructure Phase | Company Slice | Job Slice | Candidate Slice | Match Slice | Frontend | Deployment
+
 ## ✅ Definition of Done (DoD)
 - [ ] Acceptance criteria met
 - [ ] Tests added or updated
 - [ ] No breaking changes introduced
+- [ ] Milestone assigned

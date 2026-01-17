@@ -1,5 +1,6 @@
 """Storage abstraction layer for file storage providers."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -249,16 +250,22 @@ class LocalStorageProvider(StorageProvider):
         file_key = f"{uuid4()}{file_extension}"
         file_path = self.storage_path / file_key
 
-        file_path.write_bytes(file_content)
+        # Run blocking file write in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, file_path.write_bytes, file_content)
         return file_key
 
     async def get_file_url(self, file_identifier: str) -> str:
         """Return HTTP URL for local file (to be served by FastAPI static files)."""
         file_path = self._validate_file_path(file_identifier)
-        if not file_path.exists():
+        # Run blocking file system checks in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        exists = await loop.run_in_executor(None, file_path.exists)
+        if not exists:
             raise ValueError(f"File not found: {file_identifier}")
         # Ensure the path is a file, not a directory
-        if file_path.is_dir():
+        is_dir = await loop.run_in_executor(None, file_path.is_dir)
+        if is_dir:
             raise ValueError(f"Path is a directory, not a file: {file_identifier}")
         # Return HTTP URL that will be served by FastAPI static file serving
         # The actual static file mount will be configured in main.py
@@ -273,9 +280,12 @@ class LocalStorageProvider(StorageProvider):
         """
         # Validate path first (raises ValueError if path traversal detected)
         file_path = self._validate_file_path(file_identifier)
+        # Run blocking file system operations in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
         try:
-            if file_path.exists():
-                file_path.unlink()
+            exists = await loop.run_in_executor(None, file_path.exists)
+            if exists:
+                await loop.run_in_executor(None, file_path.unlink)
             # Return True even if file didn't exist (idempotent, matches S3 behavior)
             return True
         except OSError:

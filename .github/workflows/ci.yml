@@ -42,6 +42,21 @@ jobs:
       - name: Run Ruff Format Check
         run: uv run ruff format --check .
 
+      - name: Validate imports (SOC enforcement)
+        run: python scripts/validate_imports.py
+
+      - name: Check file sizes
+        run: python scripts/check_file_sizes.py
+
+      - name: Validate type hints
+        run: python scripts/validate_type_hints.py
+
+      - name: Validate blocking I/O in async functions
+        run: python scripts/validate_blocking_io.py
+
+      - name: Validate test file existence
+        run: python scripts/validate_test_files.py
+
   test:
     runs-on: ubuntu-latest
     env:
