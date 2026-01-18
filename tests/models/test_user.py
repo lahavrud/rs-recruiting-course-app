@@ -153,15 +153,19 @@ async def test_user_company_profile_relationship(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
+    user_id = user.id
 
     company_profile = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user_id,
         name="Test Company",
     )
     session.add(company_profile)
     await session.commit()
     await session.refresh(user)
     await session.refresh(company_profile)
+    assert company_profile.id is not None
+    company_id = company_profile.id
 
     # Test relationship access - need to explicitly load relationships
     # SQLModel relationships require eager loading in async context
@@ -171,8 +175,8 @@ async def test_user_company_profile_relationship(session: AsyncSession):
     # Query to load the relationship with eager loading
     result = await session.execute(
         select(User)
-        .options(selectinload(User.company_profile))
-        .where(User.id == user.id)  # type: ignore[arg-type]
+        .options(selectinload(User.company_profile))  # pyright: ignore[reportArgumentType]
+        .where(User.id == user_id)  # pyright: ignore[reportArgumentType]
     )
     loaded_user = result.scalar_one()
     assert loaded_user.company_profile is not None
@@ -181,11 +185,11 @@ async def test_user_company_profile_relationship(session: AsyncSession):
 
     result = await session.execute(
         select(CompanyProfile)
-        .options(selectinload(CompanyProfile.user))
-        .where(CompanyProfile.id == company_profile.id)  # type: ignore[arg-type]
+        .options(selectinload(CompanyProfile.user))  # pyright: ignore[reportArgumentType]
+        .where(CompanyProfile.id == company_id)  # pyright: ignore[reportArgumentType]
     )
     loaded_company = result.scalar_one()
-    assert loaded_company.user.id == user.id
+    assert loaded_company.user.id == user_id
 
 
 @pytest.mark.asyncio
@@ -281,7 +285,7 @@ async def test_user_query_by_email(session: AsyncSession):
 
     # Query by email
     result = await session.execute(
-        select(User).where(User.email == "query_test@example.com")
+        select(User).where(User.email == "query_test@example.com")  # pyright: ignore[reportArgumentType]
     )
     found_user = result.scalar_one_or_none()
 

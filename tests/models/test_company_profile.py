@@ -21,9 +21,10 @@ async def test_company_profile_creation_with_required_fields(session: AsyncSessi
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Test Company",
     )
     session.add(company)
@@ -50,9 +51,10 @@ async def test_company_profile_creation_with_all_fields(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Full Company",
         logo_url="https://example.com/logo.png",
         contact_person="John Doe",
@@ -81,10 +83,11 @@ async def test_company_profile_optional_fields(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     # Test with None values for optional fields
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Optional Fields Company",
         logo_url=None,
         contact_person=None,
@@ -121,9 +124,10 @@ async def test_company_profile_default_values(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Defaults Company",
     )
     session.add(company)
@@ -144,15 +148,17 @@ async def test_company_profile_user_relationship(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Relationship Company",
     )
     session.add(company)
     await session.commit()
     await session.refresh(company)
     await session.refresh(user)
+    assert company.id is not None
 
     # Test relationship access - need to explicitly load relationships
     # SQLModel relationships require eager loading in async context
@@ -160,20 +166,22 @@ async def test_company_profile_user_relationship(session: AsyncSession):
     from sqlalchemy.orm import selectinload
 
     # Query to load the relationship with eager loading
+    user_id = user.id
+    company_id = company.id
     result = await session.execute(
         select(CompanyProfile)
-        .options(selectinload(CompanyProfile.user))
-        .where(CompanyProfile.id == company.id)  # type: ignore[arg-type]
+        .options(selectinload(CompanyProfile.user))  # pyright: ignore[reportArgumentType]
+        .where(CompanyProfile.id == company_id)  # pyright: ignore[reportArgumentType]
     )
     loaded_company = result.scalar_one()
     assert loaded_company.user is not None
-    assert loaded_company.user.id == user.id
+    assert loaded_company.user.id == user_id
     assert loaded_company.user.email == "relationship@example.com"
 
     result = await session.execute(
         select(User)
-        .options(selectinload(User.company_profile))
-        .where(User.id == user.id)  # type: ignore[arg-type]
+        .options(selectinload(User.company_profile))  # pyright: ignore[reportArgumentType]
+        .where(User.id == user_id)  # pyright: ignore[reportArgumentType]
     )
     loaded_user = result.scalar_one()
     assert loaded_user.company_profile is not None
@@ -205,10 +213,11 @@ async def test_company_profile_user_id_uniqueness(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     # Create first company profile
     company1 = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="First Company",
     )
     session.add(company1)
@@ -216,7 +225,7 @@ async def test_company_profile_user_id_uniqueness(session: AsyncSession):
 
     # Try to create second company profile with same user_id
     company2 = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Second Company",
     )
     session.add(company2)
@@ -238,9 +247,10 @@ async def test_company_profile_valid_user_id_creates_relationship(
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Valid Company",
     )
     session.add(company)
@@ -262,17 +272,19 @@ async def test_company_profile_query_by_user_id(session: AsyncSession):
     )
     session.add(user)
     await session.flush()
+    assert user.id is not None
 
     company = CompanyProfile(
-        user_id=user.id,  # type: ignore[arg-type]
+        user_id=user.id,
         name="Query Company",
     )
     session.add(company)
     await session.commit()
 
     # Query by user_id
+    assert user.id is not None
     result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.user_id == user.id)  # type: ignore[arg-type]
+        select(CompanyProfile).where(CompanyProfile.user_id == user.id)  # pyright: ignore[reportArgumentType]
     )
     found_company = result.scalar_one_or_none()
 

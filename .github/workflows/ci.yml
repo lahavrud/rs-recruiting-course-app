@@ -102,7 +102,7 @@ jobs:
         run: uv pip install --system -r requirements.txt
 
       - name: Run Tests
-        run: uv run pytest
+        run: uv run pytest -n auto
 
   docker-build:
     runs-on: ubuntu-latest

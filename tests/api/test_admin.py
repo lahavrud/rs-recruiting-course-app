@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
+from sqlmodel import SQLModel
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin, get_current_user
@@ -14,7 +15,7 @@ from src.main import app
 from src.models import User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.auth import register_company_user
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, test_engine
 
 
 async def override_get_session():
@@ -23,9 +24,19 @@ async def override_get_session():
         yield session
 
 
-@pytest.fixture(scope="function")
-async def admin_user(test_db):
-    """Create an admin user for authentication."""
+@pytest.fixture(scope="session")
+async def admin_user():
+    """Create an admin user for authentication.
+
+    Session-scoped fixture: same admin user reused across all tests in the session.
+    This reduces database setup overhead significantly.
+
+    Ensures database tables exist before creating the admin user.
+    """
+    # Ensure tables exist (idempotent)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
     async with TestSessionLocal() as session:
         admin = User(
             email="admin@test.com",
@@ -55,9 +66,13 @@ async def company_user(test_db):
             return result.user
 
 
-@pytest.fixture(scope="function")
-async def client(test_db, admin_user):
-    """Create test client with overridden dependencies."""
+@pytest.fixture(scope="session")
+async def client(admin_user):
+    """Create test client with overridden dependencies.
+
+    Session-scoped fixture: same client reused across all tests in the session.
+    This reduces AsyncClient creation overhead significantly.
+    """
     # Override database dependency
     app.dependency_overrides[get_session] = override_get_session
 
@@ -203,6 +218,9 @@ async def test_reject_company_already_approved(client: AsyncClient, company_user
 @pytest.mark.asyncio
 async def test_admin_endpoints_require_auth(test_db):
     """Test that admin endpoints require authentication."""
+    # Clear any existing overrides from session-scoped fixtures
+    app.dependency_overrides.clear()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Override only database, not auth
@@ -218,6 +236,9 @@ async def test_admin_endpoints_require_auth(test_db):
 @patch("src.services.auth.enqueue_email_task")
 async def test_admin_endpoints_require_admin_role(mock_enqueue_email, test_db):
     """Test that admin endpoints require admin role."""
+    # Clear any existing overrides from session-scoped fixtures
+    app.dependency_overrides.clear()
+
     mock_enqueue_email.return_value = "test-job-id"
     # Create a company user (not admin)
     async with TestSessionLocal() as session:
