@@ -1,0 +1,15 @@
+# Testing Rules
+
+*See @QA_EXPERT for testing strategy and quality assurance processes.*
+
+**See `docs/CONTEXT.md` Section 2 for complete testing guidelines.**
+
+## Testing Requirements
+
+* `pytest` must pass before merging
+* Prefer simple unit tests over complex mocks
+* Auth flows (register / login) **MUST** have tests
+* Any DB write logic **MUST** be covered by at least one test
+* Prefer SQLite in-memory DB for tests
+* **SQLite FK Constraints:** Test databases use `enable_sqlite_foreign_keys()` from `tests/conftest.py` to enforce foreign key constraints, ensuring test behavior matches PostgreSQL production behavior
+* If logic changes, verify existing tests still pass

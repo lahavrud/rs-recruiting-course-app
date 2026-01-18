@@ -1,0 +1,49 @@
+# Coding Standards (Python / FastAPI)
+
+*See @DEV_LEAD for technical standards and code quality guidelines.*
+
+**See `docs/CONTEXT.md` Section 2 for complete coding standards details.**
+
+## Language & Typing
+
+* Python 3.12+
+* Strict type hints required
+* Prefer explicit return types
+
+## Business Logic & Service Layer
+
+**When to use services (`src/services/`):**
+* Complex business logic (multi-step operations, validations, domain rules)
+* Logic that needs to be reused across multiple endpoints
+* Logic that should be testable without HTTP layer
+* Domain-specific operations (e.g., `services/auth.py`, `services/jobs.py`)
+
+**When to keep logic in routers:**
+* Simple CRUD operations (single model, no complex validation)
+* Trivial transformations
+* Direct pass-through to database
+
+**Service Layer Rules:**
+* Services should NOT import FastAPI (keep HTTP-agnostic)
+* Services raise domain exceptions (`services/exceptions.py`)
+* Routers convert domain exceptions to HTTP responses
+* Services accept `AsyncSession` as parameter (dependency injection)
+
+## Docstrings
+
+* Use Google-style docstrings
+* Only for non-trivial logic
+
+## Async Database Rules
+
+* ALWAYS use `await session.execute(...)` or `await session.get(...)`
+* NEVER use blocking I/O inside async functions
+* ALWAYS inject DB session via `get_session` dependency
+* Services must not manage DB lifecycle directly
+
+## Pydantic & SQLModel
+
+* Keep **schemas** (`schemas.py`) separate from **models** (`models.py`)
+* Use `Create / Read / Update` schema patterns
+* Never expose sensitive fields (passwords, tokens)
+* All DB tables must use `table=True`

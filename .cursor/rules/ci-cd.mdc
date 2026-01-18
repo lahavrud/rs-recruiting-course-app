@@ -1,0 +1,18 @@
+# CI/CD Expectations & Branch Protection
+
+## CI Requirements
+
+* Code must pass CI before merge to `main`
+* **Wait for CI to complete** before merging PRs
+* Fix failing CI before adding new features
+* Never bypass failing tests
+
+## Branch Protection
+
+`main` branch is protected via Repository Ruleset:
+- Required: CI checks (`lint`, `test`) must pass
+- Required: Branch must be up to date before merging
+- Required: Pull requests required (no direct pushes)
+- **No bypass:** Even administrators cannot bypass rules
+- **No force pushes:** Non-fast-forward protection enabled
+- **No deletion:** Branch deletion prevented

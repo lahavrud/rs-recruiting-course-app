@@ -1,0 +1,14 @@
+# Development Focus
+
+## Core Principles
+
+* Work on **one vertical slice at a time**
+* Do not over-engineer future features
+* If unsure: choose the **simpler, documented** solution
+* Focus exclusively on the **current active vertical slice**
+* Deliver working functionality over theoretical completeness
+
+## References
+
+* See `docs/CONTEXT.md` for Core Philosophy and Domain Model
+* See `docs/ARCHITECTURE.md` for design principles and infrastructure decisions

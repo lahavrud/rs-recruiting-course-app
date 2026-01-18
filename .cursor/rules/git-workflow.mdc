@@ -1,0 +1,42 @@
+# Git & GitHub Standards
+
+*See @GIT_MASTER for Git workflow and repository management details.*
+
+## Commit Messages
+Always use **Conventional Commits**:
+
+- `feat(scope): description`
+- `fix(scope): description`
+- `chore(infra): description`
+- `refactor(scope): description`
+- `docs(scope): description`
+
+## Branch Naming
+- Features: `feat/short-description`
+- Fixes: `fix/short-description`
+- Chores: `chore/short-description`
+- Documentation: `docs/short-description`
+- Refactoring: `refactor/short-description`
+
+## Trunk-Based Development
+- Short-lived branches (hours → 1 day), merged via PR
+- Keep `main` always deployable
+
+## GitHub CLI (`gh`) Defaults
+When performing GitHub actions, **always** use the following without asking:
+
+### Creating Issues (`gh issue create`)
+- `--assignee "@me"`
+- `--project "RS Recruitment - MVP"`
+- `--label` (Choose appropriately, always include P1 / P2 / P3)
+- `--milestone` (Choose appropriate milestone: "Infrastructure Phase", "Company Slice", "Job Slice", "Candidate Slice", "Match Slice", "Frontend", "Deployment")
+- **Body:** Use `.github/ISSUE_TEMPLATE/task.md`
+  - Goal
+  - Tasks (Checklist)
+  - Definition of Done
+
+### Creating Pull Requests (`gh pr create`)
+- `--assignee "@me"`
+- `--base main`
+- `--milestone` (Should match the milestone of the linked issue, or will auto-inherit from linked issue via workflow)
+- **Body:** Clear summary of changes + related issue (use "Closes #123" to link issue and auto-inherit milestone)

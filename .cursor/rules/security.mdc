@@ -1,0 +1,8 @@
+# Security Baseline
+
+## Security Requirements (Minimal but Strict)
+
+* Passwords must be hashed using `bcrypt`
+* JWT secrets must come from environment variables
+* Auth logic lives only in `src/core/infrastructure/security.py`
+* Never return credentials or tokens in logs or responses

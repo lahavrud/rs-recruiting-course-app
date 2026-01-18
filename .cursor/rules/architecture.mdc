@@ -1,0 +1,40 @@
+# Project Structure & Architecture
+
+*See @ARCHITECT for architecture and design pattern decisions.*
+
+**See `docs/CONTEXT.md` Section 2 for complete structure details.**
+
+## Project Structure (Canonical)
+
+```text
+src/
+├── main.py                # FastAPI app entrypoint
+├── models.py              # SQLModel DB tables
+├── enums.py               # Enumeration types (UserRole, JobStatus, ApplicationStatus)
+├── schemas.py             # Pydantic schemas
+├── api/                   # FastAPI routers (thin)
+│   ├── auth.py
+│   ├── companies.py       # Planned: Company slice
+│   └── jobs.py            # Planned: Job slice
+├── services/              # Domain-specific business logic
+│   ├── auth.py
+│   └── exceptions.py
+├── core/                  # Cross-cutting infrastructure
+│   ├── tasks.py           # Arq task definitions for async background jobs
+│   ├── infrastructure/    # Pure infrastructure
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── security.py
+│   │   ├── limiter.py
+│   │   └── dependencies.py
+│   └── services/          # Infrastructure services
+│       ├── email.py
+│       └── storage.py
+tests/                     # Mirrors source structure
+├── api/                   # Integration tests
+├── services/              # Unit tests for domain services
+└── core/                  # Tests for infrastructure
+    ├── infrastructure/    # Tests for infrastructure modules
+    ├── services/          # Tests for infrastructure services
+    └── test_tasks.py      # Tests for async task processing
+```
