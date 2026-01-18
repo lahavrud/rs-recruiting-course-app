@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import admin, auth, jobs_read, jobs_write
+from src.api import admin_companies, admin_jobs, auth, jobs_read, jobs_write, public
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import init_db
 from src.core.tasks import close_redis_pool
@@ -35,9 +35,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(admin.router)
+app.include_router(admin_companies.router)
+app.include_router(admin_jobs.router)
 app.include_router(jobs_read.router)
 app.include_router(jobs_write.router)
+app.include_router(public.router)
 
 
 @app.get("/health")

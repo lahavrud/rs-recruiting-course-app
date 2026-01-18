@@ -61,3 +61,9 @@ class JobCannotBeUpdatedError(Exception):
     """Raised when attempting to update a job that cannot be updated."""
 
     pass
+
+
+class JobNotPendingError(Exception):
+    """Raised when attempting to approve/reject a job that is not pending."""
+
+    pass

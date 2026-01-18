@@ -8,7 +8,10 @@ from src.core.infrastructure.dependencies import get_current_admin
 from src.models import User
 from src.schemas import ApprovedCompanyRead, PendingCompanyRead
 from src.services.admin import approve_company, list_pending_companies, reject_company
-from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
+from src.services.exceptions import (
+    CompanyNotFoundError,
+    CompanyNotPendingError,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 

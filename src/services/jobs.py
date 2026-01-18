@@ -111,7 +111,9 @@ async def list_company_jobs(company_id: int, session: AsyncSession) -> list[JobR
         List of jobs as JobRead schemas
     """
     result = await session.execute(
-        select(Job).where(Job.company_id == company_id).order_by(desc(Job.created_at))  # pyright: ignore[reportArgumentType]
+        select(Job)
+        .where(Job.company_id == company_id)  # pyright: ignore[reportArgumentType]
+        .order_by(desc(Job.created_at))  # pyright: ignore[reportArgumentType]
     )
     jobs = result.scalars().all()
     return [JobRead.model_validate(job) for job in jobs]

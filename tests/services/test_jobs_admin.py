@@ -1,0 +1,218 @@
+"""Unit tests for admin job approval service functions."""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.enums import JobStatus, UserRole
+from src.models import CompanyProfile, Job, User
+from src.services.exceptions import JobNotFoundError, JobNotPendingError
+from src.services.jobs_admin import approve_job, list_pending_jobs, reject_job
+
+
+@pytest.fixture
+async def company_with_user(session: AsyncSession) -> CompanyProfile:
+    """Create a company user and profile for testing."""
+    user = User(
+        email="company@test.com",
+        hashed_password="hashed",
+        role=UserRole.COMPANY,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    assert user.id is not None
+
+    company = CompanyProfile(
+        user_id=user.id,
+        name="Test Company",
+        contact_person="John Doe",
+        contact_phone="123-456-7890",
+    )
+    session.add(company)
+    await session.commit()
+    await session.refresh(company)
+    assert company.id is not None
+    return company
+
+
+@pytest.fixture
+async def pending_job(session: AsyncSession, company_with_user: CompanyProfile) -> Job:
+    """Create a pending job for testing."""
+    assert company_with_user.id is not None
+    job = Job(
+        company_id=company_with_user.id,
+        title="Senior Python Developer",
+        description="We are looking for a senior Python developer...",
+        requirements="5+ years experience with Python, FastAPI, PostgreSQL",
+        location="Tel Aviv, Israel",
+        status=JobStatus.PENDING_APPROVAL,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.id is not None
+    return job
+
+
+@pytest.mark.asyncio
+async def test_list_pending_jobs_empty(session: AsyncSession):
+    """Test listing pending jobs when none exist."""
+    jobs = await list_pending_jobs(session)
+    assert jobs == []
+
+
+@pytest.mark.asyncio
+async def test_list_pending_jobs(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Test listing pending jobs."""
+    # Create multiple pending jobs
+    job1 = Job(
+        company_id=company_with_user.id,
+        title="Job 1",
+        description="Description 1",
+        requirements="Requirements 1",
+        location="Location 1",
+        status=JobStatus.PENDING_APPROVAL,
+    )
+    job2 = Job(
+        company_id=company_with_user.id,
+        title="Job 2",
+        description="Description 2",
+        requirements="Requirements 2",
+        location="Location 2",
+        status=JobStatus.PENDING_APPROVAL,
+    )
+    # Create a published job (should not be included)
+    published_job = Job(
+        company_id=company_with_user.id,
+        title="Published Job",
+        description="Description",
+        requirements="Requirements",
+        location="Location",
+        status=JobStatus.PUBLISHED,
+    )
+    session.add(job1)
+    session.add(job2)
+    session.add(published_job)
+    await session.commit()
+
+    jobs = await list_pending_jobs(session)
+
+    assert len(jobs) == 2
+    assert all(job.status == JobStatus.PENDING_APPROVAL for job in jobs)
+    # Should be ordered by creation date (oldest first)
+    assert jobs[0].title == "Job 1"
+    assert jobs[1].title == "Job 2"
+
+
+@pytest.mark.asyncio
+@patch("src.services.jobs_admin.enqueue_email_task")
+async def test_approve_job_success(
+    mock_enqueue_email: AsyncMock,
+    session: AsyncSession,
+    pending_job: Job,
+):
+    """Test approving a job successfully."""
+    mock_enqueue_email.return_value = "test-job-id"
+    assert pending_job.id is not None
+
+    result = await approve_job(pending_job.id, session)
+    await session.commit()
+    await session.refresh(pending_job)
+
+    assert result.id == pending_job.id
+    assert result.status == JobStatus.PUBLISHED
+    assert pending_job.status == JobStatus.PUBLISHED
+
+    # Verify email was sent
+    mock_enqueue_email.assert_called_once()
+    call_args = mock_enqueue_email.call_args
+    assert call_args.kwargs["to"] == "company@test.com"
+    assert "approved" in call_args.kwargs["subject"].lower()
+    assert pending_job.title in call_args.kwargs["body"]
+
+
+@pytest.mark.asyncio
+async def test_approve_job_not_found(session: AsyncSession):
+    """Test approving a non-existent job."""
+    with pytest.raises(JobNotFoundError, match="not found"):
+        await approve_job(99999, session)
+
+
+@pytest.mark.asyncio
+async def test_approve_job_already_published(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Test approving an already published job."""
+    job = Job(
+        company_id=company_with_user.id,
+        title="Published Job",
+        description="Description",
+        requirements="Requirements",
+        location="Location",
+        status=JobStatus.PUBLISHED,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.id is not None
+
+    with pytest.raises(JobNotPendingError, match="not pending"):
+        await approve_job(job.id, session)
+
+
+@pytest.mark.asyncio
+@patch("src.services.jobs_admin.enqueue_email_task")
+async def test_reject_job_success(
+    mock_enqueue_email: AsyncMock,
+    session: AsyncSession,
+    pending_job: Job,
+):
+    """Test rejecting a job successfully."""
+    mock_enqueue_email.return_value = "test-job-id"
+    assert pending_job.id is not None
+
+    await reject_job(pending_job.id, session)
+    await session.commit()
+    await session.refresh(pending_job)
+
+    assert pending_job.status == JobStatus.CLOSED
+
+    # Verify email was sent
+    mock_enqueue_email.assert_called_once()
+    call_args = mock_enqueue_email.call_args
+    assert call_args.kwargs["to"] == "company@test.com"
+    assert "rejected" in call_args.kwargs["subject"].lower()
+    assert pending_job.title in call_args.kwargs["body"]
+
+
+@pytest.mark.asyncio
+async def test_reject_job_not_found(session: AsyncSession):
+    """Test rejecting a non-existent job."""
+    with pytest.raises(JobNotFoundError, match="not found"):
+        await reject_job(99999, session)
+
+
+@pytest.mark.asyncio
+async def test_reject_job_already_published(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Test rejecting an already published job."""
+    job = Job(
+        company_id=company_with_user.id,
+        title="Published Job",
+        description="Description",
+        requirements="Requirements",
+        location="Location",
+        status=JobStatus.PUBLISHED,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.id is not None
+
+    with pytest.raises(JobNotPendingError, match="not pending"):
+        await reject_job(job.id, session)

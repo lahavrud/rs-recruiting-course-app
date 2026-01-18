@@ -17,9 +17,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore::DeprecationWarning:jose.*",
-]
-# Allow session-scoped async fixtures in test_admin.py
-asyncio_fixtures = [
-    "tests/api/test_admin.py::admin_user:session",
-    "tests/api/test_admin.py::client:session",
+    "ignore::DeprecationWarning:pytest_asyncio.*",
+    "ignore::pytest.PytestConfigWarning:pytest.*",
 ]
