@@ -40,3 +40,33 @@ When performing GitHub actions, **always** use the following without asking:
 - `--base main`
 - `--milestone` (Should match the milestone of the linked issue, or will auto-inherit from linked issue via workflow)
 - **Body:** Clear summary of changes + related issue (use "Closes #123" to link issue and auto-inherit milestone)
+
+## Project Board Organization
+
+The GitHub Project "RS Recruitment - MVP" uses a focused column structure to avoid "Productive Procrastination":
+
+**Columns:**
+1. **Icebox 🧊** - Nice-to-have, Refactoring, Documentation, Deep Security, Optimization, Deployment
+2. **Blocked ⛔** - Features that depend on other unfinished features
+3. **Ready (MVP) 🎯** - Core business value features ready to be coded NOW
+4. **In Progress 🏗️** - The single task currently being worked on
+
+**Column Assignment Rules:**
+- **Rule 1 (Infra Trap):** CI improvements, refactoring, generic utils, docs, deployment → **Icebox 🧊**
+- **Rule 2 (Dependencies):** If Feature B requires Feature A (not done) → **Blocked ⛔**
+- **Rule 3 (The Driver):** ONE feature that unblocks most value → **In Progress 🏗️**
+- **Rule 4 (Ready):** All dependencies met, core business value → **Ready (MVP) 🎯**
+
+**Workflow:**
+- Only ONE issue in "In Progress" at a time
+- Backend-first: Complete backend API MVP before frontend
+- Move to "In Progress" when starting work (move previous to Done)
+- Keep deployment/infrastructure tasks in Icebox until MVP complete
+
+**Current Status:**
+- **In Progress:** feat2 (#84) - Admin Approval Flow (THE DRIVER)
+- **Ready (MVP):** feat5 (#87), frontend1 (#91)
+- **Blocked:** feat3-4, feat6-8, frontend2-3 (dependencies not met)
+- **Icebox:** All deployment tasks (devops1-4)
+
+**See:** `docs/GITHUB_ORGANIZATION.md` for detailed project board documentation

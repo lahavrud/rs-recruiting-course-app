@@ -99,25 +99,87 @@ Use **Conventional Commits** format:
 
 ### Project: "RS Recruitment - MVP"
 
-The project has multiple views for different purposes:
+The project uses a focused column structure to avoid "Productive Procrastination" (over-engineering infrastructure) and maintain MVP focus.
 
 **View 1: Project Board (Board Layout)**
-- **Columns:**
-  1. **Backlog** - New issues, not yet prioritized
-  2. **To Do** - Prioritized and ready to start
-  3. **In Progress** - Currently being worked on
-  4. **In Review** - PR created, awaiting review/CI
-  5. **Done** - Merged and deployed
+- **Custom Status Field Columns:**
+  1. **Icebox 🧊** - Nice-to-have, Refactoring, Documentation, Deep Security, Optimization
+  2. **Blocked ⛔** - Features that depend on other unfinished features
+  3. **Ready (MVP) 🎯** - Core business value features ready to be coded NOW
+  4. **In Progress 🏗️** - The single task currently being worked on
 
-- **Automation Rules:**
-  - When issue is assigned → Move to "To Do"
-  - When PR is created → Move to "In Review"
-  - When PR is merged → Move to "Done"
+- **Column Assignment Rules:**
+
+  **Rule 1: Infra Trap (Icebox 🧊)**
+  - Any task related to "Improving CI", "Refactoring", "Adding generic utils", "Documentation" (unless MVP-required), "Deployment", "Deep Security" (beyond MVP baseline), or "Optimization" (premature)
+  - **→ MUST go to Icebox 🧊**
+
+  **Rule 2: Dependencies (Blocked ⛔)**
+  - If Feature B requires Feature A, and Feature A is not done
+  - **→ Feature B goes to Blocked ⛔**
+
+  **Rule 3: The Driver (In Progress 🏗️)**
+  - Identify the **ONE feature** that unblocks the most value
+  - Should be the next logical step in the vertical slice
+  - Unblocks multiple downstream features
+  - All dependencies are met
+  - Core business value (not infrastructure)
+  - **→ Mark as In Progress 🏗️**
+
+  **Rule 4: Ready (MVP) 🎯**
+  - Features where all dependencies are met ✅
+  - No blockers
+  - Core business value
+  - Ready to be coded NOW
+  - **→ Mark as Ready (MVP) 🎯**
+
+- **Workflow Principles:**
+  - **One Task at a Time**: Only ONE issue should be "In Progress" at any time
+  - **Backend-First**: Complete backend API MVP before building frontend (per ROADMAP.md)
+  - **Vertical Slices**: Work through features sequentially within each slice
+  - **MVP Focus**: Avoid moving infrastructure/deployment tasks out of Icebox until MVP is complete
 
 **View 2: Roadmap (Roadmap Layout)**
 - **Purpose:** Visual timeline view showing when work is planned and how milestones align
 - **Status:** Created (can be recreated via CLI if needed)
 - **Configuration:** See [Roadmap Setup Guide](./ROADMAP_SETUP.md) for detailed instructions
+
+### Current Project Board Status
+
+**🏗️ In Progress (1)**
+- **feat2** (#84): Admin Approval Flow for Company Registration
+  - **THE DRIVER** - Unblocks Job Slice (feat3, feat4)
+  - Core business value: enables companies to post jobs
+  - Depends on feat1 ✅ (done)
+
+**🎯 Ready (MVP) (2)**
+- **feat5** (#87): Public Application Form for Candidates
+  - All dependencies met (infra6 ✅)
+  - Can be built independently
+- **frontend1** (#91): Frontend Structure & Setup
+  - All dependencies met (infra7+infra8 ✅)
+  - However, backend-first approach suggests completing backend MVP first
+
+**⛔ Blocked (7)**
+- feat3, feat4 (blocked by feat2)
+- feat6, feat7, feat8 (blocked by previous features in chain)
+- frontend2, frontend3 (blocked by frontend1 + backend APIs)
+
+**🧊 Icebox (4)**
+- All deployment tasks (devops1-4)
+- Infrastructure, not core business value
+- Deployment happens AFTER MVP completion per roadmap
+
+### Updating Project Board Status
+
+When updating issue status in the project board:
+
+1. **Moving to In Progress**: Only when starting work on a new feature (move previous to Done)
+2. **Moving to Ready (MVP)**: When all dependencies are met and feature is ready to code
+3. **Moving to Blocked**: When a dependency is identified that's not yet complete
+4. **Moving to Icebox**: When a task is infrastructure/optimization/refactoring (not core MVP)
+
+**See also:** `.cursor/rules/project-board.mdc` for detailed rules and current status
 
 ---
 
@@ -239,6 +301,7 @@ Milestones are used to track progress against roadmap phases. Each milestone ali
 - **`docs/ROADMAP_STEP_BY_STEP.md`** - Detailed step-by-step roadmap configuration (buttons, dates)
 - **`docs/API_DESIGN.md`** - API endpoints and contracts (when implemented)
 - **`docs/GITHUB_ORGANIZATION.md`** - This file
+- **`.cursor/rules/project-board.mdc`** - Project board organization rules and current status
 
 ---
 
