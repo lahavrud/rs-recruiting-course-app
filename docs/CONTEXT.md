@@ -39,7 +39,15 @@
   - `src/enums.py` – All enumeration types (UserRole, JobStatus, ApplicationStatus)
   - `src/schemas.py` – All Pydantic schemas for request/response validation
   - `src/api/` – API routers, split by domain (vertical slice)
+    - `api/auth.py` – Authentication endpoints (register/login)
+    - `api/admin.py` – Admin endpoints (company approval workflow)
+    - `api/jobs_read.py` – Job read endpoints (GET operations)
+    - `api/jobs_write.py` – Job write endpoints (POST, PUT, DELETE operations)
   - `src/services/` – Domain-specific business logic services
+    - `services/auth.py` – Authentication business logic
+    - `services/admin.py` – Admin approval business logic
+    - `services/jobs.py` – Job management business logic
+    - `services/exceptions.py` – Domain-specific exceptions
   - `src/core/` – Cross-cutting infrastructure
     - `core/tasks.py` – Arq task definitions for async background jobs
     - `core/infrastructure/` – Pure infrastructure (config, database, security, limiter, dependencies)

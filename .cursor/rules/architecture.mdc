@@ -13,11 +13,14 @@ src/
 ├── enums.py               # Enumeration types (UserRole, JobStatus, ApplicationStatus)
 ├── schemas.py             # Pydantic schemas
 ├── api/                   # FastAPI routers (thin)
-│   ├── auth.py
-│   ├── companies.py       # Planned: Company slice
-│   └── jobs.py            # Planned: Job slice
+│   ├── auth.py            # Authentication endpoints (register/login)
+│   ├── admin.py           # Admin endpoints (company approval workflow)
+│   ├── jobs_read.py       # Job read endpoints (GET operations)
+│   └── jobs_write.py      # Job write endpoints (POST, PUT, DELETE operations)
 ├── services/              # Domain-specific business logic
 │   ├── auth.py
+│   ├── admin.py
+│   ├── jobs.py
 │   └── exceptions.py
 ├── core/                  # Cross-cutting infrastructure
 │   ├── tasks.py           # Arq task definitions for async background jobs

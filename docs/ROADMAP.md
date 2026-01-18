@@ -47,10 +47,10 @@ gantt
 
     section 🏢 1. Company Slice
     Company Onboarding (Auth + DB)  :done,    feat1,  after infra4, 5d
-    Admin Approval Flow             :         feat2,  after feat1, 3d
+    Admin Approval Flow             :done,    feat2,  after feat1, 3d
 
     section 💼 2. Job Slice
-    Job Posting (CRUD)              :         feat3,  after feat2, 4d
+    Job Posting (CRUD)              :done,    feat3,  after feat2, 4d
     Public Job Board                :         feat4,  after feat3, 3d
 
     section 👤 3. Candidate Slice

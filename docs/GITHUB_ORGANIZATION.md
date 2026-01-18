@@ -179,7 +179,7 @@ When updating issue status in the project board:
 3. **Moving to Blocked**: When a dependency is identified that's not yet complete
 4. **Moving to Icebox**: When a task is infrastructure/optimization/refactoring (not core MVP)
 
-**See also:** `.cursor/rules/project-board.mdc` for detailed rules and current status
+**Note:** Project board status should be updated directly in GitHub Projects. Current status is reflected in the sections above.
 
 ---
 
@@ -301,7 +301,7 @@ Milestones are used to track progress against roadmap phases. Each milestone ali
 - **`docs/ROADMAP_STEP_BY_STEP.md`** - Detailed step-by-step roadmap configuration (buttons, dates)
 - **`docs/API_DESIGN.md`** - API endpoints and contracts (when implemented)
 - **`docs/GITHUB_ORGANIZATION.md`** - This file
-- **`.cursor/rules/project-board.mdc`** - Project board organization rules and current status
+- **`.cursor/rules/`** - Cursor AI rules for project structure and standards
 
 ---
 
