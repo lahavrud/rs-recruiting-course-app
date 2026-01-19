@@ -13,7 +13,3 @@ Steps to verify the changes.
 
 ## Related Issue
 Closes #
-
-## 🎯 Milestone
-**Milestone:** (Should match the milestone of the linked issue)
-- [ ] Milestone assigned

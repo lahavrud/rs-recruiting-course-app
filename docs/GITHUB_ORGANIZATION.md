@@ -6,10 +6,12 @@ This document outlines the GitHub organization structure and best practices for 
 
 ## 🏷️ Label System
 
+All labels use a **short, standardized format** for consistency and ease of use.
+
 ### Priority Labels
-- **P1** (High/Critical Priority) - Urgent issues, blocking bugs, security issues
-- **P2** (Medium/High Priority) - Important features, non-blocking bugs
-- **P3** (Low/Normal Priority) - Nice-to-have features, minor improvements
+- **P1** - High/Critical Priority (Urgent issues, blocking bugs, security issues)
+- **P2** - Medium/High Priority (Important features, non-blocking bugs)
+- **P3** - Low/Normal Priority (Nice-to-have features, minor improvements)
 
 ### Type Labels
 - **feat** - New feature or request
@@ -22,10 +24,11 @@ This document outlines the GitHub organization structure and best practices for 
 
 ### Scope Labels
 - **backend** - Core server and data management
-- **infra** - Infrastructure, DevOps, system-level changes
-- **frontend** - Frontend/UI changes (when applicable)
+- **frontend** - Frontend/UI changes
 - **api** - API endpoints and contracts
+- **infra** - Infrastructure, DevOps, system-level changes
 - **config** - Configuration files or settings
+- **ci** - CI/CD workflows and pipelines
 
 ### Status Labels
 - **bug** - Something isn't working
@@ -48,17 +51,17 @@ Use for planned work items, features, and development tasks.
 ### Bug Report (`bug_report.md`)
 Use for reporting bugs or unexpected behavior.
 - Includes reproduction steps, expected vs actual behavior
-- Default labels: `bug, P2`
+- Default labels: `bug, fix, P2` (add scope label: backend/frontend/api/infra)
 
 ### Feature Request (`feature_request.md`)
 Use for suggesting new features or enhancements.
 - Includes motivation, proposed solution, acceptance criteria
-- Default labels: `feat, P3`
+- Default labels: `feat, P3` (add scope label: backend/frontend/api/infra)
 
 ### Infrastructure (`infrastructure.md`)
 Use for infrastructure, DevOps, or system-level changes.
 - Includes technical details, environment scope, breaking changes
-- Default labels: `infra, P2`
+- Default labels: `infra, chore, P2` (may also include: ci, config, security)
 
 ---
 
@@ -308,9 +311,9 @@ Milestones are used to track progress against roadmap phases. Each milestone ali
 ## ✅ Checklist for New Issues
 
 - [ ] Used appropriate issue template
-- [ ] Added priority label (P1/P2/P3)
-- [ ] Added type label (feat/fix/chore/etc)
-- [ ] Added scope label (backend/infra/etc)
+- [ ] Added priority label (P1/P2/P3) - **always required**
+- [ ] Added type label (feat/fix/chore/docs/test/refactor/security)
+- [ ] Added scope label (backend/frontend/api/infra/config/ci)
 - [ ] Assigned to project "RS Recruitment - MVP"
 - [ ] Assigned milestone (Infrastructure Phase | Company Slice | Job Slice | Candidate Slice | Match Slice | Frontend | Deployment)
 - [ ] Assigned to yourself (if working on it)
@@ -331,6 +334,11 @@ gh issue create \
   --label "feat,P2,backend" \
   --milestone "Company Slice"
 ```
+
+**Label Format:** Always use short format: `type,priority,scope`
+- **Type:** feat, fix, chore, docs, test, refactor, security
+- **Priority:** P1, P2, P3 (always include one)
+- **Scope:** backend, frontend, api, infra, config, ci
 
 ### Create PR
 ```bash

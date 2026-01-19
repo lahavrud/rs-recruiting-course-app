@@ -28,7 +28,11 @@ When performing GitHub actions, **always** use the following without asking:
 ### Creating Issues (`gh issue create`)
 - `--assignee "@me"`
 - `--project "RS Recruitment - MVP"`
-- `--label` (Choose appropriately, always include P1 / P2 / P3)
+- `--label` (Format: `type,priority,scope` - always include priority)
+  - **Type:** feat, fix, chore, docs, test, refactor, security
+  - **Priority:** P1, P2, P3 (always required)
+  - **Scope:** backend, frontend, api, infra, config, ci
+  - Example: `--label "feat,P2,backend"`
 - `--milestone` (Choose appropriate milestone: "Infrastructure Phase", "Company Slice", "Job Slice", "Candidate Slice", "Match Slice", "Frontend", "Deployment")
 - **Body:** Use `.github/ISSUE_TEMPLATE/task.md`
   - Goal

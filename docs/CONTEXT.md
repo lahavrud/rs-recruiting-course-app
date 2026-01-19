@@ -52,6 +52,7 @@
     - `core/tasks.py` – Arq task definitions for async background jobs
     - `core/infrastructure/` – Pure infrastructure (config, database, security, limiter, dependencies)
     - `core/services/` – Infrastructure services for external systems (email, storage)
+    - See `ARCHITECTURE.md` for infrastructure decision details (storage, email, CORS, etc.)
   - `src/main.py` – FastAPI app entry point
 
 - **Test Structure** (mirrors source structure)
