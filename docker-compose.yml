@@ -52,6 +52,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Optional: Set APP_UID and APP_GID to match your host user's UID/GID
+      # This ensures proper permissions when using bind mounts
+      # Example: args: { APP_UID: "1000", APP_GID: "1000" }
     container_name: rs-recruitment-worker
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./data/rs_recruitment.db}
