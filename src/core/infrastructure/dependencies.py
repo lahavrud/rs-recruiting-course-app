@@ -131,8 +131,8 @@ async def get_current_company(
 
     # Get company profile
     result = await session.execute(
-        select(CompanyProfile).where(  # pyright: ignore[reportArgumentType]
-            CompanyProfile.user_id == current_user.id
+        select(CompanyProfile).where(
+            CompanyProfile.user_id == current_user.id  # type: ignore[comparison-overlap]
         )
     )
     company_profile = result.scalar_one_or_none()

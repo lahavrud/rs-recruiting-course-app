@@ -17,6 +17,8 @@ FORBIDDEN_IMPORTS = {
 
 ALLOWED_FILES = {
     "src/core/infrastructure/dependencies.py",  # Allowed to import FastAPI
+    # Allowed to import FastAPI (converts exceptions to HTTP)
+    "src/core/infrastructure/error_handling.py",
 }
 
 

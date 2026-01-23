@@ -5,6 +5,7 @@ from sqlalchemy import exc as sqlalchemy_exc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
+from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.security import create_access_token
 from src.schemas import LoginRequest, TokenResponse, UserCreate, UserWithCompanyRead
@@ -41,10 +42,7 @@ async def register(
         return result
     except EmailAlreadyExistsError as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except sqlalchemy_exc.IntegrityError as e:
         await session.rollback()
         # Check if it's a unique constraint violation on email
@@ -77,16 +75,8 @@ async def login(
     """
     try:
         user = await authenticate_user(login_data.email, login_data.password, session)
-    except InvalidCredentialsError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        ) from e
-    except InactiveUserError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    except (InvalidCredentialsError, InactiveUserError) as e:
+        raise service_exception_to_http(e) from e
 
     # Create access token
     access_token = create_access_token(

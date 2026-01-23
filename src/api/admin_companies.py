@@ -1,10 +1,11 @@
 """Admin endpoints for company approval workflow."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin
+from src.core.infrastructure.error_handling import service_exception_to_http
 from src.models import User
 from src.schemas import ApprovedCompanyRead, PendingCompanyRead
 from src.services.admin import approve_company, list_pending_companies, reject_company
@@ -19,7 +20,6 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 @router.get(
     "/companies/pending",
     response_model=list[PendingCompanyRead],
-    status_code=status.HTTP_200_OK,
 )
 async def get_pending_companies(
     current_admin: User = Depends(get_current_admin),
@@ -71,18 +71,9 @@ async def approve_company_registration(
         result = await approve_company(company_user_id, session)
         await session.commit()
         return ApprovedCompanyRead.model_validate(result)
-    except CompanyNotFoundError as e:
+    except (CompanyNotFoundError, CompanyNotPendingError) as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
-    except CompanyNotPendingError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except Exception:
         await session.rollback()
         raise
@@ -113,18 +104,9 @@ async def reject_company_registration(
     try:
         await reject_company(company_user_id, session)
         await session.commit()
-    except CompanyNotFoundError as e:
+    except (CompanyNotFoundError, CompanyNotPendingError) as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
-    except CompanyNotPendingError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except Exception:
         await session.rollback()
         raise

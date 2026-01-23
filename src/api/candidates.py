@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
+from src.core.infrastructure.error_handling import service_exception_to_http
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.services.candidates import create_candidate_profile
 from src.services.exceptions import JobNotFoundError
@@ -88,10 +89,7 @@ async def apply_to_job(
         )
         return candidate
     except JobNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

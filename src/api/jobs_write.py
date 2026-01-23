@@ -1,10 +1,11 @@
 """Job write endpoints (POST, PUT, DELETE operations)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_company
+from src.core.infrastructure.error_handling import service_exception_to_http
 from src.models import CompanyProfile, User
 from src.schemas import JobCreate, JobRead, JobUpdate
 from src.services.exceptions import (
@@ -50,18 +51,9 @@ async def create_job_posting(
         result = await create_job(job_data, company_profile.id, session)
         await session.commit()
         return result
-    except CompanyNotFoundError as e:
+    except (CompanyNotFoundError, JobNotFoundError) as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
-    except JobNotFoundError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except Exception:
         await session.rollback()
         raise
@@ -101,24 +93,9 @@ async def update_job_posting(
         result = await update_job(job_id, job_data, company_profile.id, session)
         await session.commit()
         return result
-    except JobNotFoundError as e:
+    except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeUpdatedError) as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
-    except JobNotOwnedByCompanyError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
-    except JobCannotBeUpdatedError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except Exception:
         await session.rollback()
         raise
@@ -151,24 +128,9 @@ async def delete_job_posting(
     try:
         await delete_job(job_id, company_profile.id, session)
         await session.commit()
-    except JobNotFoundError as e:
+    except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeDeletedError) as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
-    except JobNotOwnedByCompanyError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
-    except JobCannotBeDeletedError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
     except Exception:
         await session.rollback()
         raise

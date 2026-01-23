@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_company
+from src.core.infrastructure.error_handling import service_exception_to_http
 from src.models import CompanyProfile, User
 from src.schemas import JobRead
 from src.services.exceptions import JobNotFoundError
@@ -16,7 +17,6 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 @router.get(
     "/",
     response_model=list[JobRead],
-    status_code=status.HTTP_200_OK,
 )
 async def get_company_jobs(
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
@@ -41,7 +41,6 @@ async def get_company_jobs(
 @router.get(
     "/{job_id}",
     response_model=JobRead,
-    status_code=status.HTTP_200_OK,
 )
 async def get_job_posting(
     job_id: int,
@@ -75,7 +74,4 @@ async def get_job_posting(
             )
         return job
     except JobNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+        raise service_exception_to_http(e) from e
