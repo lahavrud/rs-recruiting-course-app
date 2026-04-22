@@ -1,28 +1,62 @@
 """Pydantic schemas for request/response validation."""
 
 import os
+import re
 from datetime import datetime
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from src.enums import ApplicationStatus, JobStatus, UserRole
+
+
+def _validate_phone_value(v: str | None) -> str | None:
+    """Validate phone number format.
+
+    Used by CandidateProfileCreate and CandidateProfileUpdate.
+    """
+    if v is None or v == "":
+        return None
+    pattern = r"^[+\d\s()-]*$"
+    if not re.match(pattern, v):
+        raise ValueError("Phone number may only contain digits, spaces, +, -, (, )")
+    digits = re.sub(r"\D", "", v)
+    if len(digits) < 5:
+        raise ValueError("Phone number must have at least 5 digits")
+    return v
+
+
+def _validate_linkedin_url_value(v: str | None) -> str | None:
+    """Validate LinkedIn URL format.
+
+    Used by CandidateProfileCreate and CandidateProfileUpdate.
+    """
+    if v is None or v == "":
+        return None
+    parsed = urlparse(v)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("LinkedIn URL must start with http:// or https://")
+    hostname = parsed.hostname or ""
+    if not (hostname == "linkedin.com" or hostname.endswith(".linkedin.com")):
+        raise ValueError("LinkedIn URL must be a linkedin.com address")
+    return v
 
 
 # Registration Schemas
 class CompanyProfileCreate(BaseModel):
     """Schema for creating a company profile."""
 
-    name: str
+    name: str = Field(..., max_length=100)
     logo_url: str | None = None
-    contact_person: str | None = None
-    contact_phone: str | None = None
+    contact_person: str | None = Field(None, max_length=100)
+    contact_phone: str | None = Field(None, max_length=30, pattern=r"^[+\d\s()-]*$")
 
 
 class UserCreate(BaseModel):
     """Schema for creating a user (registration)."""
 
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(..., max_length=255)
+    password: str = Field(..., min_length=8)
     company_profile: CompanyProfileCreate
 
 
@@ -78,19 +112,19 @@ class TokenResponse(BaseModel):
 class JobCreate(BaseModel):
     """Schema for creating a job posting."""
 
-    title: str
-    description: str
-    requirements: str
-    location: str
+    title: str = Field(..., max_length=200)
+    description: str = Field(..., max_length=5000)
+    requirements: str = Field(..., max_length=5000)
+    location: str = Field(..., max_length=100)
 
 
 class JobUpdate(BaseModel):
     """Schema for updating a job posting."""
 
-    title: str | None = None
-    description: str | None = None
-    requirements: str | None = None
-    location: str | None = None
+    title: str | None = Field(None, max_length=200)
+    description: str | None = Field(None, max_length=5000)
+    requirements: str | None = Field(None, max_length=5000)
+    location: str | None = Field(None, max_length=100)
     status: JobStatus | None = None
 
 
@@ -133,18 +167,18 @@ class JobPublicRead(BaseModel):
 class CandidateProfileCreate(BaseModel):
     """Schema for creating a candidate profile (application form)."""
 
-    full_name: str
-    email: EmailStr
-    phone: str | None = None
+    full_name: str = Field(..., min_length=2, max_length=100)
+    email: EmailStr = Field(..., max_length=255)
+    phone: str | None = Field(None, max_length=30)
     resume_path: str | None = None
-    linkedin_url: str | None = None
+    linkedin_url: str | None = Field(None, max_length=500)
     # Interview form fields
-    service_concept: str | None = None
-    salary_expectations: str | None = None
-    military_service_details: str | None = None
-    transportation: str | None = None
-    personality_weakness: str | None = None
-    personality_strength: str | None = None
+    service_concept: str | None = Field(None, max_length=2000)
+    salary_expectations: str | None = Field(None, max_length=2000)
+    military_service_details: str | None = Field(None, max_length=2000)
+    transportation: str | None = Field(None, max_length=2000)
+    personality_weakness: str | None = Field(None, max_length=2000)
+    personality_strength: str | None = Field(None, max_length=2000)
 
     @field_validator("resume_path")
     @classmethod
@@ -192,69 +226,65 @@ class CandidateProfileCreate(BaseModel):
             raise ValueError("Path cannot contain '..' (parent directory reference)")
 
         return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        """Validate phone number format."""
+        return _validate_phone_value(v)
+
+    @field_validator("linkedin_url")
+    @classmethod
+    def validate_linkedin_url(cls, v: str | None) -> str | None:
+        """Validate LinkedIn URL format."""
+        return _validate_linkedin_url_value(v)
 
 
 class CandidateProfileUpdate(BaseModel):
     """Schema for updating a candidate profile."""
 
-    full_name: str | None = None
-    email: EmailStr | None = None
-    phone: str | None = None
+    full_name: str | None = Field(None, min_length=2, max_length=100)
+    email: EmailStr | None = Field(None, max_length=255)
+    phone: str | None = Field(None, max_length=30)
     resume_path: str | None = None
-    linkedin_url: str | None = None
-    service_concept: str | None = None
-    salary_expectations: str | None = None
-    military_service_details: str | None = None
-    transportation: str | None = None
-    personality_weakness: str | None = None
-    personality_strength: str | None = None
+    linkedin_url: str | None = Field(None, max_length=500)
+    service_concept: str | None = Field(None, max_length=2000)
+    salary_expectations: str | None = Field(None, max_length=2000)
+    military_service_details: str | None = Field(None, max_length=2000)
+    transportation: str | None = Field(None, max_length=2000)
+    personality_weakness: str | None = Field(None, max_length=2000)
+    personality_strength: str | None = Field(None, max_length=2000)
 
     @field_validator("resume_path")
     @classmethod
     def validate_resume_path(cls, v: str | None) -> str | None:
-        """Validate resume path to prevent path traversal attacks.
-
-        Note: This field is typically not set manually. The service layer
-        handles file uploads and sets resume_path automatically with UUID-based
-        identifiers from the storage provider.
-
-        Security Rules:
-        - Reject paths containing path traversal sequences ('../', '..\\')
-        - Reject absolute paths (starting with '/' or '\\')
-        - Allow None values (optional field)
-
-        Args:
-            v: The resume path to validate
-
-        Returns:
-            The validated path or None
-
-        Raises:
-            ValueError: If path contains malicious patterns
-        """
+        """Validate resume path to prevent path traversal attacks."""
         if v is None:
             return None
-
-        # Reject paths with parent directory traversal sequences
         if "../" in v or "..\\" in v:
             raise ValueError(
                 "Path cannot contain path traversal sequences ('../' or '..\\')"
             )
-
-        # Reject absolute paths
         if v.startswith("/") or v.startswith("\\"):
             raise ValueError(
                 "Path cannot be absolute (must not start with '/' or '\\')"
             )
-
-        # Normalize the path to resolve any redundant separators
         normalized = os.path.normpath(v)
-
-        # Additional check: ensure no path traversal after normalization
         if ".." in normalized:
             raise ValueError("Path cannot contain '..' (parent directory reference)")
-
         return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        """Validate phone number format."""
+        return _validate_phone_value(v)
+
+    @field_validator("linkedin_url")
+    @classmethod
+    def validate_linkedin_url(cls, v: str | None) -> str | None:
+        """Validate LinkedIn URL format."""
+        return _validate_linkedin_url_value(v)
 
 
 class CandidateProfileRead(BaseModel):

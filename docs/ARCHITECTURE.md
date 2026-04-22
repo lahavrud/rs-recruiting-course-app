@@ -236,18 +236,31 @@ These principles guide all architectural decisions:
 - **Auth Flow:** JWT token stored in localStorage, decoded client-side for user info (role, email), verified server-side on every request
 - **Dev Server:** Vite on port 3000 with proxy to backend at :8000
 
+**Routes:**
+| Path | Component | Auth | Description |
+|------|-----------|------|-------------|
+| `/login` | LoginPage | Public | JWT login form |
+| `/jobs` | JobBoardPage | Public | Published job listings |
+| `/jobs/:id` | JobDetailPage | Public | Single job detail |
+| `/jobs/:id/apply` | ApplicationPage | Public | Candidate application form (multipart upload) |
+| `/` | DashboardPage | Protected | Authenticated user dashboard |
+
 **Project Structure:**
 ```
 frontend/
 ├── src/
-│   ├── components/       # Reusable UI components
-│   │   └── layout/       # AppLayout, Header, Sidebar
-│   ├── pages/            # Route-level page components
-│   ├── services/         # API client (Axios), auth service
-│   ├── contexts/         # React Context providers (AuthContext)
-│   ├── hooks/            # Custom hooks (useAuth)
-│   ├── types/            # TypeScript types mirroring backend schemas
-│   └── utils/            # Token storage helpers
+│   ├── components/
+│   │   ├── layout/       # AppShell (root wrapper), Header, Sidebar (auth), PublicHeader (public, inside AppShell)
+│   │   └── ProtectedRoute.tsx
+│   ├── pages/
+│   │   ├── public/       # JobBoardPage, JobDetailPage, ApplicationPage
+│   │   ├── LoginPage.tsx
+│   │   └── DashboardPage.tsx
+│   ├── services/         # api.ts (Axios), auth.ts, jobs.ts
+│   ├── contexts/         # AuthContext
+│   ├── hooks/            # useAuth
+│   ├── types/            # api.ts (all TS types mirroring backend)
+│   └── utils/            # token.ts (localStorage helpers)
 ├── vite.config.ts        # Vite config (Tailwind, proxy, path aliases)
 ├── .env.example          # Environment variable template
 └── package.json
@@ -255,9 +268,10 @@ frontend/
 
 **Related Issues:**
 - [#91](https://github.com/lahavrud/rs-recruitment/issues/91) - frontend1: Frontend Structure & Setup ✅ CLOSED
-- [#92](https://github.com/lahavrud/rs-recruitment/issues/92), [#93](https://github.com/lahavrud/rs-recruitment/issues/93) - frontend2/3: Pages implementation (pending)
+- [#92](https://github.com/lahavrud/rs-recruitment/issues/92) - frontend2: Public Pages ✅ CLOSED
+- [#93](https://github.com/lahavrud/rs-recruitment/issues/93) - frontend3: Admin/Company dashboards (pending)
 
-**Status:** ✅ Implemented (structure & auth), 🔄 Pending (pages)
+**Status:** ✅ Implemented (structure, auth, public pages), 🔄 Pending (dashboards)
 
 ---
 

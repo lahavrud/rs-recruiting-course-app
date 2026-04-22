@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "axios";
@@ -9,6 +9,50 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+
+  // Validation
+  function validateField(name: string, value: string): string {
+    if (name === "email") {
+      if (!value.trim()) return "Email is required";
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) return "Please enter a valid email address";
+    }
+    if (name === "password") {
+      if (!value.trim()) return "Password is required";
+      if (value.length < 8) return "Password must be at least 8 characters";
+    }
+    return "";
+  }
+
+  function validateForm(): boolean {
+    const errors = {
+      email: validateField("email", email),
+      password: validateField("password", password),
+    };
+    setFieldErrors(errors);
+    return !errors.email && !errors.password;
+  }
+
+  function handleBlur(e: FocusEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
+    const error = validateField(name, value);
+    setFieldErrors(prev => ({ ...prev, [name]: error }));
+  }
+
+  function handleEmailChange(e: ChangeEvent<HTMLInputElement>) {
+    setEmail(e.target.value);
+    if (fieldErrors.email) {
+      setFieldErrors(prev => ({ ...prev, email: '' }));
+    }
+  }
+
+  function handlePasswordChange(e: ChangeEvent<HTMLInputElement>) {
+    setPassword(e.target.value);
+    if (fieldErrors.password) {
+      setFieldErrors(prev => ({ ...prev, password: '' }));
+    }
+  }
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {
@@ -18,6 +62,12 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Validate form fields
+    if (!validateForm()) {
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -35,8 +85,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-6 shadow sm:p-8">
         <div>
           <h1 className="text-center text-2xl font-bold text-gray-900">
             RS Recruitment
@@ -64,11 +114,15 @@ export default function LoginPage() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
+                onBlur={handleBlur}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 placeholder="you@example.com"
                 autoComplete="email"
               />
+              {fieldErrors.email && (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -83,11 +137,15 @@ export default function LoginPage() {
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
+                onBlur={handleBlur}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 placeholder="Enter your password"
                 autoComplete="current-password"
               />
+              {fieldErrors.password && (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>
+              )}
             </div>
           </div>
 

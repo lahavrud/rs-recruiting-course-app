@@ -75,6 +75,57 @@ export interface JwtPayload {
   exp: number;
 }
 
+// --- Public Jobs ---
+
+/** Mirrors backend JobPublicRead schema. Status is omitted (only PUBLISHED returned). */
+export interface JobPublicRead {
+  id: number;
+  title: string;
+  description: string;
+  requirements: string;
+  location: string;
+  created_at: string;
+}
+
+// --- Candidates ---
+
+/** Mirrors backend CandidateProfileRead schema. */
+export interface CandidateProfileRead {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  resume_path: string | null;
+  linkedin_url: string | null;
+  service_concept: string | null;
+  salary_expectations: string | null;
+  military_service_details: string | null;
+  transportation: string | null;
+  personality_weakness: string | null;
+  personality_strength: string | null;
+  created_at: string;
+}
+
+/**
+ * Form input shape for the application form.
+ * Submitted as multipart/form-data to POST /api/candidates/apply.
+ */
+export interface CandidateApplicationForm {
+  job_id: number;
+  full_name: string;
+  email: string;
+  phone: string;
+  linkedin_url: string;
+  // Interview questions
+  service_concept: string;
+  salary_expectations: string;
+  military_service_details: string;
+  transportation: string;
+  personality_weakness: string;
+  personality_strength: string;
+  // File — handled separately as File | null
+}
+
 // --- Health ---
 
 export interface HealthResponse {

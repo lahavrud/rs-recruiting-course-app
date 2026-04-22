@@ -164,3 +164,112 @@ def test_nested_valid_path(schema_class, create_kwargs, expected_path):
     """Test that nested paths within uploads/resumes/ are accepted."""
     schema = schema_class(**create_kwargs)
     assert schema.resume_path == expected_path
+
+
+# ---------------------------------------------------------------------------
+# Phone validation tests
+# ---------------------------------------------------------------------------
+
+BASE_CREATE = {"full_name": "Test User", "email": "test@example.com"}
+
+
+@pytest.mark.parametrize(
+    "schema_class,phone,expected",
+    [
+        (CandidateProfileCreate, "+972 50 123 4567", "+972 50 123 4567"),
+        (CandidateProfileCreate, "050-123-4567", "050-123-4567"),
+        (CandidateProfileCreate, "(03) 123 4567", "(03) 123 4567"),
+        (CandidateProfileCreate, None, None),
+        (CandidateProfileCreate, "", None),
+        (CandidateProfileUpdate, "+1 800 555 1234", "+1 800 555 1234"),
+        (CandidateProfileUpdate, None, None),
+    ],
+)
+def test_valid_phone(schema_class, phone, expected):
+    """Test that valid phone numbers are accepted."""
+    kwargs = {"phone": phone}
+    if schema_class is CandidateProfileCreate:
+        kwargs.update(BASE_CREATE)
+    schema = schema_class(**kwargs)
+    assert schema.phone == expected
+
+
+@pytest.mark.parametrize(
+    "schema_class,phone,error_match",
+    [
+        (CandidateProfileCreate, "abc", "digits, spaces"),
+        (CandidateProfileCreate, "123", "at least 5 digits"),
+        (CandidateProfileUpdate, "!@#$", "digits, spaces"),
+        (CandidateProfileUpdate, "1234", "at least 5 digits"),
+    ],
+)
+def test_invalid_phone(schema_class, phone, error_match):
+    """Test that invalid phone numbers are rejected."""
+    kwargs = {"phone": phone}
+    if schema_class is CandidateProfileCreate:
+        kwargs.update(BASE_CREATE)
+    with pytest.raises(ValidationError, match=error_match):
+        schema_class(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn URL validation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "schema_class,url,expected",
+    [
+        (
+            CandidateProfileCreate,
+            "https://www.linkedin.com/in/johndoe",
+            "https://www.linkedin.com/in/johndoe",
+        ),
+        (
+            CandidateProfileCreate,
+            "http://linkedin.com/in/janedoe",
+            "http://linkedin.com/in/janedoe",
+        ),
+        (CandidateProfileCreate, None, None),
+        (CandidateProfileCreate, "", None),
+        (
+            CandidateProfileUpdate,
+            "https://linkedin.com/company/acme",
+            "https://linkedin.com/company/acme",
+        ),
+        (CandidateProfileUpdate, None, None),
+    ],
+)
+def test_valid_linkedin_url(schema_class, url, expected):
+    """Test that valid LinkedIn URLs are accepted."""
+    kwargs = {"linkedin_url": url}
+    if schema_class is CandidateProfileCreate:
+        kwargs.update(BASE_CREATE)
+    schema = schema_class(**kwargs)
+    assert schema.linkedin_url == expected
+
+
+@pytest.mark.parametrize(
+    "schema_class,url,error_match",
+    [
+        # Wrong scheme
+        (CandidateProfileCreate, "ftp://linkedin.com/in/foo", "http"),
+        # Not a linkedin.com host (substring bypass attempt)
+        (
+            CandidateProfileCreate,
+            "https://evil.com/linkedin.com/in/foo",
+            "linkedin.com",
+        ),
+        # Missing scheme
+        (CandidateProfileCreate, "linkedin.com/in/foo", "http"),
+        # Wrong host entirely
+        (CandidateProfileUpdate, "https://notlinkedin.com/in/foo", "linkedin.com"),
+    ],
+)
+def test_invalid_linkedin_url(schema_class, url, error_match):
+    """Test that invalid LinkedIn URLs are rejected."""
+    kwargs = {"linkedin_url": url}
+    if schema_class is CandidateProfileCreate:
+        kwargs.update(BASE_CREATE)
+    with pytest.raises(ValidationError, match=error_match):
+        schema_class(**kwargs)
