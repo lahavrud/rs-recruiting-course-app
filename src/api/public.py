@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.error_handling import service_exception_to_http
-from src.schemas import JobRead
+from src.schemas import JobPublicRead
 from src.services.exceptions import JobNotFoundError
 from src.services.jobs_public import get_published_job, list_published_jobs
 
@@ -14,11 +14,11 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 
 @router.get(
     "/jobs",
-    response_model=list[JobRead],
+    response_model=list[JobPublicRead],
 )
 async def get_public_jobs(
     session: AsyncSession = Depends(get_session),
-) -> list[JobRead]:
+) -> list[JobPublicRead]:
     """List all published jobs for public job board.
 
     No authentication required. Only returns jobs with PUBLISHED status.
@@ -27,7 +27,7 @@ async def get_public_jobs(
         session: Database session
 
     Returns:
-        List of published jobs as JobRead schemas
+        List of published jobs as JobPublicRead schemas
     """
     jobs = await list_published_jobs(session)
     return jobs
@@ -35,12 +35,12 @@ async def get_public_jobs(
 
 @router.get(
     "/jobs/{job_id}",
-    response_model=JobRead,
+    response_model=JobPublicRead,
 )
 async def get_public_job(
     job_id: int,
     session: AsyncSession = Depends(get_session),
-) -> JobRead:
+) -> JobPublicRead:
     """Get a specific published job posting.
 
     No authentication required. Only returns jobs with PUBLISHED status.
@@ -50,7 +50,7 @@ async def get_public_job(
         session: Database session
 
     Returns:
-        Job as JobRead schema
+        Job as JobPublicRead schema
 
     Raises:
         HTTPException: If job not found or not published
