@@ -209,7 +209,6 @@ export default function ApplicationPage() {
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status;
-        const detail = err.response?.data?.detail;
         if (status === 409) {
           setSubmitError(t("publicJobs.application.errors.alreadyApplied"));
         } else if (status === 404) {

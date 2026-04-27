@@ -4,7 +4,7 @@ import { getApplications, updateApplicationStatus } from "@/services/admin";
 import { ApplicationStatus } from "@/types/api";
 import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/api";
 import PageHeader from "@/components/ui/PageHeader";
-import { inputCls, selectCls, textareaCls } from "@/styles/forms";
+import { selectCls, textareaCls } from "@/styles/forms";
 
 const NEXT_STATUSES: Record<string, string[]> = {
   NEW: [ApplicationStatus.APPROVED_BY_ADMIN, ApplicationStatus.REJECTED],
