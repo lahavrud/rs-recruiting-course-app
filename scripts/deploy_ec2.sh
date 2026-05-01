@@ -83,6 +83,9 @@ ECR_REGISTRY="${ECR_REGISTRY}" docker compose -f "${APP_DIR}/docker-compose.depl
 echo "==> Starting services"
 ECR_REGISTRY="${ECR_REGISTRY}" docker compose -f "${APP_DIR}/docker-compose.deploy.yml" up -d
 
+echo "==> Reloading nginx (picks up new API container IP)"
+docker compose -f "${APP_DIR}/docker-compose.deploy.yml" restart nginx
+
 echo "==> Running database migrations"
 docker compose -f "${APP_DIR}/docker-compose.deploy.yml" exec -T api uv run alembic upgrade head
 
