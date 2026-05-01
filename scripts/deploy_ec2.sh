@@ -2,9 +2,6 @@
 # EC2 deploy script — fetches secrets from SSM Parameter Store, generates .env,
 # then deploys. Runs as root via SSM Run Command. Uses the EC2 IAM role for all
 # AWS access — no credentials are stored on the instance or in this script.
-#
-# SSM fallback: if parameters are not yet in SSM, the existing .env is used so
-# deploys continue working during the SSM migration window.
 set -e
 
 APP_DIR="/home/ec2-user/app"
@@ -27,37 +24,45 @@ get_param() {
     --query Parameter.Value --output text 2>/dev/null
 }
 
+# All params are required — deploy fails if any are missing
 JWT_SECRET_KEY=$(get_param /rs-recruitment/prod/JWT_SECRET_KEY) \
-  || { echo "WARNING: SSM parameter not found: JWT_SECRET_KEY" >&2; SSM_OK=false; }
+  || { echo "ERROR: SSM parameter not found: JWT_SECRET_KEY" >&2; SSM_OK=false; }
 DATABASE_URL=$(get_param /rs-recruitment/prod/DATABASE_URL) \
-  || { echo "WARNING: SSM parameter not found: DATABASE_URL" >&2; SSM_OK=false; }
+  || { echo "ERROR: SSM parameter not found: DATABASE_URL" >&2; SSM_OK=false; }
 ALLOWED_ORIGINS=$(get_param /rs-recruitment/prod/ALLOWED_ORIGINS) \
-  || { echo "WARNING: SSM parameter not found: ALLOWED_ORIGINS" >&2; SSM_OK=false; }
+  || { echo "ERROR: SSM parameter not found: ALLOWED_ORIGINS" >&2; SSM_OK=false; }
 AWS_SES_FROM_EMAIL=$(get_param /rs-recruitment/prod/AWS_SES_FROM_EMAIL) \
-  || { echo "WARNING: SSM parameter not found: AWS_SES_FROM_EMAIL" >&2; SSM_OK=false; }
+  || { echo "ERROR: SSM parameter not found: AWS_SES_FROM_EMAIL" >&2; SSM_OK=false; }
+EMAIL_PROVIDER=$(get_param /rs-recruitment/prod/EMAIL_PROVIDER) \
+  || { echo "ERROR: SSM parameter not found: EMAIL_PROVIDER" >&2; SSM_OK=false; }
+REDIS_URL=$(get_param /rs-recruitment/prod/REDIS_URL) \
+  || { echo "ERROR: SSM parameter not found: REDIS_URL" >&2; SSM_OK=false; }
+AWS_REGION=$(get_param /rs-recruitment/prod/AWS_REGION) \
+  || { echo "ERROR: SSM parameter not found: AWS_REGION" >&2; SSM_OK=false; }
+AWS_S3_BUCKET_NAME=$(get_param /rs-recruitment/prod/AWS_S3_BUCKET_NAME) \
+  || { echo "ERROR: SSM parameter not found: AWS_S3_BUCKET_NAME" >&2; SSM_OK=false; }
+STORAGE_PROVIDER=$(get_param /rs-recruitment/prod/STORAGE_PROVIDER) \
+  || { echo "ERROR: SSM parameter not found: STORAGE_PROVIDER" >&2; SSM_OK=false; }
 
-if [ "$SSM_OK" = "true" ]; then
-  echo "==> Writing .env from SSM"
-  mkdir -p "${APP_DIR}"
-  # Use printf to safely handle values that contain special shell characters
-  printf 'JWT_SECRET_KEY=%s\n'       "${JWT_SECRET_KEY}"     >  "${APP_DIR}/.env"
-  printf 'DATABASE_URL=%s\n'         "${DATABASE_URL}"        >> "${APP_DIR}/.env"
-  printf 'ALLOWED_ORIGINS=%s\n'      "${ALLOWED_ORIGINS}"     >> "${APP_DIR}/.env"
-  printf 'AWS_SES_FROM_EMAIL=%s\n'   "${AWS_SES_FROM_EMAIL}"  >> "${APP_DIR}/.env"
-  printf 'REDIS_URL=%s\n'            "redis://redis:6379/0"   >> "${APP_DIR}/.env"
-  printf 'STORAGE_PROVIDER=%s\n'     "s3"                     >> "${APP_DIR}/.env"
-  printf 'EMAIL_PROVIDER=%s\n'       "ses"                    >> "${APP_DIR}/.env"
-  printf 'AWS_REGION=%s\n'           "us-east-1"              >> "${APP_DIR}/.env"
-  printf 'AWS_S3_BUCKET_NAME=%s\n'   "${S3_BUCKET}"           >> "${APP_DIR}/.env"
-  printf 'ENVIRONMENT=%s\n'          "production"             >> "${APP_DIR}/.env"
-  chmod 600 "${APP_DIR}/.env"
-else
-  echo "==> SSM parameters not yet populated — using existing .env"
-  if [ ! -f "${APP_DIR}/.env" ]; then
-    echo "ERROR: No .env file and SSM params missing — cannot deploy" >&2
-    exit 1
-  fi
+if [ "$SSM_OK" = "false" ]; then
+  echo "ERROR: One or more required SSM parameters are missing — cannot deploy" >&2
+  exit 1
 fi
+
+echo "==> Writing .env from SSM"
+mkdir -p "${APP_DIR}"
+# Use printf to safely handle values that contain special shell characters
+printf 'JWT_SECRET_KEY=%s\n'       "${JWT_SECRET_KEY}"       >  "${APP_DIR}/.env"
+printf 'DATABASE_URL=%s\n'         "${DATABASE_URL}"          >> "${APP_DIR}/.env"
+printf 'ALLOWED_ORIGINS=%s\n'      "${ALLOWED_ORIGINS}"       >> "${APP_DIR}/.env"
+printf 'AWS_SES_FROM_EMAIL=%s\n'   "${AWS_SES_FROM_EMAIL}"    >> "${APP_DIR}/.env"
+printf 'EMAIL_PROVIDER=%s\n'       "${EMAIL_PROVIDER}"        >> "${APP_DIR}/.env"
+printf 'REDIS_URL=%s\n'            "${REDIS_URL}"             >> "${APP_DIR}/.env"
+printf 'AWS_REGION=%s\n'           "${AWS_REGION}"            >> "${APP_DIR}/.env"
+printf 'AWS_S3_BUCKET_NAME=%s\n'   "${AWS_S3_BUCKET_NAME}"    >> "${APP_DIR}/.env"
+printf 'STORAGE_PROVIDER=%s\n'     "${STORAGE_PROVIDER}"      >> "${APP_DIR}/.env"
+printf 'ENVIRONMENT=%s\n'          "production"               >> "${APP_DIR}/.env"
+chmod 600 "${APP_DIR}/.env"
 
 echo "==> Logging in to ECR"
 aws ecr get-login-password --region us-east-1 \
