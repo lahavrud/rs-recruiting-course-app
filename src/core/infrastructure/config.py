@@ -106,6 +106,10 @@ def validate_settings() -> None:
             f"(current length: {len(settings.jwt_secret_key)})"
         )
 
+    # Validate email provider config
+    if settings.email_provider == "ses" and not settings.aws_ses_from_email:
+        raise ValueError("AWS_SES_FROM_EMAIL must be set when EMAIL_PROVIDER=ses")
+
 
 def get_jwt_secret_key() -> str:
     """Get JWT secret key (validated, guaranteed non-None).

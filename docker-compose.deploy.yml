@@ -9,10 +9,16 @@
 #        JWT_SECRET_KEY=<generate: python3 -c "import secrets; print(secrets.token_urlsafe(32))">
 #        DATABASE_URL=postgresql+asyncpg://<user>:<password>@<rds-endpoint>:5432/<dbname>
 #        REDIS_URL=redis://redis:6379/0
-#        STORAGE_PROVIDER=local
-#        LOCAL_STORAGE_PATH=/app/data/storage
+#        STORAGE_PROVIDER=s3
+#        AWS_S3_BUCKET_NAME=<bucket>
+#        AWS_ACCESS_KEY_ID=<iam-key>
+#        AWS_SECRET_ACCESS_KEY=<iam-secret>
+#        AWS_REGION=us-east-1
 #        ALLOWED_ORIGINS=https://rs-recruiting.com,https://www.rs-recruiting.com
 #        ENVIRONMENT=production
+#        # Email — AWS SES (same IAM user needs ses:SendEmail + ses:SendRawEmail)
+#        EMAIL_PROVIDER=ses
+#        AWS_SES_FROM_EMAIL=noreply@<your-domain>
 #
 #   3. Sync frontend build from S3 to EC2:
 #        aws s3 sync s3://<bucket>/deploy/dist/ ~/app/frontend/dist/ --delete
