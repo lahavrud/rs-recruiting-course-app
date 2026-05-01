@@ -13,10 +13,10 @@
 #        ecr:GetAuthorizationToken + ecr:BatchGetImage (already set)
 #
 #      Then populate SSM Parameter Store (us-east-1):
-#        /rs-recruitment/prod/jwt_secret_key    (SecureString) — 32+ char random string
-#        /rs-recruitment/prod/database_url      (SecureString) — postgresql+asyncpg://...
-#        /rs-recruitment/prod/allowed_origins   (String)       — https://rs-recruiting.com,...
-#        /rs-recruitment/prod/aws_ses_from_email (String)      — noreply@<your-domain>
+#        /rs-recruitment/prod/JWT_SECRET_KEY    (SecureString) — 32+ char random string
+#        /rs-recruitment/prod/DATABASE_URL      (SecureString) — postgresql+asyncpg://...
+#        /rs-recruitment/prod/ALLOWED_ORIGINS   (String)       — https://rs-recruiting.com,...
+#        /rs-recruitment/prod/AWS_SES_FROM_EMAIL (String)      — noreply@<your-domain>
 #
 #      The deploy script (deploy_ec2.sh) generates .env automatically from SSM.
 #      No manual .env file management required — rotation = update SSM + redeploy.

@@ -20,20 +20,21 @@ echo "==> S3 bucket:    ${S3_BUCKET}"
 echo "==> Fetching secrets from SSM Parameter Store"
 SSM_OK=true
 get_param() {
-  local val
-  if val=$(aws ssm get-parameter --name "$1" --with-decryption \
-             --query Parameter.Value --output text 2>/dev/null); then
-    printf '%s' "$val"
-  else
-    echo "WARNING: SSM parameter not found: $1" >&2
-    SSM_OK=false
-  fi
+  # Returns the parameter value on stdout; exits non-zero if not found.
+  # Must be called as: VAR=$(get_param NAME) || SSM_OK=false
+  # (SSM_OK=false in a subshell $() would NOT propagate — use || in parent shell)
+  aws ssm get-parameter --name "$1" --with-decryption \
+    --query Parameter.Value --output text 2>/dev/null
 }
 
-JWT_SECRET_KEY=$(get_param /rs-recruitment/prod/jwt_secret_key)
-DATABASE_URL=$(get_param /rs-recruitment/prod/database_url)
-ALLOWED_ORIGINS=$(get_param /rs-recruitment/prod/allowed_origins)
-AWS_SES_FROM_EMAIL=$(get_param /rs-recruitment/prod/aws_ses_from_email)
+JWT_SECRET_KEY=$(get_param /rs-recruitment/prod/JWT_SECRET_KEY) \
+  || { echo "WARNING: SSM parameter not found: JWT_SECRET_KEY" >&2; SSM_OK=false; }
+DATABASE_URL=$(get_param /rs-recruitment/prod/DATABASE_URL) \
+  || { echo "WARNING: SSM parameter not found: DATABASE_URL" >&2; SSM_OK=false; }
+ALLOWED_ORIGINS=$(get_param /rs-recruitment/prod/ALLOWED_ORIGINS) \
+  || { echo "WARNING: SSM parameter not found: ALLOWED_ORIGINS" >&2; SSM_OK=false; }
+AWS_SES_FROM_EMAIL=$(get_param /rs-recruitment/prod/AWS_SES_FROM_EMAIL) \
+  || { echo "WARNING: SSM parameter not found: AWS_SES_FROM_EMAIL" >&2; SSM_OK=false; }
 
 if [ "$SSM_OK" = "true" ]; then
   echo "==> Writing .env from SSM"
