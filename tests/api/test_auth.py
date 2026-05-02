@@ -1,5 +1,6 @@
 """Tests for authentication endpoints."""
 
+import base64
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -28,6 +29,7 @@ TestSessionLocal = async_sessionmaker(
 )
 
 FAKE_LOGO_FILE = ("logo.png", b"fake-png-bytes", "image/png")
+FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
 
 
 async def override_get_session():
@@ -72,6 +74,7 @@ def _reg_data(**overrides):
         "contact_first_name": "ישראל",
         "contact_last_name": "ישראלי",
         "contact_mobile_phone": "0501234567",
+        "agreement_signature": FAKE_SIGNATURE_B64,
     }
     data.update(overrides)
     return data
@@ -101,6 +104,8 @@ async def test_register_success(client: AsyncClient):
     assert cp["contact_last_name"] == "ישראלי"
     assert cp["contact_mobile_phone"] == "0501234567"
     assert cp["logo_url"] is not None
+    assert cp["agreement_signature_url"] is not None
+    assert cp["agreement_signed_at"] is not None
 
     async with TestSessionLocal() as session:
         result = await session.execute(
@@ -305,6 +310,47 @@ async def test_register_token_consumed_on_success(client: AsyncClient):
     assert response.status_code == 201
     mock_validate.assert_awaited_once_with("one-time-token")
     mock_consume.assert_awaited_once_with("one-time-token")
+
+
+# ==================== Agreement Signature Tests ====================
+
+
+@pytest.mark.asyncio
+async def test_register_missing_signature(client: AsyncClient):
+    """Test 422 when agreement_signature field is omitted."""
+    data = _reg_data()
+    del data["agreement_signature"]
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=data,
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_invalid_signature(client: AsyncClient):
+    """Test 400 when agreement_signature is not valid base64."""
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(agreement_signature="not-valid-base64!!!"),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_register_empty_signature(client: AsyncClient):
+    """Test 400 when agreement_signature is an empty string."""
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(agreement_signature=""),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert response.status_code in (400, 422)
 
 
 # ==================== Password Complexity Tests ====================

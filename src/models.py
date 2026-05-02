@@ -71,6 +71,13 @@ class CompanyProfile(SQLModel, table=True):
     contact_last_name: str | None = None
     contact_mobile_phone: str | None = None
     contact_landline_phone: str | None = None
+    agreement_signed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    agreement_signature_url: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

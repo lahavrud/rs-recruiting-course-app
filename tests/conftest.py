@@ -2,6 +2,7 @@
 """Shared pytest fixtures for all tests."""
 
 import asyncio
+import base64
 import os
 import tempfile
 from collections.abc import AsyncGenerator
@@ -248,6 +249,10 @@ def _make_company_profile_create(name: str) -> CompanyProfileCreate:
 
 
 _FAKE_LOGO = b"fake-logo-bytes"
+_FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
+
+
+_STRONG_PASSWORD = "SecurePass1!"
 
 
 _STRONG_PASSWORD = "SecurePass1!"
@@ -263,7 +268,7 @@ async def company_user(test_db) -> User:
             company_profile=_make_company_profile_create("Test Company"),
         )
         result = await register_company_user(
-            user_data, session, _FAKE_LOGO, "logo.png", "image/png"
+            user_data, session, _FAKE_LOGO, "logo.png", "image/png", _FAKE_SIGNATURE_B64
         )
         await session.commit()
         return result.user
@@ -279,7 +284,7 @@ async def approved_company_user(test_db) -> User:
             company_profile=_make_company_profile_create("Approved Company"),
         )
         result = await register_company_user(
-            user_data, session, _FAKE_LOGO, "logo.png", "image/png"
+            user_data, session, _FAKE_LOGO, "logo.png", "image/png", _FAKE_SIGNATURE_B64
         )
         result.user.is_active = True
         await session.commit()

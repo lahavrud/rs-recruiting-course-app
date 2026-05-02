@@ -8,7 +8,6 @@
 #   2. Ensure the EC2 IAM role (rs-recruitment-app-role) has permissions for:
 #        ssm:GetParameter + ssm:GetParameters on /rs-recruitment/prod/*
 #        kms:Decrypt via SSM (for SecureString params, uses aws/ssm key)
-#        ses:SendEmail + ses:SendRawEmail (replaces IAM user access keys)
 #        s3:GetObject + s3:PutObject on rs-recruitment-<account-id>
 #        ecr:GetAuthorizationToken + ecr:BatchGetImage (already set)
 #
@@ -17,17 +16,22 @@
 #        /rs-recruitment/prod/DATABASE_URL        — postgresql+asyncpg://...
 #      SSM Parameter Store (us-east-1) — required (String):
 #        /rs-recruitment/prod/ALLOWED_ORIGINS     — https://rs-recruiting.com,...
-#        /rs-recruitment/prod/AWS_SES_FROM_EMAIL  — noreply@<your-domain>
-#        /rs-recruitment/prod/EMAIL_PROVIDER      — ses
+#        /rs-recruitment/prod/EMAIL_PROVIDER      — smtp
+#        /rs-recruitment/prod/SMTP_HOST           — smtp.resend.com
+#        /rs-recruitment/prod/SMTP_PORT           — 587
+#        /rs-recruitment/prod/SMTP_USER           — resend
+#        /rs-recruitment/prod/SMTP_FROM_EMAIL     — noreply@<your-verified-domain>
 #        /rs-recruitment/prod/REDIS_URL           — redis://redis:6379/0
 #        /rs-recruitment/prod/AWS_REGION          — us-east-1
 #        /rs-recruitment/prod/AWS_S3_BUCKET_NAME  — rs-recruitment-<account-id>
 #        /rs-recruitment/prod/STORAGE_PROVIDER    — s3
+#      SSM Parameter Store (us-east-1) — required (SecureString):
+#        /rs-recruitment/prod/SMTP_PASSWORD       — <resend-api-key>
 #
 #      The deploy script (deploy_ec2.sh) generates .env automatically from SSM.
 #      No manual .env file management required — rotation = update SSM + redeploy.
-#      NOTE: JWT_SECRET_KEY and DATABASE_URL must be SecureString (not String).
-#      NOTE: All 9 params are required — deploy fails if any are missing.
+#      NOTE: JWT_SECRET_KEY, DATABASE_URL, and SMTP_PASSWORD must be SecureString (not String).
+#      NOTE: All 13 params are required — deploy fails if any are missing.
 #
 #   3. Sync frontend build from S3 to EC2:
 #        aws s3 sync s3://<bucket>/deploy/dist/ ~/app/frontend/dist/ --delete

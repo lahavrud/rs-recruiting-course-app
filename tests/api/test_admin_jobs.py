@@ -264,8 +264,15 @@ async def test_admin_job_endpoints_require_admin_role(mock_enqueue_email, test_d
                 contact_mobile_phone="0501234567",
             ),
         )
+        import base64
+
         result = await register_company_user(
-            user_data, session, b"fake-logo", "logo.png", "image/png"
+            user_data,
+            session,
+            b"fake-logo",
+            "logo.png",
+            "image/png",
+            base64.b64encode(b"fake-sig").decode(),
         )
         await session.commit()
         company_user = result.user

@@ -1,5 +1,6 @@
 """Tests for admin company approval endpoints."""
 
+import base64
 from unittest.mock import patch
 
 import pytest
@@ -41,7 +42,12 @@ async def test_get_pending_companies(
             ),
         )
         await register_company_user(
-            user_data, session, b"fake-logo", "logo.png", "image/png"
+            user_data,
+            session,
+            b"fake-logo",
+            "logo.png",
+            "image/png",
+            base64.b64encode(b"fake-sig").decode(),
         )
         await session.commit()
 
@@ -214,7 +220,12 @@ async def test_admin_company_endpoints_require_admin_role(mock_enqueue_email, te
             ),
         )
         result = await register_company_user(
-            user_data, session, b"fake-logo", "logo.png", "image/png"
+            user_data,
+            session,
+            b"fake-logo",
+            "logo.png",
+            "image/png",
+            base64.b64encode(b"fake-sig").decode(),
         )
         await session.commit()
         company_user = result.user

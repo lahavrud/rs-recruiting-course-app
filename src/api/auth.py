@@ -69,6 +69,7 @@ async def register(
     contact_last_name: str = Form(...),
     contact_mobile_phone: str = Form(...),
     contact_landline_phone: str | None = Form(None),
+    agreement_signature: str = Form(...),
     logo: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ) -> UserWithCompanyRead:
@@ -102,7 +103,12 @@ async def register(
     try:
         await validate_invite_token(token)
         result = await register_company_user(
-            user_create, session, logo_content, logo_filename, logo_content_type
+            user_create,
+            session,
+            logo_content,
+            logo_filename,
+            logo_content_type,
+            agreement_signature,
         )
         await session.commit()
         await consume_invite_token(token)

@@ -130,6 +130,8 @@ class CompanyProfileRead(BaseModel):
     contact_last_name: str | None
     contact_mobile_phone: str | None
     contact_landline_phone: str | None
+    agreement_signed_at: datetime | None
+    agreement_signature_url: str | None
     created_at: datetime
 
 

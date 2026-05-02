@@ -111,7 +111,7 @@ class SESEmailProvider(EmailProvider):
 
 
 class SMTPEmailProvider(EmailProvider):
-    """SMTP email provider (for development/testing)."""
+    """SMTP email provider."""
 
     def __init__(
         self,

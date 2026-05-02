@@ -1,5 +1,6 @@
 """Unit tests for authentication service layer."""
 
+import base64
 import typing
 
 import pytest
@@ -30,6 +31,7 @@ TestSessionLocal = async_sessionmaker(
 FAKE_LOGO = b"fake-image-bytes"
 FAKE_LOGO_NAME = "logo.png"
 FAKE_LOGO_TYPE = "image/png"
+FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
 
 
 def _make_user_create(email: str = "company@example.com") -> UserCreate:
@@ -66,7 +68,12 @@ async def test_register_company_user_full_data(session: AsyncSession):
     """Test successful company user registration with all fields."""
     user_data = _make_user_create()
     result = await register_company_user(
-        user_data, session, FAKE_LOGO, FAKE_LOGO_NAME, FAKE_LOGO_TYPE
+        user_data,
+        session,
+        FAKE_LOGO,
+        FAKE_LOGO_NAME,
+        FAKE_LOGO_TYPE,
+        FAKE_SIGNATURE_B64,
     )
     await session.commit()
 
@@ -99,11 +106,23 @@ async def test_register_company_user_duplicate_email(session: AsyncSession):
     """Test registration fails when email already exists."""
     user_data = _make_user_create("duplicate@example.com")
 
-    await register_company_user(user_data, session, FAKE_LOGO, FAKE_LOGO_NAME)
+    await register_company_user(
+        user_data,
+        session,
+        FAKE_LOGO,
+        FAKE_LOGO_NAME,
+        agreement_signature=FAKE_SIGNATURE_B64,
+    )
     await session.commit()
 
     with pytest.raises(EmailAlreadyExistsError) as exc_info:
-        await register_company_user(user_data, session, FAKE_LOGO, FAKE_LOGO_NAME)
+        await register_company_user(
+            user_data,
+            session,
+            FAKE_LOGO,
+            FAKE_LOGO_NAME,
+            agreement_signature=FAKE_SIGNATURE_B64,
+        )
     assert "duplicate@example.com" in str(exc_info.value)
 
 
@@ -132,7 +151,13 @@ async def test_register_logo_too_large(session: AsyncSession):
 async def test_authenticate_user_success(session: AsyncSession):
     """Test successful user authentication."""
     user_data = _make_user_create("login@example.com")
-    await register_company_user(user_data, session, FAKE_LOGO, FAKE_LOGO_NAME)
+    await register_company_user(
+        user_data,
+        session,
+        FAKE_LOGO,
+        FAKE_LOGO_NAME,
+        agreement_signature=FAKE_SIGNATURE_B64,
+    )
     await session.commit()
 
     result = await session.execute(
@@ -160,7 +185,13 @@ async def test_authenticate_user_invalid_email(session: AsyncSession):
 async def test_authenticate_user_invalid_password(session: AsyncSession):
     """Test authentication fails with wrong password."""
     user_data = _make_user_create("wrongpass@example.com")
-    await register_company_user(user_data, session, FAKE_LOGO, FAKE_LOGO_NAME)
+    await register_company_user(
+        user_data,
+        session,
+        FAKE_LOGO,
+        FAKE_LOGO_NAME,
+        agreement_signature=FAKE_SIGNATURE_B64,
+    )
     await session.commit()
 
     result = await session.execute(
@@ -178,7 +209,13 @@ async def test_authenticate_user_invalid_password(session: AsyncSession):
 async def test_authenticate_user_inactive(session: AsyncSession):
     """Test authentication fails for inactive users."""
     user_data = _make_user_create("inactive@example.com")
-    await register_company_user(user_data, session, FAKE_LOGO, FAKE_LOGO_NAME)
+    await register_company_user(
+        user_data,
+        session,
+        FAKE_LOGO,
+        FAKE_LOGO_NAME,
+        agreement_signature=FAKE_SIGNATURE_B64,
+    )
     await session.commit()
 
     with pytest.raises(InactiveUserError):

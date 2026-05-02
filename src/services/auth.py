@@ -1,5 +1,6 @@
 """Authentication service layer for business logic."""
 
+import base64
 import math
 from datetime import datetime, timezone
 
@@ -77,18 +78,39 @@ async def _clear_failed_attempts(email: str) -> None:
     await redis.delete(_lockout_key(email))
 
 
+_MAX_SIGNATURE_SIZE = 2 * 1024 * 1024  # 2 MB decoded
+
+
+def _decode_signature(agreement_signature: str) -> bytes:
+    """Decode and validate a base64 PNG signature string."""
+    if not agreement_signature.strip():
+        raise ValueError("Agreement signature is required")
+    try:
+        sig_bytes = base64.b64decode(agreement_signature, validate=True)
+    except Exception as exc:
+        raise ValueError("Invalid signature data") from exc
+    if not sig_bytes:
+        raise ValueError("Agreement signature is required")
+    if len(sig_bytes) > _MAX_SIGNATURE_SIZE:
+        raise ValueError("Signature image exceeds maximum allowed size")
+    return sig_bytes
+
+
 async def register_company_user(
     user_data: UserCreate,
     session: AsyncSession,
     logo_content: bytes,
     logo_filename: str,
     logo_content_type: str | None = None,
+    agreement_signature: str = "",
 ) -> UserWithCompanyRead:
     """Register a new company user with associated company profile."""
     if logo_content_type and logo_content_type not in _ALLOWED_LOGO_TYPES:
         raise ValueError("Logo must be an image file (JPEG, PNG, GIF, or WebP)")
     if len(logo_content) > _MAX_LOGO_SIZE:
         raise ValueError("Logo file size exceeds 5 MB limit")
+
+    sig_bytes = _decode_signature(agreement_signature)
 
     result = await session.execute(
         select(User).where(User.email == user_data.email)  # pyright: ignore[reportArgumentType]
@@ -101,6 +123,8 @@ async def register_company_user(
     logo_identifier = await storage.upload_file(
         logo_content, logo_filename, logo_content_type
     )
+    sig_filename = f"{user_data.company_profile.company_id}_agreement.png"
+    sig_identifier = await storage.upload_file(sig_bytes, sig_filename, "image/png")
 
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
@@ -122,6 +146,8 @@ async def register_company_user(
         contact_last_name=profile.contact_last_name,
         contact_mobile_phone=profile.contact_mobile_phone,
         contact_landline_phone=profile.contact_landline_phone,
+        agreement_signature_url=sig_identifier,
+        agreement_signed_at=datetime.now(timezone.utc),
     )
     session.add(new_company_profile)
     await session.flush()

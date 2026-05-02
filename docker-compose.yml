@@ -35,6 +35,8 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       # Redis Configuration for Arq task queue
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      # Set TESTING=true to disable rate limiting in local dev
+      - TESTING=${TESTING:-false}
     depends_on:
       redis:
         condition: service_healthy
@@ -71,10 +73,6 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
-      - AWS_SES_FROM_EMAIL=${AWS_SES_FROM_EMAIL:-}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
     volumes:
       - ./data:/app/data
     depends_on:

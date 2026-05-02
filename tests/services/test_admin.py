@@ -1,5 +1,6 @@
 """Unit tests for admin service layer."""
 
+import base64
 from unittest.mock import patch
 
 import pytest
@@ -97,11 +98,12 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
             contact_mobile_phone="0501234567",
         ),
     )
+    _sig = base64.b64encode(b"fake-sig").decode()
     await register_company_user(
-        user_data1, session, b"fake-logo", "logo.png", "image/png"
+        user_data1, session, b"fake-logo", "logo.png", "image/png", _sig
     )
     await register_company_user(
-        user_data2, session, b"fake-logo", "logo.png", "image/png"
+        user_data2, session, b"fake-logo", "logo.png", "image/png", _sig
     )
     await session.commit()
 
@@ -118,7 +120,12 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
         ),
     )
     await register_company_user(
-        user_data3, session, b"fake-logo", "logo.png", "image/png"
+        user_data3,
+        session,
+        b"fake-logo",
+        "logo.png",
+        "image/png",
+        base64.b64encode(b"fake-sig").decode(),
     )
     await session.commit()
 
@@ -170,7 +177,12 @@ async def test_approve_company_success(mock_enqueue_email, session: AsyncSession
         ),
     )
     result = await register_company_user(
-        user_data, session, b"fake-logo", "logo.png", "image/png"
+        user_data,
+        session,
+        b"fake-logo",
+        "logo.png",
+        "image/png",
+        base64.b64encode(b"fake-sig").decode(),
     )
     await session.commit()
 
@@ -217,7 +229,12 @@ async def test_approve_company_already_approved(session: AsyncSession):
         ),
     )
     result = await register_company_user(
-        user_data, session, b"fake-logo", "logo.png", "image/png"
+        user_data,
+        session,
+        b"fake-logo",
+        "logo.png",
+        "image/png",
+        base64.b64encode(b"fake-sig").decode(),
     )
     await session.commit()
 
@@ -272,7 +289,12 @@ async def test_reject_company_success(mock_enqueue_email, session: AsyncSession)
         ),
     )
     result = await register_company_user(
-        user_data, session, b"fake-logo", "logo.png", "image/png"
+        user_data,
+        session,
+        b"fake-logo",
+        "logo.png",
+        "image/png",
+        base64.b64encode(b"fake-sig").decode(),
     )
     await session.commit()
 
@@ -322,7 +344,12 @@ async def test_reject_company_already_approved(session: AsyncSession):
         ),
     )
     result = await register_company_user(
-        user_data, session, b"fake-logo", "logo.png", "image/png"
+        user_data,
+        session,
+        b"fake-logo",
+        "logo.png",
+        "image/png",
+        base64.b64encode(b"fake-sig").decode(),
     )
     await session.commit()
 
