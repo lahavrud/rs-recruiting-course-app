@@ -8,7 +8,7 @@ from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus
 from src.models import Application, CandidateProfile, Job
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
-from src.services.admin import get_all_admin_emails
+from src.services.admin_companies import get_all_admin_emails
 from src.services.exceptions import ApplicationAlreadyExistsError, JobNotFoundError
 
 

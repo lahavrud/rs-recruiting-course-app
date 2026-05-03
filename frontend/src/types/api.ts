@@ -176,6 +176,11 @@ export interface ApprovedCompanyRead {
   company_profile: CompanyProfileRead;
 }
 
+export interface ActiveCompanyRead {
+  user: UserRead;
+  company_profile: CompanyProfileRead;
+}
+
 // --- Applications ---
 
 export interface ApplicationRead {

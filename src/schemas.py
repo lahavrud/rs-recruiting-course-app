@@ -465,3 +465,10 @@ class ApprovedCompanyRead(BaseModel):
 
     user: UserRead
     company_profile: CompanyProfileRead
+
+
+class ActiveCompanyRead(BaseModel):
+    """Schema for an active company in the admin company list."""
+
+    user: UserRead
+    company_profile: CompanyProfileRead

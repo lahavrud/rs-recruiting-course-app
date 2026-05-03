@@ -43,7 +43,7 @@ from src.services.auth import register_company_user
 
 _EMAIL_TASK_TARGETS = [
     "src.services.auth.enqueue_email_task",
-    "src.services.admin.enqueue_email_task",
+    "src.services.admin_companies.enqueue_email_task",
     "src.services.jobs.enqueue_email_task",
     "src.services.jobs_admin.enqueue_email_task",
     "src.services.candidates.enqueue_email_task",
@@ -104,7 +104,7 @@ def mock_invite_tokens():
         patch("src.api.auth.consume_invite_token", new_callable=AsyncMock),
         patch("src.api.invites.validate_invite_token", new_callable=AsyncMock),
         patch(
-            "src.services.admin.generate_invite_token",
+            "src.services.admin_invites.generate_invite_token",
             new_callable=AsyncMock,
             return_value=(
                 "test-invite-token-abc123",

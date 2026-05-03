@@ -11,7 +11,7 @@ from src.core.infrastructure.security import get_password_hash
 from src.enums import UserRole
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.admin import (
+from src.services.admin_companies import (
     approve_company,
     get_all_admin_emails,
     list_pending_companies,
@@ -160,7 +160,7 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_approve_company_success(mock_enqueue_email, session: AsyncSession):
     """Test successfully approving a company."""
     mock_enqueue_email.return_value = "test-job-id"
@@ -272,7 +272,7 @@ async def test_approve_company_not_company_role(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_reject_company_success(mock_enqueue_email, session: AsyncSession):
     """Test successfully rejecting a company."""
     mock_enqueue_email.return_value = "test-job-id"

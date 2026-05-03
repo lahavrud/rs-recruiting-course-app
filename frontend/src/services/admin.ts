@@ -4,6 +4,7 @@
  */
 import api from "@/services/api";
 import type {
+  ActiveCompanyRead,
   ApprovedCompanyRead,
   ApplicationRead,
   ApplicationStatusUpdate,
@@ -52,6 +53,15 @@ export async function approveCompany(userId: number): Promise<ApprovedCompanyRea
 
 export async function rejectCompany(userId: number): Promise<void> {
   await api.post(`/api/admin/companies/${userId}/reject`);
+}
+
+export async function getActiveCompanies(): Promise<ActiveCompanyRead[]> {
+  const res = await api.get<ActiveCompanyRead[]>("/api/admin/companies");
+  return res.data;
+}
+
+export async function deleteCompany(userId: number): Promise<void> {
+  await api.delete(`/api/admin/companies/${userId}`);
 }
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────

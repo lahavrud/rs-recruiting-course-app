@@ -1,21 +1,29 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   approveCompany,
   createInvite,
+  deleteCompany,
+  getActiveCompanies,
   getInvites,
   getPendingCompanies,
   rejectCompany,
   resendInvite,
   revokeInvite,
 } from "@/services/admin";
-import type { InviteTokenCreate, InviteTokenRead, PendingCompanyRead } from "@/types/api";
+import type {
+  ActiveCompanyRead,
+  InviteTokenCreate,
+  InviteTokenRead,
+  PendingCompanyRead,
+} from "@/types/api";
 import { InviteTokenStatus } from "@/types/api";
 import PageHeader from "@/components/ui/PageHeader";
-import { inputCls } from "@/styles/forms";
+import { inputCls, selectCls } from "@/styles/forms";
 
-type Tab = "pending" | "invites";
+type Tab = "pending" | "active" | "invites";
+type CompanySort = "name_asc" | "name_desc" | "date_newest" | "date_oldest";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("he-IL", {
@@ -186,6 +194,59 @@ export default function AdminCompaniesPage() {
     }
   }
 
+  // ── Active companies ────────────────────────────────────────────────────────
+  const [activeCompanies, setActiveCompanies] = useState<ActiveCompanyRead[]>([]);
+  const [activeCompaniesLoading, setActiveCompaniesLoading] = useState(false);
+  const [activeCompaniesError, setActiveCompaniesError] = useState<string | null>(null);
+  const [companySearch, setCompanySearch] = useState("");
+  const [companySort, setCompanySort] = useState<CompanySort>("date_newest");
+  const [actingCompany, setActingCompany] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== "active") return;
+    getActiveCompanies()
+      .then((data) => {
+        setActiveCompanies(data);
+        setActiveCompaniesError(null);
+      })
+      .catch(() => setActiveCompaniesError(t("admin.companies.active.loadError")))
+      .finally(() => setActiveCompaniesLoading(false));
+  }, [activeTab, t]);
+
+  const displayedCompanies = useMemo(() => {
+    let list = activeCompanies;
+    const q = companySearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (c) =>
+          c.company_profile.name.toLowerCase().includes(q) ||
+          c.user.email.toLowerCase().includes(q),
+      );
+    }
+    return [...list].sort((a, b) => {
+      if (companySort === "name_asc")
+        return a.company_profile.name.localeCompare(b.company_profile.name, "he");
+      if (companySort === "name_desc")
+        return b.company_profile.name.localeCompare(a.company_profile.name, "he");
+      if (companySort === "date_oldest")
+        return new Date(a.user.created_at).getTime() - new Date(b.user.created_at).getTime();
+      return new Date(b.user.created_at).getTime() - new Date(a.user.created_at).getTime();
+    });
+  }, [activeCompanies, companySearch, companySort]);
+
+  async function handleDeleteCompany(userId: number) {
+    if (!confirm(t("admin.companies.active.deleteConfirm"))) return;
+    setActingCompany(userId);
+    try {
+      await deleteCompany(userId);
+      setActiveCompanies((prev) => prev.filter((c) => c.user.id !== userId));
+    } catch {
+      setActiveCompaniesError(t("admin.companies.active.deleteError"));
+    } finally {
+      setActingCompany(null);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -209,6 +270,19 @@ export default function AdminCompaniesPage() {
               {companies.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("active");
+            setActiveCompaniesLoading(true);
+          }}
+          className={`px-4 py-2 text-sm font-medium transition ${
+            activeTab === "active"
+              ? "border-b-2 border-copper text-copper"
+              : "text-white/50 hover:text-white/75"
+          }`}
+        >
+          {t("admin.companies.tabs.active")}
         </button>
         <button
           onClick={() => {
@@ -293,6 +367,94 @@ export default function AdminCompaniesPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Active companies tab ────────────────────────────────────────────── */}
+      {activeTab === "active" && (
+        <div>
+          {activeCompaniesError && (
+            <div className="mb-4 rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
+              {activeCompaniesError}
+            </div>
+          )}
+
+          {/* Controls: search + sort */}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+            <input
+              type="text"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              placeholder={t("admin.companies.active.searchPlaceholder")}
+              className="w-full rounded-lg border border-white/10 bg-well px-4 py-2 text-sm text-white/80 placeholder:text-white/25 focus:border-copper/40 focus:outline-none sm:max-w-xs"
+            />
+            <select
+              value={companySort}
+              onChange={(e) => setCompanySort(e.target.value as CompanySort)}
+              className={`${selectCls} sm:w-56`}
+            >
+              <option value="date_newest">{t("admin.companies.active.sortDateNewest")}</option>
+              <option value="date_oldest">{t("admin.companies.active.sortDateOldest")}</option>
+              <option value="name_asc">{t("admin.companies.active.sortNameAsc")}</option>
+              <option value="name_desc">{t("admin.companies.active.sortNameDesc")}</option>
+            </select>
+          </div>
+
+          {activeCompaniesLoading ? (
+            <div className="flex justify-center py-16 text-white/25">
+              {t("admin.companies.active.loading")}
+            </div>
+          ) : displayedCompanies.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 py-20 text-center text-sm text-white/25">
+              {t("admin.companies.active.empty")}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-white/8">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/8 bg-well text-left text-xs text-white/40">
+                    <th className="px-4 py-3">{t("admin.companies.active.table.company")}</th>
+                    <th className="px-4 py-3">{t("admin.companies.active.table.contact")}</th>
+                    <th className="px-4 py-3">{t("admin.companies.active.table.joined")}</th>
+                    <th className="px-4 py-3">{t("admin.companies.active.table.actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedCompanies.map((c) => {
+                    const busy = actingCompany === c.user.id;
+                    const contact = [
+                      c.company_profile.contact_first_name,
+                      c.company_profile.contact_last_name,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    return (
+                      <tr
+                        key={c.user.id}
+                        className="border-b border-white/5 last:border-0 hover:bg-card-raised/50"
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-white/85">{c.company_profile.name}</p>
+                          <p className="text-xs text-white/40">{c.user.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-white/50">{contact || "—"}</td>
+                        <td className="px-4 py-3 text-white/40">{formatDate(c.user.created_at)}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleDeleteCompany(c.user.id)}
+                            disabled={busy}
+                            className="rounded-sm border border-danger/25 px-3 py-1 text-xs text-danger transition hover:bg-danger/10 disabled:opacity-40"
+                          >
+                            {busy ? "…" : t("admin.companies.active.delete")}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Invites tab ─────────────────────────────────────────────────────── */}

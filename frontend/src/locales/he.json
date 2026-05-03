@@ -321,7 +321,27 @@
       "loadError": "טעינת החברות הממתינות נכשלה.",
       "tabs": {
         "pending": "ממתינים לאישור",
+        "active": "חברות פעילות",
         "invites": "הזמנות"
+      },
+      "active": {
+        "loading": "טוען…",
+        "empty": "לא נמצאו חברות פעילות.",
+        "loadError": "טעינת החברות נכשלה.",
+        "deleteConfirm": "למחוק לצמיתות את החברה, המשרות והמועמדויות שלה? לא ניתן לבטל פעולה זו.",
+        "deleteError": "מחיקת החברה נכשלה.",
+        "delete": "מחיקה",
+        "searchPlaceholder": "חיפוש לפי שם חברה או אימייל…",
+        "sortNameAsc": "שם (א→ת)",
+        "sortNameDesc": "שם (ת→א)",
+        "sortDateNewest": "הצטרפות (חדש→ישן)",
+        "sortDateOldest": "הצטרפות (ישן→חדש)",
+        "table": {
+          "company": "חברה",
+          "contact": "איש קשר",
+          "joined": "תאריך הצטרפות",
+          "actions": "פעולות"
+        }
       },
       "inviteForm": {
         "title": "הזמנה חדשה",

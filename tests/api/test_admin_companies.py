@@ -66,7 +66,7 @@ async def test_get_pending_companies(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_approve_company_success(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -100,7 +100,7 @@ async def test_approve_company_not_found(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_approve_company_already_approved(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -121,7 +121,7 @@ async def test_approve_company_already_approved(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_reject_company_success(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -150,7 +150,7 @@ async def test_reject_company_not_found(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.enqueue_email_task")
+@patch("src.services.admin_companies.enqueue_email_task")
 async def test_reject_company_already_approved(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):

@@ -21,7 +21,7 @@ from src.core.tasks import enqueue_email_task
 from src.enums import InviteTokenStatus, UserRole
 from src.models import CompanyProfile, InviteToken, RefreshToken, User
 from src.schemas import CompanyProfileRead, UserCreate, UserRead, UserWithCompanyRead
-from src.services.admin import get_all_admin_emails
+from src.services.admin_companies import get_all_admin_emails
 from src.services.exceptions import (
     AccountLockedError,
     EmailAlreadyExistsError,

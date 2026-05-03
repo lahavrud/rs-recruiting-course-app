@@ -9,7 +9,7 @@ from src.core.tasks import enqueue_email_task
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from src.schemas import JobCreate, JobRead, JobUpdate
-from src.services.admin import get_all_admin_emails
+from src.services.admin_companies import get_all_admin_emails
 from src.services.exceptions import (
     CompanyNotFoundError,
     JobCannotBeDeletedError,
