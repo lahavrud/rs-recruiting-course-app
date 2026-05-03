@@ -38,6 +38,27 @@ class InviteToken(SQLModel, table=True):
     )
 
 
+class ActivationToken(SQLModel, table=True):
+    """One-time activation tokens sent to companies after admin approval.
+
+    Admin approval does not activate the account immediately; instead an
+    ActivationToken is generated and emailed to the company.  The company
+    must follow the link to activate their account.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    token: str = Field(unique=True, index=True)
+    company_user_id: int = Field(foreign_key="user.id", index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    used: bool = Field(default=False)
+
+
 class RefreshToken(SQLModel, table=True):
     """Stored refresh tokens for the auth rotation flow.
 
@@ -99,12 +120,17 @@ class CompanyProfile(SQLModel, table=True):
     contact_last_name: str | None = None
     contact_mobile_phone: str | None = None
     contact_landline_phone: str | None = None
+    address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     agreement_signed_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     agreement_signature_url: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
+    )
+    privacy_accepted_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

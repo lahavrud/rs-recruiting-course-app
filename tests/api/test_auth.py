@@ -71,10 +71,12 @@ def _reg_data(**overrides):
         "password": _STRONG_PASSWORD,
         "company_name": "Test Company",
         "company_id": "123456789",
+        "address": "רח׳ הדוגמה 1, תל אביב",
         "contact_first_name": "ישראל",
         "contact_last_name": "ישראלי",
         "contact_mobile_phone": "0501234567",
         "agreement_signature": FAKE_SIGNATURE_B64,
+        "privacy_accepted": "true",
     }
     data.update(overrides)
     return data
@@ -259,7 +261,8 @@ async def test_login_inactive_user(client: AsyncClient):
         json={"email": "inactive@example.com", "password": _STRONG_PASSWORD},
     )
     assert response.status_code == 403
-    assert "inactive" in response.json()["detail"].lower()
+    # Registered but not yet approved → pending_approval detail code
+    assert "pending" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from src.services.exceptions import (
     CompanyNotPendingError,
     EmailAlreadyExistsError,
     InactiveUserError,
+    InvalidActivationTokenError,
     InvalidApplicationStatusTransitionError,
     InvalidCredentialsError,
     InvalidInviteTokenError,
@@ -21,6 +22,8 @@ from src.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
     JobNotPendingError,
+    PendingActivationError,
+    PendingApprovalError,
 )
 
 # Mapping of service exceptions to HTTP status codes
@@ -36,6 +39,10 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     # Forbidden errors (403)
     JobNotOwnedByCompanyError: status.HTTP_403_FORBIDDEN,
     InactiveUserError: status.HTTP_403_FORBIDDEN,
+    PendingApprovalError: status.HTTP_403_FORBIDDEN,
+    PendingActivationError: status.HTTP_403_FORBIDDEN,
+    # Bad request — invalid activation token
+    InvalidActivationTokenError: status.HTTP_400_BAD_REQUEST,
     # Unauthorized errors (401)
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     # Too many requests (429)

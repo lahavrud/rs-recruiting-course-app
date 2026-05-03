@@ -36,12 +36,9 @@ from src.core.services.email import (
     SMTPEmailProvider,
     get_email_provider,
 )
-from src.core.services.storage import (
-    LocalStorageProvider,
-    S3StorageProvider,
-    StorageProvider,
-    get_storage_provider,
-)
+from src.core.services.storage import StorageProvider, get_storage_provider
+from src.core.services.storage_local import LocalStorageProvider
+from src.core.services.storage_s3 import S3StorageProvider
 
 __all__ = [
     # Config

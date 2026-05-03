@@ -4,6 +4,7 @@ import asyncio
 import logging
 import smtplib
 from abc import ABC, abstractmethod
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
@@ -15,6 +16,9 @@ from src.core.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
 
+# (filename, raw_bytes, mimetype)
+Attachment = tuple[str, bytes, str]
+
 
 class EmailProvider(ABC):
     """Abstract base class for email providers."""
@@ -25,20 +29,10 @@ class EmailProvider(ABC):
         to: str | List[str],
         subject: str,
         body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Attachment]] = None,
         from_email: Optional[str] = None,
     ) -> bool:
-        """
-        Send an email.
-
-        Args:
-            to: Recipient email address(es)
-            subject: Email subject
-            body: Email body (plain text)
-            from_email: Sender email address (optional, uses default if not provided)
-
-        Returns:
-            True if sent successfully, False otherwise
-        """
         pass
 
 
@@ -52,15 +46,6 @@ class SESEmailProvider(EmailProvider):
         access_key_id: Optional[str] = None,
         secret_access_key: Optional[str] = None,
     ):
-        """
-        Initialize SES email provider.
-
-        Args:
-            region: AWS region
-            from_email: Default sender email address (must be verified in SES)
-            access_key_id: AWS access key ID (optional, can use IAM role)
-            secret_access_key: AWS secret access key (optional, can use IAM role)
-        """
         self.region = region
         self.from_email = from_email
         self.access_key_id = access_key_id
@@ -72,12 +57,17 @@ class SESEmailProvider(EmailProvider):
         to: str | List[str],
         subject: str,
         body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Attachment]] = None,
         from_email: Optional[str] = None,
     ) -> bool:
-        """Send email via AWS SES."""
-        # Normalize recipients to list
         recipients = [to] if isinstance(to, str) else to
         sender = from_email or self.from_email
+
+        if html_body or attachments:
+            return await self._send_raw(
+                recipients, sender, subject, body, html_body, attachments or []
+            )
 
         async with self.session.client(  # type: ignore[attr-defined]
             "ses",
@@ -99,6 +89,35 @@ class SESEmailProvider(EmailProvider):
                 logger.error(f"SES error sending email: {e}")
                 return False
 
+    async def _send_raw(
+        self,
+        recipients: List[str],
+        sender: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str],
+        attachments: List[Attachment],
+    ) -> bool:
+        msg = _build_mime_message(
+            sender, recipients, subject, body, html_body, attachments
+        )
+        async with self.session.client(  # type: ignore[attr-defined]
+            "ses",
+            region_name=self.region,
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+        ) as ses:
+            try:
+                await ses.send_raw_email(
+                    Source=sender,
+                    Destinations=recipients,
+                    RawMessage={"Data": msg.as_bytes()},
+                )
+                return True
+            except ClientError as e:
+                logger.error(f"SES raw email error: {e}")
+                return False
+
 
 class SMTPEmailProvider(EmailProvider):
     """SMTP email provider."""
@@ -112,17 +131,6 @@ class SMTPEmailProvider(EmailProvider):
         from_email: Optional[str] = None,
         use_tls: bool = True,
     ):
-        """
-        Initialize SMTP email provider.
-
-        Args:
-            smtp_host: SMTP server hostname
-            smtp_port: SMTP server port
-            smtp_user: SMTP username (optional)
-            smtp_password: SMTP password (optional)
-            from_email: Default sender email address
-            use_tls: Whether to use TLS encryption
-        """
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
         self.smtp_user = smtp_user
@@ -136,24 +144,19 @@ class SMTPEmailProvider(EmailProvider):
         sender: str,
         subject: str,
         body: str,
+        html_body: Optional[str],
+        attachments: List[Attachment],
     ) -> bool:
-        """Synchronous SMTP email sending (runs in executor)."""
         try:
-            # Create message
-            msg = MIMEMultipart()
-            msg["From"] = sender
-            msg["To"] = ", ".join(recipients)
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
-
-            # Send email via synchronous SMTP
+            msg = _build_mime_message(
+                sender, recipients, subject, body, html_body, attachments
+            )
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=30) as server:
                 if self.use_tls:
                     server.starttls()
                 if self.smtp_user and self.smtp_password:
                     server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
-
             return True
         except Exception as e:
             logger.error(f"SMTP error sending email: {e}")
@@ -164,29 +167,60 @@ class SMTPEmailProvider(EmailProvider):
         to: str | List[str],
         subject: str,
         body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Attachment]] = None,
         from_email: Optional[str] = None,
     ) -> bool:
-        """Send email via SMTP (non-blocking)."""
         recipients = [to] if isinstance(to, str) else to
         sender = from_email or self.from_email
 
         if not sender:
             raise ValueError("No sender email address configured")
 
-        # Run synchronous SMTP operations in executor to avoid blocking event loop
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
-            None, self._send_smtp_email_sync, recipients, sender, subject, body
+            None,
+            self._send_smtp_email_sync,
+            recipients,
+            sender,
+            subject,
+            body,
+            html_body,
+            attachments or [],
         )
 
 
-def get_email_provider() -> EmailProvider:
-    """
-    Factory function to get email provider based on configuration.
+def _build_mime_message(
+    sender: str,
+    recipients: List[str],
+    subject: str,
+    body: str,
+    html_body: Optional[str],
+    attachments: List[Attachment],
+) -> MIMEMultipart:
+    """Build a MIME message supporting plain text, HTML, and attachments."""
+    outer = MIMEMultipart("mixed")
+    outer["From"] = sender
+    outer["To"] = ", ".join(recipients)
+    outer["Subject"] = subject
 
-    Returns:
-        EmailProvider instance configured from settings
-    """
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(body, "plain", "utf-8"))
+    if html_body:
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+    outer.attach(alt)
+
+    for filename, data, mimetype in attachments:
+        part = MIMEApplication(data, Name=filename)
+        part["Content-Disposition"] = f'attachment; filename="{filename}"'
+        part["Content-Type"] = f'{mimetype}; name="{filename}"'
+        outer.attach(part)
+
+    return outer
+
+
+def get_email_provider() -> EmailProvider:
+    """Factory function to get email provider based on configuration."""
     if settings.email_provider == "ses":
         if not settings.aws_ses_from_email:
             raise ValueError("AWS_SES_FROM_EMAIL must be set when using SES")

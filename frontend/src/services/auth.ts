@@ -51,6 +51,12 @@ export async function getInviteMetadata(
   return res.data;
 }
 
+export async function activateAccount(token: string): Promise<void> {
+  await api.post(`/auth/activate`, null, {
+    params: { token },
+  });
+}
+
 export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken();
   try {

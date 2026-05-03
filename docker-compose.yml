@@ -1,6 +1,14 @@
 version: '3.8'
 
 services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: rs-recruitment-mailpit
+    ports:
+      - "1025:1025"   # SMTP — app sends here
+      - "8025:8025"   # Web UI — http://localhost:8025
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: rs-recruitment-redis
@@ -67,16 +75,14 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       # Hardcoded to Docker service name — .env value (localhost) must not override this
       - REDIS_URL=redis://redis:6379/0
-      # Email: host.docker.internal resolves to the host machine (where smtp_debug.py runs)
-      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
-      - SMTP_HOST=host.docker.internal
-      - SMTP_PORT=${SMTP_PORT:-1025}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      # Email — routes to the Mailpit container; view at http://localhost:8025
+      - EMAIL_PROVIDER=smtp
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_USER=
+      - SMTP_PASSWORD=
       - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@rsrecruit.local}
       - SMTP_USE_TLS=false
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
     depends_on:
@@ -84,6 +90,8 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     command: ["arq", "src.core.tasks.WorkerSettings"]
     restart: unless-stopped
 

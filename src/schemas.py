@@ -43,13 +43,9 @@ def _validate_linkedin_url_value(v: str | None) -> str | None:
 
 
 class InviteTokenCreate(BaseModel):
-    """Admin input for creating an invite."""
+    """Admin input for creating an invite — email only."""
 
     email: EmailStr = Field(..., max_length=255)
-    company_name: str | None = Field(None, max_length=100)
-    contact_first_name: str | None = Field(None, max_length=100)
-    contact_last_name: str | None = Field(None, max_length=100)
-    note: str | None = Field(None, max_length=500)
 
 
 class InviteTokenRead(BaseModel):
@@ -77,9 +73,6 @@ class InviteMetadataPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     email: str
-    company_name: str | None
-    contact_first_name: str | None
-    contact_last_name: str | None
 
 
 # Registration Schemas
@@ -88,6 +81,7 @@ class CompanyProfileCreate(BaseModel):
 
     name: str = Field(..., max_length=100)
     company_id: str  # ח.פ — 9-digit Israeli company registration number
+    address: str = Field(..., max_length=200)
     contact_first_name: str = Field(..., min_length=2, max_length=100)
     contact_last_name: str = Field(..., min_length=2, max_length=100)
     contact_mobile_phone: str
@@ -160,12 +154,14 @@ class CompanyProfileRead(BaseModel):
     name: str
     logo_url: str | None
     company_id: str | None
+    address: str | None
     contact_first_name: str | None
     contact_last_name: str | None
     contact_mobile_phone: str | None
     contact_landline_phone: str | None
     agreement_signed_at: datetime | None
     agreement_signature_url: str | None
+    privacy_accepted_at: datetime | None
     created_at: datetime
 
 

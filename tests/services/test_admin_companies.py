@@ -33,6 +33,7 @@ def _company_create(email: str, name: str) -> UserCreate:
         company_profile=CompanyProfileCreate(
             name=name,
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -117,8 +118,15 @@ async def test_list_pending_companies(mock_email, session: AsyncSession):
 
 @pytest.mark.asyncio
 @patch("src.services.admin_companies.enqueue_email_task")
-async def test_approve_company_success(mock_email, session: AsyncSession):
+@patch("src.services.admin_companies.generate_signed_contract")
+@patch("src.core.services.storage.get_storage_provider")
+async def test_approve_company_success(
+    mock_storage, mock_pdf, mock_email, session: AsyncSession
+):
     mock_email.return_value = "job-id"
+    mock_pdf.return_value = b"%PDF-fake"
+    mock_storage.return_value.download_file = lambda _: b"fake-sig-bytes"
+
     user = await _register(
         _company_create("approve@example.com", "Approve Co"), session
     )
@@ -127,11 +135,12 @@ async def test_approve_company_success(mock_email, session: AsyncSession):
     result = await approve_company(user.id, session)
     await session.commit()
 
-    assert result["user"].is_active is True
+    # Approval creates an activation token but does NOT activate the account yet
+    assert result["user"].is_active is False
     db_user = (
         await session.execute(select(User).where(User.id == user.id))  # pyright: ignore[reportArgumentType]
     ).scalar_one()
-    assert db_user.is_active is True
+    assert db_user.is_active is False
 
 
 @pytest.mark.asyncio

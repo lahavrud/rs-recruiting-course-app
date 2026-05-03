@@ -67,10 +67,13 @@ export interface CompanyProfileRead {
   name: string;
   logo_url: string | null;
   company_id: string | null;
+  address: string | null;
   contact_first_name: string | null;
   contact_last_name: string | null;
   contact_mobile_phone: string | null;
   contact_landline_phone: string | null;
+  agreement_signed_at: string | null;
+  privacy_accepted_at: string | null;
   created_at: string;
 }
 
@@ -230,10 +233,6 @@ export type InviteTokenStatus =
 
 export interface InviteTokenCreate {
   email: string;
-  company_name?: string | null;
-  contact_first_name?: string | null;
-  contact_last_name?: string | null;
-  note?: string | null;
 }
 
 export interface InviteTokenRead {
@@ -253,7 +252,4 @@ export interface InviteTokenRead {
 
 export interface InviteMetadataPublic {
   email: string;
-  company_name: string | null;
-  contact_first_name: string | null;
-  contact_last_name: string | null;
 }

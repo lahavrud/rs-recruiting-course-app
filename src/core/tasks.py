@@ -20,24 +20,11 @@ async def send_email_task(
     to: str | List[str],
     subject: str,
     body: str,
+    html_body: Optional[str] = None,
+    attachments: Optional[List[tuple]] = None,
     from_email: Optional[str] = None,
 ) -> bool:
-    """
-    Async task to send an email.
-
-    This task is enqueued by the application and processed by Arq workers.
-    It handles retries automatically on failure.
-
-    Args:
-        ctx: Arq context (contains job metadata)
-        to: Recipient email address(es)
-        subject: Email subject
-        body: Email body (plain text)
-        from_email: Sender email address (optional)
-
-    Returns:
-        True if sent successfully, False otherwise
-    """
+    """Async task to send an email, processed by Arq workers with auto-retry."""
     logger.info(f"Sending email to {to} with subject: {subject}")
 
     try:
@@ -46,6 +33,8 @@ async def send_email_task(
             to=to,
             subject=subject,
             body=body,
+            html_body=html_body,
+            attachments=attachments,
             from_email=from_email,
         )
 
@@ -53,13 +42,11 @@ async def send_email_task(
             logger.info(f"Email sent successfully to {to}")
         else:
             logger.warning(f"Failed to send email to {to}")
-            # Raise exception to trigger retry
             raise Exception(f"Email provider returned False for {to}")
 
         return success
     except Exception as e:
         logger.error(f"Error sending email to {to}: {e}", exc_info=True)
-        # Re-raise to trigger Arq retry mechanism
         raise
 
 
@@ -122,32 +109,11 @@ async def enqueue_email_task(
     to: str | List[str],
     subject: str,
     body: str,
+    html_body: Optional[str] = None,
+    attachments: Optional[List[tuple]] = None,
     from_email: Optional[str] = None,
 ) -> Optional[str]:
-    """
-    Enqueue an email task for async processing.
-
-    This is the main function to use from application code to send emails
-    asynchronously. The email will be processed by Arq workers.
-
-    Args:
-        to: Recipient email address(es)
-        subject: Email subject
-        body: Email body (plain text)
-        from_email: Sender email address (optional)
-
-    Returns:
-        Job ID if enqueued successfully, None if failed
-
-    Example:
-        ```python
-        job_id = await enqueue_email_task(
-            to="user@example.com",
-            subject="Welcome!",
-            body="Thank you for registering."
-        )
-        ```
-    """
+    """Enqueue an email task for async processing via Arq workers."""
     try:
         pool = await get_redis_pool()
         job = await pool.enqueue_job(
@@ -155,6 +121,8 @@ async def enqueue_email_task(
             to=to,
             subject=subject,
             body=body,
+            html_body=html_body,
+            attachments=attachments,
             from_email=from_email,
         )
         logger.info(f"Enqueued email task {job.job_id} for {to}")

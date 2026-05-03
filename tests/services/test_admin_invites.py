@@ -38,15 +38,8 @@ async def _make_admin(session: AsyncSession) -> int:
     return admin.id
 
 
-def _invite_data(email: str, **kwargs: object) -> InviteTokenCreate:
-    return InviteTokenCreate(
-        email=email,
-        company_name=None,
-        contact_first_name=None,
-        contact_last_name=None,
-        note=None,
-        **kwargs,  # type: ignore[arg-type]
-    )
+def _invite_data(email: str) -> InviteTokenCreate:
+    return InviteTokenCreate(email=email)
 
 
 # ── create_invite ─────────────────────────────────────────────────────────────
@@ -55,18 +48,11 @@ def _invite_data(email: str, **kwargs: object) -> InviteTokenCreate:
 @pytest.mark.asyncio
 async def test_create_invite_success(session: AsyncSession):
     admin_id = await _make_admin(session)
-    data = InviteTokenCreate(
-        email="invite@example.com",
-        company_name="Test Co",
-        contact_first_name="ישראל",
-        contact_last_name="ישראלי",
-        note=None,
-    )
+    data = InviteTokenCreate(email="invite@example.com")
     result = await create_invite(admin_user_id=admin_id, data=data, session=session)
     await session.commit()
 
     assert result.email == "invite@example.com"
-    assert result.company_name == "Test Co"
     assert result.status == InviteTokenStatus.PENDING
 
     db = (

@@ -259,6 +259,7 @@ async def test_admin_job_endpoints_require_admin_role(mock_enqueue_email, test_d
             company_profile=CompanyProfileCreate(
                 name="Company",
                 company_id="123456789",
+                address="רח׳ הדוגמה 1, תל אביב",
                 contact_first_name="ישראל",
                 contact_last_name="ישראלי",
                 contact_mobile_phone="0501234567",

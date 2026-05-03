@@ -302,7 +302,8 @@ async def test_update_status_with_admin_notes(
     )
 
     assert result.admin_notes == "Strong candidate, schedule interview"
-    assert any("Strong candidate" in p["body"] for p in email_payloads)
+    # Notes are now in the html_body (HTML template), not the plain text body
+    assert any("Strong candidate" in p.get("html_body", "") for p in email_payloads)
 
 
 @pytest.mark.asyncio

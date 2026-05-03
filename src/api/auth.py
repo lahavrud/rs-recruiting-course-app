@@ -47,6 +47,8 @@ from src.services.exceptions import (
     InactiveUserError,
     InvalidCredentialsError,
     InvalidInviteTokenError,
+    PendingActivationError,
+    PendingApprovalError,
 )
 
 limiter = get_limiter()
@@ -66,19 +68,27 @@ async def register(
     password: str = Form(...),
     company_name: str = Form(...),
     company_id: str = Form(...),
+    address: str = Form(...),
     contact_first_name: str = Form(...),
     contact_last_name: str = Form(...),
     contact_mobile_phone: str = Form(...),
     contact_landline_phone: str | None = Form(None),
     agreement_signature: str = Form(...),
+    privacy_accepted: bool = Form(...),
     logo: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ) -> UserWithCompanyRead:
     """Register a new company user with a valid single-use invite token."""
+    if not privacy_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="יש לאשר את מדיניות הפרטיות",
+        )
     try:
         profile_data = CompanyProfileCreate(
             name=company_name,
             company_id=company_id,
+            address=address,
             contact_first_name=contact_first_name,
             contact_last_name=contact_last_name,
             contact_mobile_phone=contact_mobile_phone,
@@ -106,6 +116,7 @@ async def register(
             logo_filename,
             logo_content_type,
             agreement_signature,
+            privacy_accepted=privacy_accepted,
         )
         await mark_invite_used(token, session)
         await session.commit()
@@ -148,7 +159,13 @@ async def login(
     """Login and receive JWT access + refresh tokens."""
     try:
         user = await authenticate_user(login_data.email, login_data.password, session)
-    except (InvalidCredentialsError, InactiveUserError, AccountLockedError) as e:
+    except (
+        InvalidCredentialsError,
+        InactiveUserError,
+        PendingApprovalError,
+        PendingActivationError,
+        AccountLockedError,
+    ) as e:
         raise service_exception_to_http(e) from e
 
     access_token, refresh_token = await create_user_tokens(user, session)

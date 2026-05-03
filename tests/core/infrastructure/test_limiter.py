@@ -54,18 +54,30 @@ class TestLimiterTestingMode:
             # Restore original testing value
             settings.testing = original_testing
 
-    def test_limiter_enabled_when_testing_false(self):
-        """Test that rate limiting is enabled when settings.testing=False."""
-        # Save original testing value
+    def test_limiter_enabled_in_production(self):
+        """Test that rate limiting is enabled only in production (non-testing)."""
         original_testing = settings.testing
+        original_env = settings.environment
 
         try:
-            # Set non-testing mode
             settings.testing = False
+            settings.environment = "production"
             limiter = get_limiter()
-
-            # In non-testing mode, limiter should be enabled
             assert limiter.enabled is True
         finally:
-            # Restore original testing value
             settings.testing = original_testing
+            settings.environment = original_env
+
+    def test_limiter_disabled_in_development(self):
+        """Test that rate limiting is disabled in development environment."""
+        original_testing = settings.testing
+        original_env = settings.environment
+
+        try:
+            settings.testing = False
+            settings.environment = "development"
+            limiter = get_limiter()
+            assert limiter.enabled is False
+        finally:
+            settings.testing = original_testing
+            settings.environment = original_env

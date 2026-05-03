@@ -15,8 +15,8 @@ from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.auth import authenticate_user, register_company_user
 from src.services.exceptions import (
     EmailAlreadyExistsError,
-    InactiveUserError,
     InvalidCredentialsError,
+    PendingApprovalError,
 )
 from tests.conftest import enable_sqlite_foreign_keys
 
@@ -41,6 +41,7 @@ def _make_user_create(email: str = "company@example.com") -> UserCreate:
         company_profile=CompanyProfileCreate(
             name="Test Company",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -218,5 +219,5 @@ async def test_authenticate_user_inactive(session: AsyncSession):
     )
     await session.commit()
 
-    with pytest.raises(InactiveUserError):
+    with pytest.raises(PendingApprovalError):
         await authenticate_user("inactive@example.com", "SecurePass1!", session)

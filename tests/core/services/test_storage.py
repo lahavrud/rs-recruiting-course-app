@@ -5,11 +5,9 @@ import tempfile
 import pytest
 
 from src.core.infrastructure.config import settings
-from src.core.services.storage import (
-    LocalStorageProvider,
-    S3StorageProvider,
-    get_storage_provider,
-)
+from src.core.services.storage import get_storage_provider
+from src.core.services.storage_local import LocalStorageProvider
+from src.core.services.storage_s3 import S3StorageProvider
 
 
 class TestLocalStorageProvider:

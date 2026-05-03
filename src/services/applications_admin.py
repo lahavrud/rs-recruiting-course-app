@@ -168,32 +168,50 @@ async def update_application_status(
     )
     company_user = user_result.scalar_one()
 
-    notes_line = f"\nAdmin notes: {admin_notes}\n" if admin_notes else ""
+    from src.services.email_templates import (
+        build_application_status_candidate_html,
+        build_application_status_company_html,
+    )
 
-    email_payloads: list[dict[str, str]] = [
+    _STATUS_HE = {
+        "NEW": "חדש",
+        "APPROVED_BY_ADMIN": "אושר על-ידי מנהל",
+        "REJECTED": "נדחה",
+        "HIRED": "התקבל לעבודה",
+    }
+    new_status_he = _STATUS_HE.get(str(new_status), str(new_status))
+    old_status_he = _STATUS_HE.get(str(old_status), str(old_status))
+
+    email_payloads: list[dict] = [
         {
             "to": candidate.email,
-            "subject": f"Your application status has been updated: {new_status}",
+            "subject": f"עדכון סטטוס מועמדות למשרת '{job.title}'",
             "body": (
-                f"Dear {candidate.full_name},\n\n"
-                f"Your application for '{job.title}' has been updated.\n\n"
-                f"Previous status: {old_status}\n"
-                f"New status: {new_status}\n"
-                f"{notes_line}"
-                "\nThank you for your interest."
+                f"שלום {candidate.full_name},\n"
+                f"סטטוס מועמדותך למשרת '{job.title}' עודכן ל-{new_status_he}."
+            ),
+            "html_body": build_application_status_candidate_html(
+                candidate_name=candidate.full_name,
+                job_title=job.title,
+                old_status=old_status_he,
+                new_status=new_status_he,
+                notes=admin_notes,
             ),
         },
         {
             "to": company_user.email,
-            "subject": f"Application status updated for '{job.title}'",
+            "subject": f"עדכון סטטוס מועמדות למשרת '{job.title}'",
             "body": (
-                f"Dear {company.name},\n\n"
-                f"An application for your job posting '{job.title}' "
-                "has been updated.\n\n"
-                f"Candidate: {candidate.full_name}\n"
-                f"Previous status: {old_status}\n"
-                f"New status: {new_status}\n"
-                f"{notes_line}"
+                f"שלום {company.name},\n"
+                f"סטטוס מועמדות למשרת '{job.title}' עודכן ל-{new_status_he}."
+            ),
+            "html_body": build_application_status_company_html(
+                company_name=company.name or "",
+                job_title=job.title,
+                candidate_name=candidate.full_name,
+                old_status=old_status_he,
+                new_status=new_status_he,
+                notes=admin_notes,
             ),
         },
     ]

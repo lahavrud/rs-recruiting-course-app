@@ -52,10 +52,6 @@ function StatusBadge({ status }: { status: string }) {
 
 const EMPTY_INVITE: InviteTokenCreate = {
   email: "",
-  company_name: "",
-  contact_first_name: "",
-  contact_last_name: "",
-  note: "",
 };
 
 export default function AdminCompaniesPage() {
@@ -136,13 +132,7 @@ export default function AdminCompaniesPage() {
     setSubmittingInvite(true);
     setInviteFormError(null);
     try {
-      const payload: InviteTokenCreate = {
-        email: inviteForm.email,
-        company_name: inviteForm.company_name || null,
-        contact_first_name: inviteForm.contact_first_name || null,
-        contact_last_name: inviteForm.contact_last_name || null,
-        note: inviteForm.note || null,
-      };
+      const payload: InviteTokenCreate = { email: inviteForm.email };
       const created = await createInvite(payload);
       setInvites((prev) => [created, ...prev]);
       setInviteForm(EMPTY_INVITE);
@@ -497,88 +487,20 @@ export default function AdminCompaniesPage() {
                   {inviteFormError}
                 </div>
               )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs text-white/50">
-                    {t("admin.companies.inviteForm.emailLabel")} *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={inviteForm.email}
-                    onChange={(e) =>
-                      setInviteForm((p) => ({ ...p, email: e.target.value }))
-                    }
-                    placeholder={t("admin.companies.inviteForm.emailPlaceholder")}
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-white/50">
-                    {t("admin.companies.inviteForm.companyNameLabel")}
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.company_name ?? ""}
-                    onChange={(e) =>
-                      setInviteForm((p) => ({ ...p, company_name: e.target.value }))
-                    }
-                    placeholder={t("admin.companies.inviteForm.companyNamePlaceholder")}
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-white/50">
-                    {t("admin.companies.inviteForm.contactFirstNameLabel")}
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.contact_first_name ?? ""}
-                    onChange={(e) =>
-                      setInviteForm((p) => ({
-                        ...p,
-                        contact_first_name: e.target.value,
-                      }))
-                    }
-                    placeholder={t(
-                      "admin.companies.inviteForm.contactFirstNamePlaceholder",
-                    )}
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-white/50">
-                    {t("admin.companies.inviteForm.contactLastNameLabel")}
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.contact_last_name ?? ""}
-                    onChange={(e) =>
-                      setInviteForm((p) => ({
-                        ...p,
-                        contact_last_name: e.target.value,
-                      }))
-                    }
-                    placeholder={t(
-                      "admin.companies.inviteForm.contactLastNamePlaceholder",
-                    )}
-                    className={inputCls}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs text-white/50">
-                    {t("admin.companies.inviteForm.noteLabel")}
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.note ?? ""}
-                    onChange={(e) =>
-                      setInviteForm((p) => ({ ...p, note: e.target.value }))
-                    }
-                    placeholder={t("admin.companies.inviteForm.notePlaceholder")}
-                    className={inputCls}
-                  />
-                </div>
+              <div>
+                <label className="mb-1 block text-xs text-white/50">
+                  {t("admin.companies.inviteForm.emailLabel")} *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={inviteForm.email}
+                  onChange={(e) =>
+                    setInviteForm((p) => ({ ...p, email: e.target.value }))
+                  }
+                  placeholder={t("admin.companies.inviteForm.emailPlaceholder")}
+                  className={inputCls}
+                />
               </div>
               <div className="mt-4 flex justify-end">
                 <button

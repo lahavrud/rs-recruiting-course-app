@@ -36,6 +36,7 @@ async def test_get_pending_companies(
             company_profile=CompanyProfileCreate(
                 name="Company 2",
                 company_id="123456789",
+                address="רח׳ הדוגמה 1, תל אביב",
                 contact_first_name="ישראל",
                 contact_last_name="ישראלי",
                 contact_mobile_phone="0501234567",
@@ -79,16 +80,17 @@ async def test_approve_company_success(
 
     data = response.json()
     assert data["user"]["id"] == company_user.id
-    assert data["user"]["is_active"] is True
+    # Approval creates an ActivationToken but does NOT set is_active=True yet
+    assert data["user"]["is_active"] is False
     assert data["company_profile"]["name"] == "Test Company"
 
-    # Verify in database
+    # Verify in database — still inactive until company clicks the link
     async with TestSessionLocal() as session:
         result = await session.execute(
             select(User).where(User.id == company_user.id)  # pyright: ignore[reportArgumentType]
         )
         user = result.scalar_one()
-        assert user.is_active is True
+        assert user.is_active is False
 
 
 @pytest.mark.asyncio
@@ -104,20 +106,18 @@ async def test_approve_company_not_found(admin_client: AsyncClient):
 async def test_approve_company_already_approved(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
-    """Test approving an already approved company returns 400."""
+    """Test re-approving revokes the previous token and issues a fresh one (200)."""
     mock_enqueue_email.return_value = "test-job-id"
-    # First approve
     response1 = await admin_client.post(
         f"/api/admin/companies/{company_user.id}/approve"
     )
     assert response1.status_code == 200
 
-    # Try to approve again
+    # Second approve revokes old token and sends a fresh activation email
     response2 = await admin_client.post(
         f"/api/admin/companies/{company_user.id}/approve"
     )
-    assert response2.status_code == 400
-    assert "already approved" in response2.json()["detail"].lower()
+    assert response2.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -154,20 +154,18 @@ async def test_reject_company_not_found(admin_client: AsyncClient):
 async def test_reject_company_already_approved(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
-    """Test rejecting an already approved company returns 400."""
+    """Test rejecting after approval revokes the token and rejects the company (204)."""
     mock_enqueue_email.return_value = "test-job-id"
-    # First approve
     response1 = await admin_client.post(
         f"/api/admin/companies/{company_user.id}/approve"
     )
     assert response1.status_code == 200
 
-    # Try to reject
+    # Rejection after approval now succeeds — revokes the activation token
     response2 = await admin_client.post(
         f"/api/admin/companies/{company_user.id}/reject"
     )
-    assert response2.status_code == 400
-    assert "already approved" in response2.json()["detail"].lower()
+    assert response2.status_code == 204
 
 
 @pytest.mark.asyncio
@@ -214,6 +212,7 @@ async def test_admin_company_endpoints_require_admin_role(mock_enqueue_email, te
             company_profile=CompanyProfileCreate(
                 name="Company",
                 company_id="123456789",
+                address="רח׳ הדוגמה 1, תל אביב",
                 contact_first_name="ישראל",
                 contact_last_name="ישראלי",
                 contact_mobile_phone="0501234567",

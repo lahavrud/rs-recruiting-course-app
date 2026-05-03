@@ -1,0 +1,105 @@
+"""AWS S3 storage provider."""
+
+from pathlib import Path
+from typing import Optional
+from uuid import uuid4
+
+import aioboto3
+from botocore.exceptions import ClientError
+
+from src.core.services.storage import StorageProvider
+
+
+class S3StorageProvider(StorageProvider):
+    """AWS S3 storage provider implementation."""
+
+    def __init__(
+        self,
+        bucket_name: str,
+        region: str,
+        access_key_id: Optional[str] = None,
+        secret_access_key: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
+    ):
+        self.bucket_name = bucket_name
+        self.region = region
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self.endpoint_url = endpoint_url
+        self.session = aioboto3.Session()
+
+    def _client_kwargs(self) -> dict:
+        kwargs: dict = {
+            "region_name": self.region,
+            "aws_access_key_id": self.access_key_id,
+            "aws_secret_access_key": self.secret_access_key,
+        }
+        if self.endpoint_url:
+            kwargs["endpoint_url"] = self.endpoint_url
+        return kwargs
+
+    async def upload_file(
+        self, file_content: bytes, file_name: str, content_type: Optional[str] = None
+    ) -> str:
+        """Upload file to S3 and return the object key."""
+        file_key = f"{uuid4()}{Path(file_name).suffix}"
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+            upload_kwargs: dict = {
+                "Bucket": self.bucket_name,
+                "Key": file_key,
+                "Body": file_content,
+            }
+            if content_type:
+                upload_kwargs["ContentType"] = content_type
+            try:
+                await s3.put_object(**upload_kwargs)
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "Unknown")
+                msg = e.response.get("Error", {}).get("Message", str(e))
+                raise ValueError(f"Failed to upload file to S3: {code} - {msg}") from e
+
+            try:
+                await s3.head_object(Bucket=self.bucket_name, Key=file_key)
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "Unknown")
+                if code == "404":
+                    raise ValueError(
+                        "Upload appeared to succeed but object not found in S3 bucket."
+                    ) from e
+                raise ValueError(
+                    f"Upload completed but verification failed: {code}"
+                ) from e
+
+        return file_key
+
+    async def get_file_url(self, file_identifier: str) -> str:
+        """Return a presigned URL valid for 1 hour."""
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+            try:
+                return await s3.generate_presigned_url(
+                    ClientMethod="get_object",
+                    Params={"Bucket": self.bucket_name, "Key": file_identifier},
+                    ExpiresIn=3600,
+                )
+            except ClientError as e:
+                raise ValueError(
+                    f"Failed to generate URL for {file_identifier}: {e}"
+                ) from e
+
+    async def download_file(self, file_identifier: str) -> bytes:
+        """Download file from S3 and return raw bytes."""
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+            try:
+                resp = await s3.get_object(Bucket=self.bucket_name, Key=file_identifier)
+                return await resp["Body"].read()
+            except ClientError as e:
+                raise ValueError(f"Failed to download {file_identifier}: {e}") from e
+
+    async def delete_file(self, file_identifier: str) -> bool:
+        """Delete object from S3. Returns True even if it did not exist."""
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+            try:
+                await s3.delete_object(Bucket=self.bucket_name, Key=file_identifier)
+                return True
+            except ClientError:
+                return False

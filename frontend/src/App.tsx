@@ -4,6 +4,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import CompanyRoute from "@/components/CompanyRoute";
 import AppShell from "@/components/layout/AppShell";
+import ActivatePage from "@/pages/ActivatePage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -29,6 +30,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/activate" element={<ActivatePage />} />
 
             {/* Public landing page */}
             <Route path="/" element={<LandingPage />} />

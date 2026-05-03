@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     # Frontend
     frontend_base_url: str = "http://localhost:3000"
 
+    # RS assets in S3 (contract template + agency signature)
+    rs_contract_template_s3_key: str = "assets/rs-contract.pdf"
+    rs_signature_s3_key: str = "assets/rs-signature.png"
+
     # Environment
     environment: Literal["development", "production"] = "development"
 

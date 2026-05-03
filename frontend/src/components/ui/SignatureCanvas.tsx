@@ -38,7 +38,7 @@ const SignatureCanvas = forwardRef<SignatureCanvasRef, Props>(
               style: { display: "block" },
             }}
             backgroundColor="transparent"
-            penColor="rgba(255,255,255,0.85)"
+            penColor="#B87333"
           />
         </div>
         <button

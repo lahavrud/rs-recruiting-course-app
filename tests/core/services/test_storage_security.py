@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.core.services.storage import LocalStorageProvider
+from src.core.services.storage_local import LocalStorageProvider
 
 
 class TestLocalStorageProviderSecurity:
@@ -16,19 +16,19 @@ class TestLocalStorageProviderSecurity:
     @pytest.mark.asyncio
     async def test_path_traversal_get_file_url(self, provider: LocalStorageProvider):
         """Test that path traversal is prevented in get_file_url."""
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("../../../etc/passwd")
 
     @pytest.mark.asyncio
     async def test_path_traversal_delete_file(self, provider: LocalStorageProvider):
         """Test that path traversal is prevented in delete_file."""
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.delete_file("../../../etc/passwd")
 
     @pytest.mark.asyncio
     async def test_path_traversal_multiple_levels(self, provider: LocalStorageProvider):
         """Test that multiple levels of path traversal are prevented."""
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("../../../../../../etc/passwd")
 
     @pytest.mark.asyncio
@@ -40,7 +40,7 @@ class TestLocalStorageProviderSecurity:
         import urllib.parse
 
         decoded = urllib.parse.unquote("%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd")
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url(decoded)
 
     @pytest.mark.asyncio
@@ -115,22 +115,22 @@ class TestLocalStorageProviderSecurity:
     async def test_path_traversal_still_blocked(self, provider: LocalStorageProvider):
         """Test that actual path traversal is still blocked."""
         # These should still be blocked (actual path traversal)
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("../etc/passwd")
 
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("../../secret.txt")
 
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.delete_file("../etc/passwd")
 
         # Starting with ".." should be blocked
         # (prevents confusion with parent directory)
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("..file.txt")
 
         # Path traversal in middle should be blocked
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("some/path/../etc/passwd")
 
     @pytest.mark.asyncio
@@ -139,23 +139,23 @@ class TestLocalStorageProviderSecurity:
     ):
         """Test paths ending in '/..' or '\\..' are blocked (reported vulnerability)."""
         # Paths ending in "/.." should be blocked (resolves to directory, not file)
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("subdir/..")
 
         # Windows-style path traversal ending
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("subdir\\..")
 
         # Path traversal ending in middle of path
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("some/subdir/..")
 
         # Multiple levels ending in traversal
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("level1/level2/..")
 
         # Test delete_file also blocks these
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.delete_file("subdir/..")
 
     @pytest.mark.asyncio
@@ -200,5 +200,5 @@ class TestLocalStorageProviderSecurity:
         # This tests the is_dir() check in get_file_url
         # Note: The path traversal check should catch "subdir/.." before we get here
         # But we also test that directories are not treated as files
-        with pytest.raises(ValueError, match="Path traversal detected"):
+        with pytest.raises(ValueError, match="Path traversal"):
             await provider.get_file_url("subdir/..")

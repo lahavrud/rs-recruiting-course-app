@@ -52,16 +52,14 @@ async def test_get_invite_metadata_returns_fields(
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "company@example.com"
-    assert data["company_name"] == "Test Co"
-    assert data["contact_first_name"] == "ישראל"
-    assert data["contact_last_name"] == "ישראלי"
+    # InviteMetadataPublic only exposes email — no pre-fill fields
 
 
 @pytest.mark.asyncio
 async def test_get_invite_metadata_null_optional_fields(
     public_client: AsyncClient, admin_user: User
 ):
-    """Invite with no company/contact info returns nulls for optional fields."""
+    """Invite with no company/contact info still returns email only."""
     assert admin_user.id is not None
     await _create_invite_record(
         "sparse-token",
@@ -75,9 +73,7 @@ async def test_get_invite_metadata_null_optional_fields(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["company_name"] is None
-    assert data["contact_first_name"] is None
-    assert data["contact_last_name"] is None
+    assert "email" in data
 
 
 @pytest.mark.asyncio

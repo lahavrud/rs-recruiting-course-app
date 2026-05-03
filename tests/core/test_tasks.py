@@ -32,6 +32,8 @@ async def test_send_email_task_success():
             to="test@example.com",
             subject="Test Subject",
             body="Test Body",
+            html_body=None,
+            attachments=None,
             from_email=None,
         )
 
@@ -91,6 +93,8 @@ async def test_send_email_task_multiple_recipients():
             to=recipients,
             subject="Test Subject",
             body="Test Body",
+            html_body=None,
+            attachments=None,
             from_email=None,
         )
 
@@ -108,6 +112,8 @@ async def test_send_email_task_with_from_email():
             to="test@example.com",
             subject="Test Subject",
             body="Test Body",
+            html_body=None,
+            attachments=None,
             from_email="custom@example.com",
         )
 
@@ -116,6 +122,8 @@ async def test_send_email_task_with_from_email():
             to="test@example.com",
             subject="Test Subject",
             body="Test Body",
+            html_body=None,
+            attachments=None,
             from_email="custom@example.com",
         )
 
@@ -142,6 +150,8 @@ async def test_enqueue_email_task_success():
             to="test@example.com",
             subject="Test Subject",
             body="Test Body",
+            html_body=None,
+            attachments=None,
             from_email=None,
         )
 

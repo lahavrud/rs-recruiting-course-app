@@ -33,6 +33,24 @@ class InactiveUserError(AuthError):
     pass
 
 
+class PendingApprovalError(AuthError):
+    """Raised when a company user is inactive and awaiting admin approval."""
+
+    pass
+
+
+class PendingActivationError(AuthError):
+    """Raised when the company has not yet clicked the activation link."""
+
+    pass
+
+
+class InvalidActivationTokenError(AuthError):
+    """Raised when an activation token is invalid, expired, or already used."""
+
+    pass
+
+
 class AccountLockedError(AuthError):
     """Raised when an account is locked after too many failed login attempts."""
 

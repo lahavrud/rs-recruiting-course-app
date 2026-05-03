@@ -14,6 +14,7 @@ from src.core.tasks import enqueue_email_task
 from src.enums import InviteTokenStatus
 from src.models import InviteToken, User
 from src.schemas import InviteTokenCreate, InviteTokenRead
+from src.services.email_templates import build_invite_html
 from src.services.exceptions import (
     EmailAlreadyExistsError,
     InviteAlreadyRevokedError,
@@ -22,35 +23,19 @@ from src.services.exceptions import (
 )
 
 
-def _build_invite_email(
-    contact_name: str | None,
-    company_name: str | None,
-    note: str | None,
-    registration_url: str,
-) -> str:
-    lines: list[str] = []
-    greeting = f"שלום {contact_name}," if contact_name else "שלום,"
-    lines.append(greeting)
-    lines.append("")
-    if company_name:
-        lines.append(
-            f"הוזמנת להירשם לפלטפורמת RS Recruiting עבור החברה: {company_name}"
-        )
-    else:
-        lines.append("הוזמנת להירשם לפלטפורמת RS Recruiting.")
-    lines.append("")
-    lines.append("לחצו על הקישור הבא להשלמת תהליך ההרשמה:")
-    lines.append("")
-    lines.append(registration_url)
-    lines.append("")
-    if note:
-        lines.append(f"הודעה אישית: {note}")
-        lines.append("")
-    lines.append("שימו לב: הקישור תקף ל-48 שעות בלבד.")
-    lines.append("")
-    lines.append("בברכה,")
-    lines.append("צוות RS Recruiting")
-    return "\n".join(lines)
+async def _send_invite_email(email: str, registration_url: str) -> None:
+    plain = (
+        f"הוזמנת להירשם לפלטפורמת RS Recruiting.\n\n"
+        f"לחצו על הקישור הבא להשלמת תהליך ההרשמה:\n{registration_url}\n\n"
+        "שימו לב: הקישור תקף ל-48 שעות בלבד.\n\nבברכה,\nצוות RS Recruiting"
+    )
+    html = build_invite_html(registration_url)
+    await enqueue_email_task(
+        to=email,
+        subject="הזמנה להרשמה ל-RS Recruiting",
+        body=plain,
+        html_body=html,
+    )
 
 
 async def create_invite(
@@ -77,10 +62,6 @@ async def create_invite(
     record = InviteToken(
         token=token,
         email=data.email,
-        company_name=data.company_name,
-        contact_first_name=data.contact_first_name,
-        contact_last_name=data.contact_last_name,
-        note=data.note,
         status=InviteTokenStatus.PENDING,
         created_by_admin_id=admin_user_id,
         expires_at=expires_at,
@@ -89,19 +70,7 @@ async def create_invite(
     await session.flush()
 
     registration_url = f"{settings.frontend_base_url}/register?token={token}"
-    contact_name = (
-        " ".join(filter(None, [data.contact_first_name, data.contact_last_name]))
-        or None
-    )
-    email_body = _build_invite_email(
-        contact_name, data.company_name, data.note, registration_url
-    )
-
-    await enqueue_email_task(
-        to=data.email,
-        subject="הזמנה להרשמה ל-RS Recruiting",
-        body=email_body,
-    )
+    await _send_invite_email(data.email, registration_url)
 
     return InviteTokenRead.model_validate(record)
 
@@ -164,16 +133,4 @@ async def resend_invite(token_id: int, session: AsyncSession) -> None:
     await session.flush()
 
     registration_url = f"{settings.frontend_base_url}/register?token={new_token}"
-    contact_name = (
-        " ".join(filter(None, [record.contact_first_name, record.contact_last_name]))
-        or None
-    )
-    email_body = _build_invite_email(
-        contact_name, record.company_name, record.note, registration_url
-    )
-
-    await enqueue_email_task(
-        to=record.email,
-        subject="הזמנה להרשמה ל-RS Recruiting",
-        body=email_body,
-    )
+    await _send_invite_email(record.email, registration_url)

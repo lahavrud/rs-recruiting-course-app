@@ -82,6 +82,7 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
         company_profile=CompanyProfileCreate(
             name="Pending Company 1",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -93,6 +94,7 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
         company_profile=CompanyProfileCreate(
             name="Pending Company 2",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -114,6 +116,7 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
         company_profile=CompanyProfileCreate(
             name="Approved Company",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -161,9 +164,15 @@ async def test_list_pending_companies(mock_enqueue_email, session: AsyncSession)
 
 @pytest.mark.asyncio
 @patch("src.services.admin_companies.enqueue_email_task")
-async def test_approve_company_success(mock_enqueue_email, session: AsyncSession):
+@patch("src.services.admin_companies.generate_signed_contract")
+@patch("src.core.services.storage.get_storage_provider")
+async def test_approve_company_success(
+    mock_storage, mock_pdf, mock_enqueue_email, session: AsyncSession
+):
     """Test successfully approving a company."""
     mock_enqueue_email.return_value = "test-job-id"
+    mock_pdf.return_value = b"%PDF-fake"
+    mock_storage.return_value.download_file = lambda _: b"fake-sig-bytes"
     # Create a pending company
     user_data = UserCreate(
         email="toapprove@example.com",
@@ -171,6 +180,7 @@ async def test_approve_company_success(mock_enqueue_email, session: AsyncSession
         company_profile=CompanyProfileCreate(
             name="To Approve Company",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -193,16 +203,17 @@ async def test_approve_company_success(mock_enqueue_email, session: AsyncSession
     approved = await approve_company(company_user_id, session)
     await session.commit()
 
-    assert approved["user"].is_active is True
+    # Approval creates an activation token but does NOT activate the account yet
+    assert approved["user"].is_active is False
     assert approved["user"].email == "toapprove@example.com"
     assert approved["company_profile"].name == "To Approve Company"
 
-    # Verify in database
+    # Verify in database — still inactive until company clicks the activation link
     db_result = await session.execute(
         select(User).where(User.id == company_user_id)  # pyright: ignore[reportArgumentType]
     )
     db_user = db_result.scalar_one()
-    assert db_user.is_active is True
+    assert db_user.is_active is False
 
 
 @pytest.mark.asyncio
@@ -223,6 +234,7 @@ async def test_approve_company_already_approved(session: AsyncSession):
         company_profile=CompanyProfileCreate(
             name="Already Approved",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -283,6 +295,7 @@ async def test_reject_company_success(mock_enqueue_email, session: AsyncSession)
         company_profile=CompanyProfileCreate(
             name="To Reject Company",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
@@ -338,6 +351,7 @@ async def test_reject_company_already_approved(session: AsyncSession):
         company_profile=CompanyProfileCreate(
             name="Already Approved 2",
             company_id="123456789",
+            address="רח׳ הדוגמה 1, תל אביב",
             contact_first_name="ישראל",
             contact_last_name="ישראלי",
             contact_mobile_phone="0501234567",
