@@ -1,9 +1,53 @@
 """Application configuration."""
 
-from typing import Literal, Optional
+import os
+from typing import Any, Literal, Optional
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+
+class SsmSettingsSource(PydanticBaseSettingsSource):
+    """Load settings from AWS SSM Parameter Store.
+
+    Fetches all parameters under the given path prefix at construction time.
+    Parameter names are lowercased and matched to Settings field names.
+    """
+
+    def __init__(self, settings_cls: type, path_prefix: str) -> None:
+        super().__init__(settings_cls)
+        self._params: dict[str, str] = {}
+        try:
+            client = boto3.client("ssm")
+            paginator = client.get_paginator("get_parameters_by_path")
+            for page in paginator.paginate(Path=path_prefix, WithDecryption=True):
+                for param in page["Parameters"]:
+                    key = param["Name"].removeprefix(path_prefix).lower()
+                    self._params[key] = param["Value"]
+        except (BotoCoreError, ClientError) as exc:
+            raise RuntimeError(
+                f"Failed to load settings from SSM path {path_prefix!r}: {exc}"
+            ) from exc
+
+    def get_field_value(
+        self, field_name: str, field_info: Any
+    ) -> tuple[Any, str, bool]:
+        return self._params.get(field_name.lower()), field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        return dict(self._params)
+
+
+def _ssm_path_prefix() -> str:
+    """Derive SSM path from ENVIRONMENT env var."""
+    env = os.environ.get("ENVIRONMENT", "development")
+    return f"/rs-recruitment/{env}/"
 
 
 class Settings(BaseSettings):
@@ -73,6 +117,23 @@ class Settings(BaseSettings):
         origins = [origin.strip() for origin in v.split(",") if origin.strip()]
         return origins if origins else ["http://localhost:3000"]
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type,
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        if os.environ.get("ENVIRONMENT") == "production":
+            return (
+                init_settings,
+                SsmSettingsSource(settings_cls, _ssm_path_prefix()),
+                env_settings,
+            )
+        return (init_settings, env_settings, dotenv_settings)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -113,6 +174,16 @@ def validate_settings() -> None:
     # Validate email provider config
     if settings.email_provider == "ses" and not settings.aws_ses_from_email:
         raise ValueError("AWS_SES_FROM_EMAIL must be set when EMAIL_PROVIDER=ses")
+
+    # Validate frontend base URL in production
+    if settings.environment == "production" and (
+        "localhost" in settings.frontend_base_url
+        or "127.0.0.1" in settings.frontend_base_url
+    ):
+        raise ValueError(
+            "FRONTEND_BASE_URL must be set to the real domain in production "
+            f"(current value: {settings.frontend_base_url})"
+        )
 
 
 def get_jwt_secret_key() -> str:
