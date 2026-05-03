@@ -25,7 +25,10 @@ class SsmSettingsSource(PydanticBaseSettingsSource):
         super().__init__(settings_cls)
         self._params: dict[str, str] = {}
         try:
-            client = boto3.client("ssm")
+            region = os.environ.get("AWS_DEFAULT_REGION") or os.environ.get(
+                "AWS_REGION", "us-east-1"
+            )
+            client = boto3.client("ssm", region_name=region)
             paginator = client.get_paginator("get_parameters_by_path")
             for page in paginator.paginate(Path=path_prefix, WithDecryption=True):
                 for param in page["Parameters"]:
@@ -46,8 +49,10 @@ class SsmSettingsSource(PydanticBaseSettingsSource):
 
 
 def _ssm_path_prefix() -> str:
+    # Map ENVIRONMENT value to the SSM path segment (production → prod)
     env = os.environ.get("ENVIRONMENT", "development")
-    return f"/rs-recruitment/{env}/"
+    segment = {"production": "prod"}.get(env, env)
+    return f"/rs-recruitment/{segment}/"
 
 
 class Settings(BaseSettings):
