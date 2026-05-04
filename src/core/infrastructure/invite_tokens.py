@@ -36,7 +36,7 @@ async def validate_invite_token(token: str) -> None:
     redis = await get_redis_pool()
     value = await redis.get(_key(token))
     if value is None:
-        raise InvalidInviteTokenError()
+        raise InvalidInviteTokenError("Invite token is invalid or has expired")
 
 
 async def consume_invite_token(token: str) -> None:

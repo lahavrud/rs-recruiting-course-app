@@ -130,14 +130,14 @@ async def register(
     except ValueError as e:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         ) from e
     except sqlalchemy_exc.IntegrityError as e:
         await session.rollback()
         error_str = str(e.orig) if e.orig else str(e)
         if "email" in error_str.lower() or "unique" in error_str.lower():
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=f"User with email '{email}' already exists.",
             ) from e
         raise HTTPException(

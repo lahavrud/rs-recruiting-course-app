@@ -334,26 +334,26 @@ async def test_register_missing_signature(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_invalid_signature(client: AsyncClient):
-    """Test 400 when agreement_signature is not valid base64."""
+    """Test 422 when agreement_signature is not valid base64."""
     response = await client.post(
         "/auth/register",
         params={"token": "valid-test-token"},
         data=_reg_data(agreement_signature="not-valid-base64!!!"),
         files={"logo": FAKE_LOGO_FILE},
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_register_empty_signature(client: AsyncClient):
-    """Test 400 when agreement_signature is an empty string."""
+    """Test 422 when agreement_signature is an empty string."""
     response = await client.post(
         "/auth/register",
         params={"token": "valid-test-token"},
         data=_reg_data(agreement_signature=""),
         files={"logo": FAKE_LOGO_FILE},
     )
-    assert response.status_code in (400, 422)
+    assert response.status_code == 422
 
 
 # ==================== Password Complexity Tests ====================

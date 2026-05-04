@@ -302,10 +302,7 @@ export default function RegisterPage() {
         } else if (status === 429) {
           setSubmitError(t("auth.register.errors.tooManyAttempts"));
         } else if (status === 400) {
-          const detail = (err.response?.data?.detail ?? "") as string;
-          if (detail.toLowerCase().includes("invite") || detail.toLowerCase().includes("token"))
-            setSubmitError(t("auth.register.errors.invalidToken"));
-          else setSubmitError(t("auth.register.errors.emailExists"));
+          setSubmitError(t("auth.register.errors.invalidToken"));
         } else if (status === 409) {
           setSubmitError(t("auth.register.errors.emailExists"));
         } else {
