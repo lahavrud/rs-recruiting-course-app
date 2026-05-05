@@ -168,7 +168,7 @@ async def update_application_status(
     )
     company_user = user_result.scalar_one()
 
-    from src.services.email_templates import (
+    from src.templates.email import (
         build_application_status_candidate_html,
         build_application_status_company_html,
     )

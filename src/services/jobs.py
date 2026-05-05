@@ -10,7 +10,6 @@ from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from src.schemas import JobCreate, JobRead, JobUpdate
 from src.services.admin_companies import get_all_admin_emails
-from src.services.email_templates import build_job_updated_html, build_new_job_html
 from src.services.exceptions import (
     CompanyNotFoundError,
     JobCannotBeDeletedError,
@@ -18,6 +17,7 @@ from src.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
+from src.templates.email import build_job_updated_html, build_new_job_html
 
 
 async def create_job(

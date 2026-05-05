@@ -5,9 +5,12 @@ Color references match the Tailwind token system in index.css.
 """
 
 import base64 as _b64
+import html as _html
 from pathlib import Path as _Path
 
 from src.core.infrastructure.config import settings as _settings
+
+_e = _html.escape
 
 # Dark surfaces
 _VOID = "#0D0B09"  # outer background
@@ -156,7 +159,8 @@ def _rule() -> str:
 
 def build_invite_html(registration_url: str, contact_name: str | None = None) -> str:
     """HTML invite email sent to companies when admin creates an invite."""
-    greeting = f"שלום {contact_name}," if contact_name else "שלום,"
+    safe_name = _e(contact_name) if contact_name else None
+    greeting = f"שלום {safe_name}," if safe_name else "שלום,"
     body = (
         _h("הזמנה להצטרפות לפלטפורמה")
         + _p(greeting)
@@ -170,9 +174,10 @@ def build_invite_html(registration_url: str, contact_name: str | None = None) ->
 
 def build_approval_html(company_name: str, activation_url: str) -> str:
     """HTML approval email sent after admin approves a company registration."""
+    safe_company = _e(company_name)
     body = (
         _h("הבקשה שלכם אושרה")
-        + _p(f"בקשת ההרשמה של <strong>{company_name}</strong> התקבלה.")
+        + _p(f"בקשת ההרשמה של <strong>{safe_company}</strong> התקבלה.")
         + _p(
             "מצורף לאימייל זה החוזה החתום. "
             "לחצו על הכפתור להפעלת החשבון ותחילת השימוש בפלטפורמה."
@@ -186,9 +191,10 @@ def build_approval_html(company_name: str, activation_url: str) -> str:
 
 def build_rejection_html(company_name: str) -> str:
     """HTML rejection email sent when admin rejects a company registration."""
+    safe_company = _e(company_name)
     body = (
         _h("בקשת ההרשמה נדחתה")
-        + _p(f"בקשת ההרשמה של <strong>{company_name}</strong> לא אושרה.")
+        + _p(f"בקשת ההרשמה של <strong>{safe_company}</strong> לא אושרה.")
         + _p(
             "אם אתם סבורים שמדובר בטעות, אנא צרו קשר עם צוות RS Recruiting.",
             muted=True,
@@ -207,16 +213,18 @@ def build_new_registration_html(
     admin_url: str,
 ) -> str:
     """HTML notification sent to admins when a new company registers."""
+    sc, sid, saddr = _e(company_name), _e(company_id), _e(address)
+    scontact, semail, smobile = _e(contact_name), _e(email), _e(mobile)
     body = (
         _h("חברה חדשה ממתינה לאישור")
-        + _p(f"<strong>{company_name}</strong> השלימה את תהליך ההרשמה.")
+        + _p(f"<strong>{sc}</strong> השלימה את תהליך ההרשמה.")
         + _rule()
-        + _p(f"שם חברה: <strong>{company_name}</strong>")
-        + _p(f"ח.פ: {company_id}")
-        + _p(f"כתובת: {address}")
-        + _p(f"איש קשר: {contact_name}")
-        + _p(f'דוא"ל: {email}')
-        + _p(f"נייד: {mobile}")
+        + _p(f"שם חברה: <strong>{sc}</strong>")
+        + _p(f"ח.פ: {sid}")
+        + _p(f"כתובת: {saddr}")
+        + _p(f"איש קשר: {scontact}")
+        + _p(f'דוא"ל: {semail}')
+        + _p(f"נייד: {smobile}")
         + _cta(admin_url, "מעבר לניהול חברות")
     )
     return _wrap("בקשת הרשמה חדשה — RS Recruiting", body)
@@ -230,12 +238,15 @@ def build_new_job_html(
     admin_url: str,
 ) -> str:
     """HTML notification sent to admins when a new job is submitted for approval."""
+    stitle = _e(job_title)
+    scompany = _e(company_name)
+    slocation = _e(location)
     body = (
         _h("משרה חדשה ממתינה לאישור")
         + _rule()
-        + _p(f"כותרת: <strong>{job_title}</strong>")
-        + _p(f"חברה: {company_name}")
-        + _p(f"מיקום: {location}")
+        + _p(f"כותרת: <strong>{stitle}</strong>")
+        + _p(f"חברה: {scompany}")
+        + _p(f"מיקום: {slocation}")
         + _p(f"מזהה משרה: #{job_id}")
         + _cta(admin_url, "מעבר לניהול משרות")
     )
@@ -251,14 +262,18 @@ def build_job_updated_html(
     admin_url: str,
 ) -> str:
     """HTML notification sent to admins when a job posting is updated."""
+    stitle = _e(job_title)
+    scompany = _e(company_name)
+    slocation = _e(location)
+    sstatus = _e(status)
     body = (
         _h("פרסום משרה עודכן")
         + _rule()
-        + _p(f"כותרת: <strong>{job_title}</strong>")
-        + _p(f"חברה: {company_name}")
-        + _p(f"מיקום: {location}")
+        + _p(f"כותרת: <strong>{stitle}</strong>")
+        + _p(f"חברה: {scompany}")
+        + _p(f"מיקום: {slocation}")
         + _p(f"מזהה משרה: #{job_id}")
-        + _p(f"סטטוס: {status}")
+        + _p(f"סטטוס: {sstatus}")
         + _cta(admin_url, "מעבר לניהול משרות")
     )
     return _wrap("עדכון פרסום משרה — RS Recruiting", body)
@@ -272,16 +287,21 @@ def build_application_status_candidate_html(
     notes: str | None,
 ) -> str:
     """HTML status update email sent to the candidate."""
+    sname = _e(candidate_name)
+    stitle = _e(job_title)
+    sold = _e(old_status)
+    snew = _e(new_status)
+    snotes = _e(notes) if notes else None
     body = (
         _h("עדכון סטטוס מועמדות")
-        + _p(f"שלום {candidate_name},")
-        + _p(f"סטטוס מועמדותך למשרת <strong>{job_title}</strong> עודכן.")
+        + _p(f"שלום {sname},")
+        + _p(f"סטטוס מועמדותך למשרת <strong>{stitle}</strong> עודכן.")
         + _rule()
-        + _p(f"סטטוס קודם: {old_status}")
-        + _p(f"סטטוס חדש: <strong>{new_status}</strong>")
-        + (_p(f"הערות: {notes}", muted=True) if notes else "")
+        + _p(f"סטטוס קודם: {sold}")
+        + _p(f"סטטוס חדש: <strong>{snew}</strong>")
+        + (_p(f"הערות: {snotes}", muted=True) if snotes else "")
     )
-    return _wrap(f"עדכון מועמדות — {job_title}", body)
+    return _wrap(f"עדכון מועמדות — {stitle}", body)
 
 
 def build_application_status_company_html(
@@ -293,17 +313,23 @@ def build_application_status_company_html(
     notes: str | None,
 ) -> str:
     """HTML status update email sent to the company."""
+    scompany = _e(company_name)
+    stitle = _e(job_title)
+    scandidate = _e(candidate_name)
+    sold = _e(old_status)
+    snew = _e(new_status)
+    snotes = _e(notes) if notes else None
     body = (
         _h("עדכון סטטוס מועמדות")
-        + _p(f"שלום {company_name},")
-        + _p(f"סטטוס מועמדות למשרת <strong>{job_title}</strong> עודכן.")
+        + _p(f"שלום {scompany},")
+        + _p(f"סטטוס מועמדות למשרת <strong>{stitle}</strong> עודכן.")
         + _rule()
-        + _p(f"מועמד: {candidate_name}")
-        + _p(f"סטטוס קודם: {old_status}")
-        + _p(f"סטטוס חדש: <strong>{new_status}</strong>")
-        + (_p(f"הערות: {notes}", muted=True) if notes else "")
+        + _p(f"מועמד: {scandidate}")
+        + _p(f"סטטוס קודם: {sold}")
+        + _p(f"סטטוס חדש: <strong>{snew}</strong>")
+        + (_p(f"הערות: {snotes}", muted=True) if snotes else "")
     )
-    return _wrap(f"עדכון מועמדות — {job_title}", body)
+    return _wrap(f"עדכון מועמדות — {stitle}", body)
 
 
 def build_job_contact_html(
@@ -312,12 +338,15 @@ def build_job_contact_html(
     admin_note: str,
 ) -> str:
     """HTML email sent by admin to a company regarding a specific job posting."""
+    stitle = _e(job_title)
+    scompany = _e(company_name)
+    snote = _e(admin_note) if admin_note else ""
     body = (
         _h("פנייה ממנהל המערכת")
-        + _p(f"שלום {company_name},")
-        + _p(f"פנייה זו נשלחה בנוגע למשרת <strong>{job_title}</strong>.")
+        + _p(f"שלום {scompany},")
+        + _p(f"פנייה זו נשלחה בנוגע למשרת <strong>{stitle}</strong>.")
         + _rule()
-        + (_p(admin_note) if admin_note else "")
+        + (_p(snote) if snote else "")
         + _rule()
         + _p("לשאלות ופניות נוספות, אנא צרו קשר עם צוות RS Recruiting.", muted=True)
     )

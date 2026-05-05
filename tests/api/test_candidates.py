@@ -89,7 +89,7 @@ async def test_apply_endpoint_with_resume(
         "phone": "987-654-3210",
     }
 
-    files = {"resume": ("resume.pdf", b"fake pdf content", "application/pdf")}
+    files = {"resume": ("resume.pdf", b"%PDF-1.4\x00" * 5, "application/pdf")}
 
     response = await public_client.post(
         "/api/candidates/apply",

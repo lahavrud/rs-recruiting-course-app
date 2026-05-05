@@ -9,6 +9,7 @@ from sqlalchemy import select
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from tests.conftest import TestSessionLocal
+from tests.factories import FAKE_LOGO, FAKE_SIG_B64
 
 
 @pytest.mark.asyncio
@@ -355,15 +356,14 @@ async def test_admin_job_endpoints_require_admin_role(mock_enqueue_email, test_d
                 contact_mobile_phone="0501234567",
             ),
         )
-        import base64
 
         result = await register_company_user(
             user_data,
             session,
-            b"fake-logo",
+            FAKE_LOGO,
             "logo.png",
             "image/png",
-            base64.b64encode(b"fake-sig").decode(),
+            FAKE_SIG_B64,
         )
         await session.commit()
         company_user = result.user

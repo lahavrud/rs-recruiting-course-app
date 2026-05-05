@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.services.file_validation import validate_document_magic_bytes
 from src.core.services.storage import StorageProvider, get_storage_provider
 from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus
@@ -170,6 +171,11 @@ async def create_candidate_profile(
             if len(resume_file) > max_size:
                 raise ValueError(
                     f"File size exceeds maximum of 10MB. Got: {len(resume_file)} bytes"
+                )
+
+            if not validate_document_magic_bytes(resume_file, file_extension):
+                raise ValueError(
+                    "Resume file content does not match the declared file type"
                 )
 
             # Upload file via storage service

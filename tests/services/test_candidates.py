@@ -16,6 +16,8 @@ from src.services.candidates import (
 )
 from src.services.exceptions import ApplicationAlreadyExistsError, JobNotFoundError
 
+_PDF_BYTES = b"%PDF-1.4" + b"\x00" * 50
+
 
 @pytest.mark.asyncio
 @patch("src.services.candidates.enqueue_email_task")
@@ -118,7 +120,7 @@ async def test_create_candidate_profile_with_resume(
         phone="987-654-3210",
     )
 
-    resume_file = b"fake pdf content"
+    resume_file = _PDF_BYTES
     resume_filename = "resume.pdf"
 
     candidate = await create_candidate_profile(
@@ -269,6 +271,45 @@ async def test_create_candidate_profile_invalid_file(
             job_id=job.id,
             resume_file=resume_file,
             resume_filename=resume_filename,
+            session=session,
+        )
+
+
+@pytest.mark.asyncio
+@patch("src.services.candidates.enqueue_email_task")
+@patch("src.services.candidates.get_storage_provider")
+async def test_create_candidate_profile_forged_magic_bytes_rejected(
+    mock_storage_provider,
+    mock_enqueue_email,
+    session: AsyncSession,
+    company_with_user,
+):
+    """Test that a file with a forged extension is rejected via magic byte check."""
+    mock_enqueue_email.return_value = "test-job-id"
+    job = Job(
+        company_id=company_with_user.id,
+        title="Senior Python Developer",
+        description="Description",
+        requirements="Requirements",
+        location="Tel Aviv",
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.id is not None
+
+    candidate_data = CandidateProfileCreate(
+        full_name="John Doe",
+        email="forged@example.com",
+        phone="050-000-0001",
+    )
+    exe_bytes = b"MZ" + b"\x00" * 100  # Windows PE disguised as PDF
+    with pytest.raises(ValueError, match="does not match"):
+        await create_candidate_profile(
+            candidate_data=candidate_data,
+            job_id=job.id,
+            resume_file=exe_bytes,
+            resume_filename="resume.pdf",
             session=session,
         )
 
@@ -652,7 +693,7 @@ async def test_create_candidate_profile_does_not_overwrite_resume(
         email="john@example.com",
         phone="050-000-0001",
     )
-    resume_file1 = b"fake pdf content 1"
+    resume_file1 = _PDF_BYTES
     resume_filename1 = "resume1.pdf"
 
     candidate1 = await create_candidate_profile(
@@ -673,7 +714,7 @@ async def test_create_candidate_profile_does_not_overwrite_resume(
         email="john@example.com",
         phone="050-000-0001",
     )
-    resume_file2 = b"fake pdf content 2"
+    resume_file2 = _PDF_BYTES
     resume_filename2 = "resume2.pdf"
 
     candidate2 = await create_candidate_profile(

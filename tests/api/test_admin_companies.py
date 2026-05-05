@@ -1,6 +1,5 @@
 """Tests for admin company approval endpoints."""
 
-import base64
 from unittest.mock import patch
 
 import pytest
@@ -11,6 +10,7 @@ from src.models import User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.auth import register_company_user
 from tests.conftest import TestSessionLocal
+from tests.factories import FAKE_LOGO, FAKE_SIG_B64
 
 
 @pytest.mark.asyncio
@@ -45,10 +45,10 @@ async def test_get_pending_companies(
         await register_company_user(
             user_data,
             session,
-            b"fake-logo",
+            FAKE_LOGO,
             "logo.png",
             "image/png",
-            base64.b64encode(b"fake-sig").decode(),
+            FAKE_SIG_B64,
         )
         await session.commit()
 
@@ -221,10 +221,10 @@ async def test_admin_company_endpoints_require_admin_role(mock_enqueue_email, te
         result = await register_company_user(
             user_data,
             session,
-            b"fake-logo",
+            FAKE_LOGO,
             "logo.png",
             "image/png",
-            base64.b64encode(b"fake-sig").decode(),
+            FAKE_SIG_B64,
         )
         await session.commit()
         company_user = result.user

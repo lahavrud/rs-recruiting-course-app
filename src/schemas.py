@@ -85,7 +85,7 @@ class CompanyProfileCreate(BaseModel):
     contact_first_name: str = Field(..., min_length=2, max_length=100)
     contact_last_name: str = Field(..., min_length=2, max_length=100)
     contact_mobile_phone: str
-    contact_landline_phone: str | None = None
+    contact_landline_phone: str | None = Field(None, max_length=20)
 
     @field_validator("company_id")
     @classmethod
@@ -123,7 +123,7 @@ class UserCreate(BaseModel):
     """Schema for creating a user (registration)."""
 
     email: EmailStr = Field(..., max_length=255)
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8, max_length=128)
     company_profile: CompanyProfileCreate
 
     @field_validator("password")
@@ -408,14 +408,14 @@ class ApplicationStatusUpdate(BaseModel):
     """
 
     status: ApplicationStatus
-    admin_notes: str | None = None
+    admin_notes: str | None = Field(None, max_length=2000)
 
 
 class ApplicationUpdate(BaseModel):
     """Schema for updating an application."""
 
     status: ApplicationStatus | None = None
-    admin_notes: str | None = None
+    admin_notes: str | None = Field(None, max_length=2000)
 
 
 class ApplicationRead(BaseModel):

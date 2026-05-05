@@ -1,7 +1,6 @@
 # ruff: noqa: E402  -- env var must be set before src imports (see _TEST_JWT_SECRET below)
 """Shared pytest fixtures for all tests."""
 
-import base64
 import os
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -203,9 +202,8 @@ def _make_company_profile_create(name: str) -> CompanyProfileCreate:
     )
 
 
-_FAKE_LOGO = b"fake-logo-bytes"
-_FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
-
+from tests.factories import FAKE_LOGO as _FAKE_LOGO
+from tests.factories import FAKE_SIG_B64 as _FAKE_SIGNATURE_B64
 
 _STRONG_PASSWORD = "SecurePass1!"
 

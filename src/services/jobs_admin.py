@@ -9,8 +9,8 @@ from src.core.tasks import enqueue_email_task
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job, User
 from src.schemas import JobRead
-from src.services.email_templates import build_job_contact_html
 from src.services.exceptions import JobNotFoundError, JobNotPendingError
+from src.templates.email import build_job_contact_html
 
 
 async def list_pending_jobs(session: AsyncSession) -> list[JobRead]:

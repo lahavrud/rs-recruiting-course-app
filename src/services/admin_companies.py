@@ -13,12 +13,12 @@ from src.enums import UserRole
 from src.models import ActivationToken, Application, CompanyProfile, Job, User
 from src.schemas import ActiveCompanyRead, CompanyProfileRead, UserRead
 from src.services.contract_pdf import generate_signed_contract
-from src.services.email_templates import build_approval_html, build_rejection_html
 from src.services.exceptions import (
     CompanyNotFoundError,
     CompanyNotPendingError,
     InvalidActivationTokenError,
 )
+from src.templates.email import build_approval_html, build_rejection_html
 
 _ACTIVATION_TTL_HOURS = 48
 

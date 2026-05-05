@@ -1,6 +1,5 @@
 """Unit tests for admin_companies service layer."""
 
-import base64
 from unittest.mock import patch
 
 import pytest
@@ -21,9 +20,8 @@ from src.services.admin_companies import (
 )
 from src.services.auth import register_company_user
 from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
-
-_SIG = base64.b64encode(b"fake-sig").decode()
-_LOGO = b"fake-logo"
+from tests.factories import FAKE_LOGO as _LOGO
+from tests.factories import FAKE_SIG_B64 as _SIG
 
 
 def _company_create(email: str, name: str) -> UserCreate:

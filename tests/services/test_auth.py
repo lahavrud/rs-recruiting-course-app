@@ -20,6 +20,8 @@ from src.services.exceptions import (
     InvalidCredentialsError,
     PendingApprovalError,
 )
+from tests.factories import FAKE_LOGO
+from tests.factories import FAKE_SIG_B64 as FAKE_SIGNATURE_B64
 
 TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -33,10 +35,8 @@ TestSessionLocal = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
 )
 
-FAKE_LOGO = b"fake-image-bytes"
 FAKE_LOGO_NAME = "logo.png"
 FAKE_LOGO_TYPE = "image/png"
-FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
 
 
 def _make_user_create(email: str = "company@example.com") -> UserCreate:
@@ -150,6 +150,28 @@ async def test_register_logo_too_large(session: AsyncSession):
     with pytest.raises(ValueError, match="5 MB"):
         await register_company_user(
             user_data, session, big_logo, "logo.png", "image/png"
+        )
+
+
+@pytest.mark.asyncio
+async def test_register_logo_forged_magic_bytes_rejected(session: AsyncSession):
+    """Test registration fails when logo bytes don't match declared MIME type."""
+    user_data = _make_user_create("forged@example.com")
+    exe_bytes = b"MZ" + b"\x00" * 100  # Windows PE header declared as PNG
+    with pytest.raises(ValueError, match="content does not match"):
+        await register_company_user(
+            user_data, session, exe_bytes, "logo.png", "image/png"
+        )
+
+
+@pytest.mark.asyncio
+async def test_register_signature_invalid_png_rejected(session: AsyncSession):
+    """Test registration fails when signature bytes are not a valid PNG."""
+    user_data = _make_user_create("badsig@example.com")
+    not_a_png = base64.b64encode(b"not-a-png-just-text").decode()
+    with pytest.raises(ValueError, match="PNG"):
+        await register_company_user(
+            user_data, session, FAKE_LOGO, FAKE_LOGO_NAME, FAKE_LOGO_TYPE, not_a_png
         )
 
 

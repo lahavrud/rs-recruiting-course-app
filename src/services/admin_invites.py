@@ -14,13 +14,13 @@ from src.core.tasks import enqueue_email_task
 from src.enums import InviteTokenStatus
 from src.models import InviteToken, User
 from src.schemas import InviteTokenCreate, InviteTokenRead
-from src.services.email_templates import build_invite_html
 from src.services.exceptions import (
     EmailAlreadyExistsError,
     InviteAlreadyRevokedError,
     InviteNotFoundError,
     InvitePendingForEmailError,
 )
+from src.templates.email import build_invite_html
 
 
 async def _send_invite_email(email: str, registration_url: str) -> None:

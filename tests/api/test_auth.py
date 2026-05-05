@@ -1,6 +1,5 @@
 """Tests for authentication endpoints."""
 
-import base64
 import os
 from unittest.mock import AsyncMock, patch
 
@@ -19,6 +18,8 @@ from src.core.infrastructure.security import verify_password
 from src.main import app
 from src.models import User
 from src.services.exceptions import InvalidInviteTokenError
+from tests.factories import FAKE_PNG
+from tests.factories import FAKE_SIG_B64 as _FAKE_SIG_B64
 
 TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -32,8 +33,8 @@ TestSessionLocal = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
 )
 
-FAKE_LOGO_FILE = ("logo.png", b"fake-png-bytes", "image/png")
-FAKE_SIGNATURE_B64 = base64.b64encode(b"fake-png-signature-bytes").decode()
+FAKE_LOGO_FILE = ("logo.png", FAKE_PNG, "image/png")
+FAKE_SIGNATURE_B64 = _FAKE_SIG_B64
 
 
 async def override_get_session():
