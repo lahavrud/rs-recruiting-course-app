@@ -732,10 +732,10 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     try {
       const created = await createJob({
         company_id: form.company_id,
-        title: form.title,
-        description: form.description,
-        requirements: form.requirements,
-        location: form.location,
+        title: form.title!,
+        description: form.description!,
+        requirements: form.requirements!,
+        location: form.location!,
         status: form.status,
       });
       onCreated(created);
