@@ -52,7 +52,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           className={({ isActive }) =>
             `block rounded-sm px-3 py-2 text-sm transition ${
               isActive
-                ? "bg-copper/12 text-copper"
+                ? "bg-copper/12 font-medium text-copper"
                 : "text-white/40 hover:bg-white/5 hover:text-white/70"
             }`
           }

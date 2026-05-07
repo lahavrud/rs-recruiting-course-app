@@ -61,6 +61,12 @@ export default function AdminCompaniesPage() {
   usePageTitle(t("admin.companies.title"));
   const [tab, setTab] = useState<Tab>("pending");
   const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
+
+  function handleInvite() {
+    setTab("invites");
+    setInviting(true);
+  }
 
   return (
     <div>
@@ -71,14 +77,20 @@ export default function AdminCompaniesPage() {
         eyebrow={t("admin.companies.title")}
         subtitle={t("admin.companies.subtitle")}
         action={
-          tab === "active" ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               onClick={() => setCreating(true)}
               className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold"
             >
               {t("admin.companies.newCompany")}
             </button>
-          ) : undefined
+            <button
+              onClick={handleInvite}
+              className="rounded-sm border border-copper/40 px-4 py-2 text-sm font-medium text-copper/80 transition hover:border-copper hover:text-copper"
+            >
+              {t("admin.companies.inviteForm.newInviteButton")}
+            </button>
+          </div>
         }
       />
 
@@ -103,7 +115,12 @@ export default function AdminCompaniesPage() {
 
       {tab === "active" && <ActiveTab />}
       {tab === "pending" && <PendingTab />}
-      {tab === "invites" && <InvitesTab />}
+      {tab === "invites" && (
+        <InvitesTab
+          externalOpen={inviting}
+          onExternalClose={() => setInviting(false)}
+        />
+      )}
 
       <CreateCompanyDialog open={creating} onClose={() => setCreating(false)} />
     </div>
@@ -439,7 +456,12 @@ function PendingTab() {
 
 // ── Invites tab ────────────────────────────────────────────────────────────
 
-function InvitesTab() {
+interface InvitesTabProps {
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
+}
+
+function InvitesTab({ externalOpen, onExternalClose }: InvitesTabProps) {
   const { t } = useTranslation();
   const toast = useToast();
 
@@ -463,6 +485,14 @@ function InvitesTab() {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [revokePending, setRevokePending] = useState<InviteTokenRead | null>(null);
   const [pendingMutation, setPendingMutation] = useState(false);
+
+  useEffect(() => {
+    if (externalOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowInviteForm(true);
+      onExternalClose?.();
+    }
+  }, [externalOpen, onExternalClose]);
 
   async function handleRevokeConfirm() {
     if (!revokePending) return;
@@ -493,15 +523,6 @@ function InvitesTab() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={() => setShowInviteForm(true)}
-          className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold"
-        >
-          {t("admin.companies.inviteForm.newInviteButton")}
-        </button>
-      </div>
-
       {isLoading ? (
         <TableSkeleton rows={5} columns={4} />
       ) : error ? (

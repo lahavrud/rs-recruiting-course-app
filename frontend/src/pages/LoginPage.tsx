@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/ui/Logo";
@@ -9,6 +9,9 @@ import axios from "axios";
 export default function LoginPage() {
   const { t } = useTranslation();
   const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login({ email, password });
+      navigate(from, { replace: true });
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status;
