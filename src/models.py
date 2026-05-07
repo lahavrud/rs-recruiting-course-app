@@ -112,7 +112,9 @@ class CompanyProfile(SQLModel, table=True):
     """
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id", unique=True, index=True)
+    user_id: int | None = Field(
+        default=None, foreign_key="user.id", unique=True, index=True
+    )
     name: str
     logo_url: str | None = None
     company_id: str | None = None  # ח.פ — 9-digit Israeli company registration number

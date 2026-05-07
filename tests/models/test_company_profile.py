@@ -63,3 +63,16 @@ async def test_company_profile_default_values(session: AsyncSession):
     await session.refresh(company)
 
     assert company.created_at is not None
+
+
+@pytest.mark.asyncio
+async def test_company_profile_allows_null_user_id(session: AsyncSession):
+    """Admin-created companies can exist without a linked user."""
+    company = CompanyProfile(name="Admin-Only Company")
+    session.add(company)
+    await session.commit()
+    await session.refresh(company)
+
+    assert company.id is not None
+    assert company.user_id is None
+    assert company.name == "Admin-Only Company"
