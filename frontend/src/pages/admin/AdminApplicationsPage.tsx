@@ -770,9 +770,13 @@ function NotesDialog({ app, onClose, onSaved, onError }: NotesDialogProps) {
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={5}
+        maxLength={5000}
         className={textareaCls}
         placeholder={t("admin.applications.modal.notesPlaceholder")}
       />
+      {notes.length > 4800 && (
+        <p className="mt-1 text-xs text-white/35">{notes.length} / 5000</p>
+      )}
     </Dialog>
   );
 }

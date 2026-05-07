@@ -40,6 +40,18 @@
     "genericError": "אירעה שגיאה. אנא נסו שוב מאוחר יותר.",
     "noResultsHeadline": "אין תוצאות",
     "noResultsDescription": "נסו לשנות את המסננים או את מילות החיפוש.",
+    "discardTitle": "לצאת ללא שמירה?",
+    "discardMessage": "השינויים שביצעת לא יישמרו.",
+    "discard": "צא ללא שמירה",
+    "continueEditing": "המשך עריכה",
+    "validation": {
+      "required": "שדה חובה",
+      "tooLong": "מקסימום {{max}} תווים",
+      "tooShort": "לפחות {{min}} תווים",
+      "emailInvalid": "כתובת אימייל לא תקינה",
+      "phoneInvalid": "מספר טלפון לא תקין",
+      "linkedinInvalid": "יש להזין קישור LinkedIn תקין (https://linkedin.com/...)"
+    },
     "viewCandidate": "צפה במועמד",
     "viewJob": "צפה במשרה",
     "viewCompany": "צפה בחברה",
