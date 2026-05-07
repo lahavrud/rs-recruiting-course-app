@@ -497,27 +497,54 @@ interface EditProps {
 function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
   const { t } = useTranslation();
   const [form, setForm] = useState<JobUpdate>({});
+  const [initialForm, setInitialForm] = useState<JobUpdate>({});
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     if (!job) return;
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setForm({
+    const seed: JobUpdate = {
       title: job.title,
       description: job.description,
       requirements: job.requirements,
       location: job.location,
       status: job.status,
-    });
+    };
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setForm(seed);
+    setInitialForm(seed);
+    setErrors({});
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [job]);
 
   function set<K extends keyof JobUpdate>(key: K, value: JobUpdate[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
+  }
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+
+  function handleClose() {
+    if (isDirty) { setConfirmDiscard(true); } else { onClose(); }
+  }
+
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!form.title?.trim()) e.title = t("common.validation.required");
+    else if (form.title.length > 200) e.title = t("common.validation.tooLong", { max: 200 });
+    if (!form.location?.trim()) e.location = t("common.validation.required");
+    else if (form.location.length > 200) e.location = t("common.validation.tooLong", { max: 200 });
+    if (!form.description?.trim()) e.description = t("common.validation.required");
+    else if (form.description.length > 5000) e.description = t("common.validation.tooLong", { max: 5000 });
+    if (!form.requirements?.trim()) e.requirements = t("common.validation.required");
+    else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
+    setErrors(e);
+    return Object.keys(e).length === 0;
   }
 
   async function handleSave() {
-    if (!job) return;
+    if (!job || !validate()) return;
     setSaving(true);
     try {
       const updated = await updateJob(job.id, form);
@@ -531,79 +558,94 @@ function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
 
   if (!job) return null;
   return (
-    <Dialog
-      open={job != null}
-      onOpenChange={(o) => !o && onClose()}
-      title={t("admin.jobs.editModalTitle")}
-      description={job.title}
-      size="lg"
-      footer={
-        <>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-sm border border-white/20 px-4 py-2 text-sm text-white/60 hover:border-white/40 hover:text-white/90 disabled:opacity-60"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold disabled:opacity-60"
-          >
-            {saving ? t("common.saving") : t("common.save")}
-          </button>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-        <Field label={t("admin.jobs.fields.title")}>
-          <input
-            type="text"
-            value={form.title ?? ""}
-            onChange={(e) => set("title", e.target.value)}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={t("admin.jobs.fields.location")}>
-          <input
-            type="text"
-            value={form.location ?? ""}
-            onChange={(e) => set("location", e.target.value)}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={t("admin.jobs.fields.status")}>
-          <select
-            value={form.status ?? job.status}
-            onChange={(e) => set("status", e.target.value as JobStatus)}
-            className={selectCls}
-          >
-            {ALL_STATUSES.map((s) => (
-              <option key={s} value={s} className="bg-well">
-                {t(`admin.jobs.statusLabels.${s}`)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={t("admin.jobs.fields.description")} full>
-          <textarea
-            rows={4}
-            value={form.description ?? ""}
-            onChange={(e) => set("description", e.target.value)}
-            className={textareaCls}
-          />
-        </Field>
-        <Field label={t("admin.jobs.fields.requirements")} full>
-          <textarea
-            rows={3}
-            value={form.requirements ?? ""}
-            onChange={(e) => set("requirements", e.target.value)}
-            className={textareaCls}
-          />
-        </Field>
-      </div>
-    </Dialog>
+    <>
+      <Dialog
+        open={job != null}
+        onOpenChange={(o) => !o && handleClose()}
+        title={t("admin.jobs.editModalTitle")}
+        description={job.title}
+        size="lg"
+        footer={
+          <>
+            <button
+              onClick={handleClose}
+              disabled={saving}
+              className="rounded-sm border border-white/20 px-4 py-2 text-sm text-white/60 hover:border-white/40 hover:text-white/90 disabled:opacity-60"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold disabled:opacity-60"
+            >
+              {saving ? t("common.saving") : t("common.save")}
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <Field label={t("admin.jobs.fields.title")}>
+            <input
+              type="text"
+              value={form.title ?? ""}
+              onChange={(e) => set("title", e.target.value)}
+              className={inputCls}
+            />
+            {errors.title && <p className="mt-1 text-xs text-danger">{errors.title}</p>}
+          </Field>
+          <Field label={t("admin.jobs.fields.location")}>
+            <input
+              type="text"
+              value={form.location ?? ""}
+              onChange={(e) => set("location", e.target.value)}
+              className={inputCls}
+            />
+            {errors.location && <p className="mt-1 text-xs text-danger">{errors.location}</p>}
+          </Field>
+          <Field label={t("admin.jobs.fields.status")}>
+            <select
+              value={form.status ?? job.status}
+              onChange={(e) => set("status", e.target.value as JobStatus)}
+              className={selectCls}
+            >
+              {ALL_STATUSES.map((s) => (
+                <option key={s} value={s} className="bg-well">
+                  {t(`admin.jobs.statusLabels.${s}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("admin.jobs.fields.description")} full>
+            <textarea
+              rows={4}
+              value={form.description ?? ""}
+              onChange={(e) => set("description", e.target.value)}
+              className={textareaCls}
+            />
+            {errors.description && <p className="mt-1 text-xs text-danger">{errors.description}</p>}
+          </Field>
+          <Field label={t("admin.jobs.fields.requirements")} full>
+            <textarea
+              rows={3}
+              value={form.requirements ?? ""}
+              onChange={(e) => set("requirements", e.target.value)}
+              className={textareaCls}
+            />
+            {errors.requirements && <p className="mt-1 text-xs text-danger">{errors.requirements}</p>}
+          </Field>
+        </div>
+      </Dialog>
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={(o) => !o && setConfirmDiscard(false)}
+        title={t("common.discardTitle")}
+        message={t("common.discardMessage")}
+        confirmLabel={t("common.discard")}
+        variant="danger"
+        onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+      />
+    </>
   );
 }
 
@@ -628,6 +670,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     status: JobStatus.PUBLISHED,
   });
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -635,6 +678,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     /* eslint-disable react-hooks/set-state-in-effect */
     setCompanies(null);
     setCompaniesError(false);
+    setErrors({});
     setForm({
       title: "",
       description: "",
@@ -664,17 +708,25 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
 
   function set<K extends keyof JobAdminCreate>(key: K, value: JobAdminCreate[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (errors[String(key)]) setErrors((prev) => ({ ...prev, [String(key)]: "" }));
+  }
+
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!form.title?.trim()) e.title = t("common.validation.required");
+    else if (form.title.length > 200) e.title = t("common.validation.tooLong", { max: 200 });
+    if (!form.location?.trim()) e.location = t("common.validation.required");
+    else if (form.location.length > 200) e.location = t("common.validation.tooLong", { max: 200 });
+    if (!form.description?.trim()) e.description = t("common.validation.required");
+    else if (form.description.length > 5000) e.description = t("common.validation.tooLong", { max: 5000 });
+    if (!form.requirements?.trim()) e.requirements = t("common.validation.required");
+    else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
+    setErrors(e);
+    return Object.keys(e).length === 0;
   }
 
   async function handleSave() {
-    if (
-      !form.company_id ||
-      !form.title ||
-      !form.description ||
-      !form.requirements ||
-      !form.location
-    )
-      return;
+    if (!form.company_id || !validate()) return;
     setSaving(true);
     try {
       const created = await createJob({
@@ -710,14 +762,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
           </button>
           <button
             onClick={handleSave}
-            disabled={
-              saving ||
-              !form.company_id ||
-              !form.title ||
-              !form.description ||
-              !form.requirements ||
-              !form.location
-            }
+            disabled={saving}
             className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold disabled:opacity-60"
           >
             {saving ? t("common.saving") : t("common.save")}
@@ -758,6 +803,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
             onChange={(e) => set("title", e.target.value)}
             className={inputCls}
           />
+          {errors.title && <p className="mt-1 text-xs text-danger">{errors.title}</p>}
         </Field>
         <Field label={t("admin.jobs.fields.location")}>
           <input
@@ -766,6 +812,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
             onChange={(e) => set("location", e.target.value)}
             className={inputCls}
           />
+          {errors.location && <p className="mt-1 text-xs text-danger">{errors.location}</p>}
         </Field>
         <Field label={t("admin.jobs.fields.status")}>
           <select
@@ -787,6 +834,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
             onChange={(e) => set("description", e.target.value)}
             className={textareaCls}
           />
+          {errors.description && <p className="mt-1 text-xs text-danger">{errors.description}</p>}
         </Field>
         <Field label={t("admin.jobs.fields.requirements")} full>
           <textarea
@@ -795,6 +843,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
             onChange={(e) => set("requirements", e.target.value)}
             className={textareaCls}
           />
+          {errors.requirements && <p className="mt-1 text-xs text-danger">{errors.requirements}</p>}
         </Field>
       </div>
     </Dialog>

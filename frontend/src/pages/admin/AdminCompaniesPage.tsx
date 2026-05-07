@@ -827,13 +827,14 @@ function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const [form, setForm] = useState<CompanyProfileAdminUpdate>({});
+  const [initialForm, setInitialForm] = useState<CompanyProfileAdminUpdate>({});
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setForm({
+    const seed: CompanyProfileAdminUpdate = {
       name: profile.name,
       company_id: profile.company_id ?? "",
       address: profile.address ?? "",
@@ -841,27 +842,36 @@ function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
       contact_last_name: profile.contact_last_name ?? "",
       contact_mobile_phone: profile.contact_mobile_phone ?? "",
       contact_landline_phone: profile.contact_landline_phone ?? "",
-    });
+    };
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setForm(seed);
+    setInitialForm(seed);
     setValidationError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [profile]);
 
-  function set<K extends keyof CompanyProfileAdminUpdate>(
-    key: K,
-    value: CompanyProfileAdminUpdate[K],
-  ) {
+  function set<K extends keyof CompanyProfileAdminUpdate>(key: K, value: CompanyProfileAdminUpdate[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setValidationError(null);
+  }
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+
+  function handleClose() {
+    if (isDirty) { setConfirmDiscard(true); } else { onClose(); }
   }
 
   async function handleSave() {
     if (!profile) return;
+    if (!form.name?.trim()) { setValidationError(t("common.validation.required")); return; }
+    if (!form.contact_first_name?.trim() || !form.contact_last_name?.trim()) {
+      setValidationError(t("common.validation.required")); return;
+    }
     if (form.company_id && !COMPANY_ID_RE.test(form.company_id)) {
-      setValidationError(t("admin.companies.validation.companyId"));
-      return;
+      setValidationError(t("admin.companies.validation.companyId")); return;
     }
     if (form.contact_mobile_phone && !MOBILE_RE.test(form.contact_mobile_phone)) {
-      setValidationError(t("admin.companies.validation.mobile"));
-      return;
+      setValidationError(t("admin.companies.validation.mobile")); return;
     }
     setSaving(true);
     setValidationError(null);
@@ -881,16 +891,17 @@ function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
   if (!profile) return null;
 
   return (
+    <>
     <Dialog
       open={profile != null}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && handleClose()}
       title={t("admin.companies.editModalTitle")}
       description={profile.name}
       size="lg"
       footer={
         <>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={saving}
             className="rounded-sm border border-white/20 px-4 py-2 text-sm text-white/60 hover:border-white/40 hover:text-white/90 disabled:opacity-60"
           >
@@ -917,6 +928,16 @@ function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
       />
       {validationError && <p className="mt-3 text-xs text-danger">{validationError}</p>}
     </Dialog>
+    <ConfirmDialog
+      open={confirmDiscard}
+      onOpenChange={(o) => !o && setConfirmDiscard(false)}
+      title={t("common.discardTitle")}
+      message={t("common.discardMessage")}
+      confirmLabel={t("common.discard")}
+      variant="danger"
+      onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+    />
+    </>
   );
 }
 
