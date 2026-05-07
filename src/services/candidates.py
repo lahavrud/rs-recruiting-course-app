@@ -8,7 +8,7 @@ from src.core.services.file_validation import validate_document_magic_bytes
 from src.core.services.storage import StorageProvider, get_storage_provider
 from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus
-from src.models import Application, CandidateProfile, Job
+from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.services.admin_companies import get_all_admin_emails
 from src.services.exceptions import ApplicationAlreadyExistsError, JobNotFoundError
@@ -17,20 +17,20 @@ from src.templates.email import (
     build_new_application_admin_html,
 )
 
+_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
+_MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
+_MIME_BY_EXT = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+}
+
 
 async def find_candidate_by_email(
     email: str,
     session: AsyncSession,
 ) -> CandidateProfile | None:
-    """Find an existing candidate profile by email address.
-
-    Args:
-        email: Email address to search for
-        session: Database session
-
-    Returns:
-        CandidateProfile if found, None otherwise
-    """
+    """Find an existing candidate profile by email address."""
     result = await session.execute(
         select(CandidateProfile).where(  # pyright: ignore[reportArgumentType]
             CandidateProfile.email == email
@@ -51,49 +51,30 @@ async def update_candidate_profile(
     - Always update: full_name (may have changed)
     - Update if None: phone, linkedin_url, resume_path, interview fields
     - Never overwrite: email, created_at
-
-    Args:
-        candidate: Existing CandidateProfile to update
-        candidate_data: New candidate data from form
-        resume_path: Optional new resume path
-        session: Database session (required)
-
-    Returns:
-        Updated CandidateProfile
     """
     if session is None:
         raise ValueError("Database session is required")
 
-    # Always update full_name (person may have changed name)
     candidate.full_name = candidate_data.full_name
 
-    # Update if None: phone, linkedin_url, and all interview fields
     if candidate.phone is None and candidate_data.phone is not None:
         candidate.phone = candidate_data.phone
-
     if candidate.linkedin_url is None and candidate_data.linkedin_url is not None:
         candidate.linkedin_url = candidate_data.linkedin_url
-
-    # Resume handling: only update if existing resume_path is None
     if candidate.resume_path is None and resume_path is not None:
         candidate.resume_path = resume_path
-
-    # Update interview fields if None
     if candidate.service_concept is None and candidate_data.service_concept is not None:
         candidate.service_concept = candidate_data.service_concept
-
     if (
         candidate.salary_expectations is None
         and candidate_data.salary_expectations is not None
     ):
         candidate.salary_expectations = candidate_data.salary_expectations
-
     if (
         candidate.personality_weakness is None
         and candidate_data.personality_weakness is not None
     ):
         candidate.personality_weakness = candidate_data.personality_weakness
-
     if (
         candidate.personality_strength is None
         and candidate_data.personality_strength is not None
@@ -103,151 +84,72 @@ async def update_candidate_profile(
     return candidate
 
 
-async def create_candidate_profile(
+# ── Private helpers ───────────────────────────────────────────────────────────
+
+
+async def _validate_and_upload_resume(
+    resume_file: bytes,
+    resume_filename: str,
+    storage: StorageProvider,
+) -> str:
+    """Validate resume file (type, size, magic bytes) and upload it.
+
+    Returns the storage file key. Raises ValueError on any validation failure.
+    """
+    ext = resume_filename.lower().rsplit(".", 1)[-1] if "." in resume_filename else ""
+    if f".{ext}" not in _ALLOWED_EXTENSIONS:
+        raise ValueError(f"Invalid file type. Allowed: PDF, DOC, DOCX. Got: {ext}")
+    if len(resume_file) > _MAX_RESUME_BYTES:
+        raise ValueError(
+            f"File size exceeds maximum of 10MB. Got: {len(resume_file)} bytes"
+        )
+    if not validate_document_magic_bytes(resume_file, ext):
+        raise ValueError("Resume file content does not match the declared file type")
+
+    content_type = _MIME_BY_EXT.get(ext, "application/octet-stream")
+    return await storage.upload_file(
+        file_content=resume_file,
+        file_name=f"resumes/{resume_filename}",
+        content_type=content_type,
+    )
+
+
+async def _upsert_candidate_and_application(
+    session: AsyncSession,
     candidate_data: CandidateProfileCreate,
     job_id: int,
-    resume_file: bytes | None = None,
-    resume_filename: str | None = None,
-    session: AsyncSession | None = None,
-) -> CandidateProfileRead:
-    """Create a candidate profile and application for a job.
+    resume_path: str | None,
+) -> CandidateProfile:
+    """Find-or-create the candidate profile and create the application row.
 
-    This is the main service method for the public application form.
-    It handles:
-    - Creating the CandidateProfile record
-    - Uploading resume file (if provided) via storage service
-    - Creating the Application record linking candidate to job
-    - Sending email notification to all admins
-
-    Args:
-        candidate_data: Candidate profile data from form
-        job_id: ID of the job being applied to
-        resume_file: Optional resume file content (bytes)
-        resume_filename: Optional resume file name
-        session: Database session (required)
-
-    Returns:
-        Created CandidateProfile as CandidateProfileRead schema
-
-    Raises:
-        ValueError: If session is not provided
-        JobNotFoundError: If job with job_id does not exist
-        ValueError: If file upload fails
+    Raises ApplicationAlreadyExistsError if the candidate already applied.
+    Returns the CandidateProfile (not yet committed).
     """
-    if session is None:
-        raise ValueError("Database session is required")
-
-    # Verify job exists
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
-    )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise JobNotFoundError(f"Job with ID {job_id} not found")
-
-    # Load company profile for email notification
-    from src.models import CompanyProfile
-
-    company_result = await session.execute(
-        select(CompanyProfile).where(  # pyright: ignore[reportArgumentType]
-            CompanyProfile.id == job.company_id
-        )
-    )
-    company = company_result.scalar_one_or_none()
-    company_name = company.name if company else "Unknown Company"
-
-    # Handle resume file upload if provided
-    resume_path: str | None = None
-    if resume_file is not None and resume_filename is not None:
-        try:
-            # Validate file type (PDF, DOC, DOCX)
-            allowed_extensions = {".pdf", ".doc", ".docx"}
-            file_extension = (
-                resume_filename.lower().split(".")[-1] if "." in resume_filename else ""
-            )
-            if f".{file_extension}" not in allowed_extensions:
-                raise ValueError(
-                    f"Invalid file type. Allowed types: PDF, DOC, DOCX. "
-                    f"Got: {file_extension}"
-                )
-
-            # Validate file size (max 10MB)
-            max_size = 10 * 1024 * 1024  # 10MB in bytes
-            if len(resume_file) > max_size:
-                raise ValueError(
-                    f"File size exceeds maximum of 10MB. Got: {len(resume_file)} bytes"
-                )
-
-            if not validate_document_magic_bytes(resume_file, file_extension):
-                raise ValueError(
-                    "Resume file content does not match the declared file type"
-                )
-
-            # Upload file via storage service
-            storage_provider: StorageProvider = get_storage_provider()
-            # Determine correct MIME type based on file extension
-            if file_extension == "pdf":
-                content_type = "application/pdf"
-            elif file_extension == "docx":
-                content_type = (
-                    "application/vnd.openxmlformats-officedocument."
-                    "wordprocessingml.document"
-                )
-            else:  # .doc
-                content_type = "application/msword"
-
-            file_identifier = await storage_provider.upload_file(
-                file_content=resume_file,
-                file_name=f"resumes/{resume_filename}",
-                content_type=content_type,
-            )
-
-            # Store the file identifier as resume_path
-            # For local storage, this will be the file key
-            # For S3, this will be the S3 object key
-            resume_path = file_identifier
-        except Exception as e:
-            raise ValueError(f"Failed to upload resume file: {e}") from e
-
-    # Check if candidate exists by email (shadow profile logic)
-    existing_candidate = await find_candidate_by_email(
+    existing = await find_candidate_by_email(
         email=candidate_data.email, session=session
     )
 
-    if existing_candidate:
-        # Update existing candidate profile with new information
+    if existing:
         candidate = await update_candidate_profile(
-            candidate=existing_candidate,
+            candidate=existing,
             candidate_data=candidate_data,
             resume_path=resume_path,
             session=session,
         )
-        await session.flush()  # Flush to ensure candidate is updated
+        await session.flush()
 
-        # Check if Application already exists for this job+candidate
-        result = await session.execute(
+        dup = await session.execute(
             select(Application).where(  # pyright: ignore[reportArgumentType]
                 Application.job_id == job_id,
                 Application.candidate_id == candidate.id,  # type: ignore[reportArgumentType]
             )
         )
-        existing_application = result.scalar_one_or_none()
-
-        if existing_application:
+        if dup.scalar_one_or_none():
             raise ApplicationAlreadyExistsError(
                 job_id=job_id,
                 candidate_id=candidate.id,  # type: ignore[arg-type]
             )
-
-        # Create new Application for existing candidate
-        application = Application(
-            job_id=job_id,
-            candidate_id=candidate.id,  # type: ignore[arg-type]
-            status=ApplicationStatus.NEW,  # Admin as Gatekeeper: starts as NEW
-        )
-        session.add(application)
     else:
-        # Create new CandidateProfile
         candidate = CandidateProfile(
             full_name=candidate_data.full_name,
             email=candidate_data.email,
@@ -259,60 +161,59 @@ async def create_candidate_profile(
             personality_weakness=candidate_data.personality_weakness,
             personality_strength=candidate_data.personality_strength,
         )
-
         session.add(candidate)
-        await session.flush()  # Flush to get candidate.id
+        await session.flush()
 
-        # Create Application record (linking candidate to job)
-        application = Application(
+    session.add(
+        Application(
             job_id=job_id,
             candidate_id=candidate.id,  # type: ignore[arg-type]
-            status=ApplicationStatus.NEW,  # Admin as Gatekeeper: starts as NEW
+            status=ApplicationStatus.NEW,
         )
-
-        session.add(application)
-
-    await session.commit()
-
-    # Candidate confirmation email (one per successful apply, Hebrew HTML).
-    candidate_subject = f"מועמדותך למשרת '{job.title}' התקבלה"
-    candidate_plain = (
-        f"שלום {candidate.full_name},\n\n"
-        f"קיבלנו את מועמדותך למשרת '{job.title}'. צוות RS Recruiting "
-        "יבחן את הפרטים בקרוב ויחזור אליך עם עדכון."
     )
+    return candidate
+
+
+async def _send_application_emails(
+    candidate: CandidateProfile,
+    job: Job,
+    company_name: str,
+    session: AsyncSession,
+) -> None:
+    """Enqueue confirmation email to the candidate and notification to admins."""
     await enqueue_email_task(
         to=candidate.email,
-        subject=candidate_subject,
-        body=candidate_plain,
+        subject=f"מועמדותך למשרת '{job.title}' התקבלה",
+        body=(
+            f"שלום {candidate.full_name},\n\n"
+            f"קיבלנו את מועמדותך למשרת '{job.title}'. צוות RS Recruiting "
+            "יבחן את הפרטים בקרוב ויחזור אליך עם עדכון."
+        ),
         html_body=build_application_received_html(
             candidate_name=candidate.full_name,
             job_title=job.title,
         ),
     )
 
-    # Admin notification: prefer the configured single recipient; fall back
-    # to all active admins if the env var is not set.
     if settings.admin_notification_email:
         admin_recipients: list[str] | str = settings.admin_notification_email
     else:
         admin_recipients = await get_all_admin_emails(session)
+
     if admin_recipients:
         admin_url = f"{settings.frontend_base_url}/admin/applications"
-        admin_subject = f"מועמדות חדשה למשרת '{job.title}' — {candidate.full_name}"
-        admin_plain = (
-            f"מועמדות חדשה התקבלה:\n\n"
-            f"שם: {candidate.full_name}\n"
-            f'דוא"ל: {candidate.email}\n'
-            f"טלפון: {candidate.phone or 'לא צויין'}\n"
-            f"משרה: {job.title}\n"
-            f"חברה: {company_name}\n\n"
-            f"מעבר לניהול: {admin_url}"
-        )
         await enqueue_email_task(
             to=admin_recipients,
-            subject=admin_subject,
-            body=admin_plain,
+            subject=f"מועמדות חדשה למשרת '{job.title}' — {candidate.full_name}",
+            body=(
+                f"מועמדות חדשה התקבלה:\n\n"
+                f"שם: {candidate.full_name}\n"
+                f'דוא"ל: {candidate.email}\n'
+                f"טלפון: {candidate.phone or 'לא צויין'}\n"
+                f"משרה: {job.title}\n"
+                f"חברה: {company_name}\n\n"
+                f"מעבר לניהול: {admin_url}"
+            ),
             html_body=build_new_application_admin_html(
                 candidate_name=candidate.full_name,
                 candidate_email=candidate.email,
@@ -324,7 +225,56 @@ async def create_candidate_profile(
             ),
         )
 
-    # Refresh candidate to ensure all fields are loaded (before commit)
+
+# ── Public entry point ────────────────────────────────────────────────────────
+
+
+async def create_candidate_profile(
+    candidate_data: CandidateProfileCreate,
+    job_id: int,
+    resume_file: bytes | None = None,
+    resume_filename: str | None = None,
+    session: AsyncSession | None = None,
+) -> CandidateProfileRead:
+    """Create a candidate profile and application for a job.
+
+    Raises:
+        ValueError: If session is missing or file upload fails.
+        JobNotFoundError: If the job does not exist.
+        ApplicationAlreadyExistsError: If the candidate already applied.
+    """
+    if session is None:
+        raise ValueError("Database session is required")
+
+    job_row = await session.execute(
+        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    )
+    job = job_row.scalar_one_or_none()
+    if not job:
+        raise JobNotFoundError(f"Job with ID {job_id} not found")
+
+    company_row = await session.execute(
+        select(CompanyProfile).where(  # pyright: ignore[reportArgumentType]
+            CompanyProfile.id == job.company_id
+        )
+    )
+    company = company_row.scalar_one_or_none()
+    company_name = company.name if company else "Unknown Company"
+
+    resume_path: str | None = None
+    if resume_file is not None and resume_filename is not None:
+        try:
+            resume_path = await _validate_and_upload_resume(
+                resume_file, resume_filename, get_storage_provider()
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to upload resume file: {e}") from e
+
+    candidate = await _upsert_candidate_and_application(
+        session, candidate_data, job_id, resume_path
+    )
+    await session.commit()
     await session.refresh(candidate)
 
+    await _send_application_emails(candidate, job, company_name, session)
     return CandidateProfileRead.model_validate(candidate)

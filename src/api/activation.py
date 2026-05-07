@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.transactions import transactional
 from src.services.activation import activate_company
 from src.services.exceptions import InvalidActivationTokenError
 
@@ -20,8 +21,8 @@ async def activate(
 ) -> dict:
     """Activate a company account using the one-time token from the approval email."""
     try:
-        await activate_company(token, session)
-        await session.commit()
+        async with transactional(session):
+            await activate_company(token, session)
     except InvalidActivationTokenError as e:
         raise service_exception_to_http(e) from e
     return {"message": "החשבון הופעל בהצלחה"}

@@ -7,6 +7,7 @@ from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
+from src.core.infrastructure.transactions import transactional
 from src.models import User
 from src.schemas import (
     ActiveCompanyRead,
@@ -37,10 +38,7 @@ from src.services.exceptions import (
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-@router.get(
-    "/companies",
-    response_model=CursorPage[ActiveCompanyRead],
-)
+@router.get("/companies", response_model=CursorPage[ActiveCompanyRead])
 async def get_active_companies(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
@@ -55,34 +53,19 @@ async def get_active_companies(
 
 
 @router.post(
-    "/companies",
-    response_model=CompanyProfileRead,
-    status_code=status.HTTP_201_CREATED,
+    "/companies", response_model=CompanyProfileRead, status_code=status.HTTP_201_CREATED
 )
 async def create_company_directly(
     data: CompanyProfileAdminCreate,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CompanyProfileRead:
-    """Create a CompanyProfile directly, without a user account.
-
-    The resulting profile has `user_id = null` and can be referenced by jobs
-    immediately. Admins use this for companies that haven't been onboarded
-    via the invite flow yet.
-    """
-    try:
-        result = await admin_create_company(data, session)
-        await session.commit()
-        return result
-    except Exception:
-        await session.rollback()
-        raise
+    """Create a CompanyProfile directly (user_id=null). For pre-onboarding companies."""
+    async with transactional(session):
+        return await admin_create_company(data, session)
 
 
-@router.get(
-    "/companies/profile/{profile_id}",
-    response_model=CompanyProfileRead,
-)
+@router.get("/companies/profile/{profile_id}", response_model=CompanyProfileRead)
 async def get_company_profile_endpoint(
     profile_id: int,
     current_admin: User = Depends(get_current_admin),
@@ -95,10 +78,7 @@ async def get_company_profile_endpoint(
         raise service_exception_to_http(e) from e
 
 
-@router.put(
-    "/companies/profile/{profile_id}",
-    response_model=CompanyProfileRead,
-)
+@router.put("/companies/profile/{profile_id}", response_model=CompanyProfileRead)
 async def update_company_profile_endpoint(
     profile_id: int,
     data: CompanyProfileAdminUpdate,
@@ -107,21 +87,13 @@ async def update_company_profile_endpoint(
 ) -> CompanyProfileRead:
     """Partially update a CompanyProfile."""
     try:
-        result = await update_company_profile(profile_id, data, session)
-        await session.commit()
-        return result
+        async with transactional(session):
+            return await update_company_profile(profile_id, data, session)
     except CompanyNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
-@router.delete(
-    "/companies/{company_user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/companies/{company_user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_company(
     company_user_id: int,
     current_admin: User = Depends(get_current_admin),
@@ -129,20 +101,13 @@ async def delete_company(
 ) -> None:
     """Hard-delete a company and all its jobs and applications."""
     try:
-        await delete_active_company(company_user_id, session)
-        await session.commit()
+        async with transactional(session):
+            await delete_active_company(company_user_id, session)
     except CompanyNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
-@router.get(
-    "/companies/pending",
-    response_model=CursorPage[PendingCompanyRead],
-)
+@router.get("/companies/pending", response_model=CursorPage[PendingCompanyRead])
 async def get_pending_companies(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
@@ -168,20 +133,15 @@ async def approve_company_registration(
 ) -> ApprovedCompanyRead:
     """Approve a company registration."""
     try:
-        result = await approve_company(company_user_id, session)
-        await session.commit()
-        return ApprovedCompanyRead.model_validate(result)
+        async with transactional(session):
+            result = await approve_company(company_user_id, session)
+            return ApprovedCompanyRead.model_validate(result)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
 @router.post(
-    "/companies/{company_user_id}/reject",
-    status_code=status.HTTP_204_NO_CONTENT,
+    "/companies/{company_user_id}/reject", status_code=status.HTTP_204_NO_CONTENT
 )
 async def reject_company_registration(
     company_user_id: int,
@@ -190,11 +150,7 @@ async def reject_company_registration(
 ) -> None:
     """Reject a company registration."""
     try:
-        await reject_company(company_user_id, session)
-        await session.commit()
+        async with transactional(session):
+            await reject_company(company_user_id, session)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise

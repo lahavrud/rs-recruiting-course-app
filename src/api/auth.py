@@ -25,6 +25,7 @@ from src.core.infrastructure.invite_tokens import (
     validate_invite_token,
 )
 from src.core.infrastructure.limiter import get_limiter
+from src.core.infrastructure.transactions import transactional
 from src.schemas import (
     CompanyProfileCreate,
     LoginRequest,
@@ -108,32 +109,27 @@ async def register(
     logo_content_type = logo.content_type
 
     try:
-        await validate_invite_token(token)
-        result = await register_company_user(
-            user_create,
-            session,
-            logo_content,
-            logo_filename,
-            logo_content_type,
-            agreement_signature,
-            privacy_accepted=privacy_accepted,
-        )
-        await mark_invite_used(token, session)
-        await session.commit()
-        await consume_invite_token(token)
-        return result
+        async with transactional(session):
+            await validate_invite_token(token)
+            result = await register_company_user(
+                user_create,
+                session,
+                logo_content,
+                logo_filename,
+                logo_content_type,
+                agreement_signature,
+                privacy_accepted=privacy_accepted,
+            )
+            await mark_invite_used(token, session)
     except InvalidInviteTokenError as e:
         raise service_exception_to_http(e) from e
     except EmailAlreadyExistsError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
     except ValueError as e:
-        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         ) from e
     except sqlalchemy_exc.IntegrityError as e:
-        await session.rollback()
         pgcode = getattr(e.orig, "pgcode", None)
         if pgcode == "23505":  # unique_violation
             raise HTTPException(
@@ -144,9 +140,9 @@ async def register(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred during registration",
         ) from e
-    except Exception:
-        await session.rollback()
-        raise
+
+    await consume_invite_token(token)
+    return result
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -168,8 +164,8 @@ async def login(
     ) as e:
         raise service_exception_to_http(e) from e
 
-    access_token, refresh_token = await create_user_tokens(user, session)
-    await session.commit()
+    async with transactional(session):
+        access_token, refresh_token = await create_user_tokens(user, session)
 
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
@@ -181,10 +177,10 @@ async def refresh(
 ) -> TokenResponse:
     """Exchange a valid refresh token for a new access + refresh token pair."""
     try:
-        access_token, new_refresh_token = await refresh_user_tokens(
-            body.refresh_token, session
-        )
-        await session.commit()
+        async with transactional(session):
+            access_token, new_refresh_token = await refresh_user_tokens(
+                body.refresh_token, session
+            )
     except InvalidCredentialsError as e:
         raise service_exception_to_http(e) from e
 
@@ -202,5 +198,5 @@ async def logout(
     exp = payload.get("exp")
     if jti and exp:
         raw_refresh = body.refresh_token if body else None
-        await logout_user(jti, int(exp), raw_refresh, session)
-        await session.commit()
+        async with transactional(session):
+            await logout_user(jti, int(exp), raw_refresh, session)

@@ -12,6 +12,7 @@ from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
+from src.core.infrastructure.transactions import transactional
 from src.enums import JobStatus
 from src.models import User
 from src.schemas import JobAdminCreate, JobRead, JobUpdate
@@ -54,19 +55,13 @@ async def create_job(
 ) -> JobRead:
     """Create a job directly under an existing company profile.
 
-    The `status` field defaults to `PUBLISHED` so admin-created jobs skip
-    the approval flow.
+    Status defaults to PUBLISHED — admin-created jobs skip the approval flow.
     """
     try:
-        result = await admin_create_job(data, session)
-        await session.commit()
-        return result
+        async with transactional(session):
+            return await admin_create_job(data, session)
     except CompanyNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
@@ -91,15 +86,10 @@ async def update_job_endpoint(
 ) -> JobRead:
     """Partially update any field on a job at any status."""
     try:
-        result = await update_job(job_id, data, session)
-        await session.commit()
-        return result
+        async with transactional(session):
+            return await update_job(job_id, data, session)
     except JobNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -110,11 +100,7 @@ async def delete_job_endpoint(
 ) -> None:
     """Hard-delete a job and cascade through its applications."""
     try:
-        await delete_job(job_id, session)
-        await session.commit()
+        async with transactional(session):
+            await delete_job(job_id, session)
     except JobNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise

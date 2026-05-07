@@ -7,6 +7,7 @@ from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
+from src.core.infrastructure.transactions import transactional
 from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus
 from src.models import User
@@ -28,10 +29,7 @@ from src.services.exceptions import ApplicationNotFoundError, InvalidCursorError
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-@router.get(
-    "/applications",
-    response_model=CursorPage[ApplicationWithDetails],
-)
+@router.get("/applications", response_model=CursorPage[ApplicationWithDetails])
 async def get_applications(
     status: ApplicationStatus | None = None,
     job_id: int | None = None,
@@ -55,10 +53,7 @@ async def get_applications(
         raise service_exception_to_http(exc) from exc
 
 
-@router.get(
-    "/applications/{application_id}",
-    response_model=ApplicationWithDetails,
-)
+@router.get("/applications/{application_id}", response_model=ApplicationWithDetails)
 async def get_application_detail(
     application_id: int,
     current_admin: User = Depends(get_current_admin),
@@ -82,24 +77,14 @@ async def update_application_status_endpoint(
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> ApplicationRead:
-    """Update an application's status and optionally add admin notes.
-
-    Admin can move an application to any status from any other status —
-    including reverting from terminal `REJECTED`/`HIRED` for mis-click
-    recovery. Sends email notifications to both candidate and company
-    after the DB transaction commits.
-    """
+    """Update application status. Emails (if any) enqueued after commit."""
     try:
-        result, email_payloads = await update_application_status(
-            application_id, body.status, session, admin_notes=body.admin_notes
-        )
-        await session.commit()
+        async with transactional(session):
+            result, email_payloads = await update_application_status(
+                application_id, body.status, session, admin_notes=body.admin_notes
+            )
     except ApplicationNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
     for payload in email_payloads:
         await enqueue_email_task(**payload)
@@ -120,23 +105,15 @@ async def update_application_notes_endpoint(
 ) -> ApplicationRead:
     """Update only the admin_notes field. Does not change status or send email."""
     try:
-        result = await update_application_notes(
-            application_id, body.admin_notes, session
-        )
-        await session.commit()
-        return result
+        async with transactional(session):
+            return await update_application_notes(
+                application_id, body.admin_notes, session
+            )
     except ApplicationNotFoundError as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
-@router.delete(
-    "/applications/{application_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_application_endpoint(
     application_id: int,
     current_admin: User = Depends(get_current_admin),
