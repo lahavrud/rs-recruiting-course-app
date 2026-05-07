@@ -63,7 +63,8 @@ export interface UserRead {
 
 export interface CompanyProfileRead {
   id: number;
-  user_id: number;
+  /** Null when the profile was created directly by an admin without a user account. */
+  user_id: number | null;
   name: string;
   logo_url: string | null;
   company_id: string | null;
@@ -75,6 +76,28 @@ export interface CompanyProfileRead {
   agreement_signed_at: string | null;
   privacy_accepted_at: string | null;
   created_at: string;
+}
+
+/** Mirrors backend CompanyProfileAdminCreate schema. */
+export interface CompanyProfileAdminCreate {
+  name: string;
+  company_id: string;
+  address: string;
+  contact_first_name: string;
+  contact_last_name: string;
+  contact_mobile_phone: string;
+  contact_landline_phone?: string | null;
+}
+
+/** Mirrors backend CompanyProfileAdminUpdate (all fields optional). */
+export interface CompanyProfileAdminUpdate {
+  name?: string;
+  company_id?: string;
+  address?: string;
+  contact_first_name?: string;
+  contact_last_name?: string;
+  contact_mobile_phone?: string;
+  contact_landline_phone?: string | null;
 }
 
 export interface UserWithCompanyRead {

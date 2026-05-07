@@ -13,6 +13,9 @@ import type {
   ApplicationStatus,
   CandidateProfileRead,
   CandidateProfileUpdate,
+  CompanyProfileAdminCreate,
+  CompanyProfileAdminUpdate,
+  CompanyProfileRead,
   InviteTokenCreate,
   InviteTokenRead,
   JobAdminCreate,
@@ -29,8 +32,21 @@ export async function createInvite(data: InviteTokenCreate): Promise<InviteToken
   return res.data;
 }
 
-export async function getInvites(): Promise<InviteTokenRead[]> {
-  const res = await api.get<InviteTokenRead[]>("/api/admin/companies/invites");
+export interface InvitesListParams {
+  cursor?: string | null;
+  limit?: number;
+}
+
+export async function getInvites(
+  params?: InvitesListParams,
+): Promise<CursorPage<InviteTokenRead>> {
+  const query: Record<string, string | number> = {};
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit != null) query.limit = params.limit;
+  const res = await api.get<CursorPage<InviteTokenRead>>(
+    "/api/admin/companies/invites",
+    { params: query },
+  );
   return res.data;
 }
 
@@ -42,8 +58,21 @@ export async function resendInvite(tokenId: number): Promise<void> {
   await api.post(`/api/admin/companies/invites/${tokenId}/resend`);
 }
 
-export async function getPendingCompanies(): Promise<PendingCompanyRead[]> {
-  const res = await api.get<PendingCompanyRead[]>("/api/admin/companies/pending");
+export interface PendingCompaniesParams {
+  cursor?: string | null;
+  limit?: number;
+}
+
+export async function getPendingCompanies(
+  params?: PendingCompaniesParams,
+): Promise<CursorPage<PendingCompanyRead>> {
+  const query: Record<string, string | number> = {};
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit != null) query.limit = params.limit;
+  const res = await api.get<CursorPage<PendingCompanyRead>>(
+    "/api/admin/companies/pending",
+    { params: query },
+  );
   return res.data;
 }
 
@@ -77,6 +106,33 @@ export async function getActiveCompanies(
 
 export async function deleteCompany(userId: number): Promise<void> {
   await api.delete(`/api/admin/companies/${userId}`);
+}
+
+export async function adminCreateCompany(
+  body: CompanyProfileAdminCreate,
+): Promise<CompanyProfileRead> {
+  const res = await api.post<CompanyProfileRead>("/api/admin/companies", body);
+  return res.data;
+}
+
+export async function getCompanyProfile(
+  profileId: number,
+): Promise<CompanyProfileRead> {
+  const res = await api.get<CompanyProfileRead>(
+    `/api/admin/companies/profile/${profileId}`,
+  );
+  return res.data;
+}
+
+export async function updateCompanyProfile(
+  profileId: number,
+  body: CompanyProfileAdminUpdate,
+): Promise<CompanyProfileRead> {
+  const res = await api.put<CompanyProfileRead>(
+    `/api/admin/companies/profile/${profileId}`,
+    body,
+  );
+  return res.data;
 }
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────

@@ -421,6 +421,50 @@
         "used": "נוצל",
         "expired": "פג תוקף",
         "revoked": "בוטל"
+      },
+      "newCompany": "חברה חדשה",
+      "newCompanyModalTitle": "יצירת חברה חדשה",
+      "editModalTitle": "עריכת פרופיל חברה",
+      "detailDescription": "פרופיל חברה",
+      "rowActionsLabel": "פעולות נוספות",
+      "viewAction": "פרטים מלאים",
+      "editAction": "עריכת פרופיל",
+      "deleteAction": "מחיקה",
+      "approveAction": "אישור",
+      "rejectAction": "דחייה",
+      "revokeAction": "ביטול הזמנה",
+      "resendAction": "שליחה מחדש",
+      "rejectConfirmTitle": "דחיית חברה",
+      "deleteConfirmTitle": "מחיקת חברה",
+      "revokeConfirmTitle": "ביטול הזמנה",
+      "approvedToast": "החברה אושרה",
+      "rejectedToast": "החברה נדחתה",
+      "deletedToast": "החברה נמחקה",
+      "createdToast": "החברה נוצרה",
+      "savedToast": "הפרופיל עודכן",
+      "revokedToast": "ההזמנה בוטלה",
+      "resentToast": "ההזמנה נשלחה מחדש",
+      "noCompanyId": "ללא ח.פ",
+      "noUserAccount": "אין חשבון משתמש",
+      "jobsSection": "משרות של חברה זו",
+      "noJobs": "אין משרות עבור חברה זו.",
+      "fields": {
+        "name": "שם החברה",
+        "companyId": "ח.פ",
+        "address": "כתובת",
+        "contactFirstName": "שם פרטי",
+        "contactLastName": "שם משפחה",
+        "contactMobile": "טלפון נייד",
+        "contactLandline": "טלפון נייח"
+      },
+      "validation": {
+        "companyId": "ח.פ חייב להיות בן 9 ספרות",
+        "mobile": "מספר נייד ישראלי תקין (05X-XXXXXXX)"
+      },
+      "errors": {
+        "createFailed": "יצירת החברה נכשלה. נסה שוב.",
+        "saveFailed": "שמירת הפרופיל נכשלה. נסה שוב.",
+        "jobsLoadFailed": "טעינת המשרות של החברה נכשלה."
       }
     },
     "jobs": {
