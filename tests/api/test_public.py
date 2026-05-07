@@ -78,6 +78,8 @@ async def test_get_public_job_success(public_client: AsyncClient, published_job:
     assert data["description"] == published_job.description
     assert data["requirements"] == published_job.requirements
     assert data["location"] == published_job.location
+    assert "salary_min" in data
+    assert "salary_max" in data
     assert "status" not in data
 
 
@@ -177,6 +179,8 @@ async def test_get_public_job_payload_integrity(
         "description",
         "requirements",
         "location",
+        "salary_min",
+        "salary_max",
         "created_at",
     }
     assert set(data.keys()) == expected_keys

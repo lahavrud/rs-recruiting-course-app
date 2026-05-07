@@ -203,6 +203,8 @@ class JobCreate(BaseModel):
     description: str = Field(..., max_length=5000)
     requirements: str = Field(..., max_length=5000)
     location: str = Field(..., max_length=100)
+    salary_min: int = Field(..., ge=0)
+    salary_max: int = Field(..., ge=0)
 
 
 class JobUpdate(BaseModel):
@@ -212,6 +214,8 @@ class JobUpdate(BaseModel):
     description: str | None = Field(None, max_length=5000)
     requirements: str | None = Field(None, max_length=5000)
     location: str | None = Field(None, max_length=100)
+    salary_min: int | None = Field(None, ge=0)
+    salary_max: int | None = Field(None, ge=0)
     status: JobStatus | None = None
 
 
@@ -223,6 +227,8 @@ class JobAdminCreate(BaseModel):
     description: str = Field(..., max_length=5000)
     requirements: str = Field(..., max_length=5000)
     location: str = Field(..., max_length=100)
+    salary_min: int = Field(..., ge=0)
+    salary_max: int = Field(..., ge=0)
     status: JobStatus = JobStatus.PUBLISHED
 
 
@@ -237,6 +243,8 @@ class JobRead(BaseModel):
     description: str
     requirements: str
     location: str
+    salary_min: int | None
+    salary_max: int | None
     status: JobStatus
     created_at: datetime
     updated_at: datetime
@@ -258,6 +266,8 @@ class JobPublicRead(BaseModel):
     description: str
     requirements: str
     location: str
+    salary_min: int | None
+    salary_max: int | None
     created_at: datetime
 
 

@@ -6,6 +6,14 @@ import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import type { JobPublicRead } from "@/types/api";
 import axios from "axios";
 
+function formatSalary(min: number | null, max: number | null): string | null {
+  if (!min && !max) return null;
+  const fmt = (n: number) => n.toLocaleString("he-IL");
+  if (min && max) return `${fmt(min)}–${fmt(max)} ₪/חודש`;
+  if (min) return `מ-${fmt(min)} ₪/חודש`;
+  return `עד ${fmt(max!)} ₪/חודש`;
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("he-IL", {
     day: "numeric",
@@ -130,6 +138,13 @@ export default function JobDetailPage() {
       "@type": "Place",
       address: { "@type": "PostalAddress", addressLocality: job.location, addressCountry: "IL" },
     },
+    ...(job.salary_min != null && job.salary_max != null ? {
+      baseSalary: {
+        "@type": "MonetaryAmount",
+        currency: "ILS",
+        value: { "@type": "QuantitativeValue", minValue: job.salary_min, maxValue: job.salary_max, unitText: "MONTH" },
+      },
+    } : {}),
   };
 
   return (
@@ -194,6 +209,11 @@ export default function JobDetailPage() {
           <p className="mt-2 text-xs text-white/25">
             {t("publicJobs.detail.posted")} {formatDate(job.created_at)}
           </p>
+          {formatSalary(job.salary_min, job.salary_max) && (
+            <p className="mt-1.5 text-sm font-medium text-copper/80">
+              {formatSalary(job.salary_min, job.salary_max)}
+            </p>
+          )}
 
           <div className="my-8 h-px bg-white/8" />
 
@@ -251,6 +271,11 @@ export default function JobDetailPage() {
             <p className="mt-1 text-xs text-white/25">
               {t("publicJobs.detail.posted")} {formatDate(job.created_at)}
             </p>
+            {formatSalary(job.salary_min, job.salary_max) && (
+              <p className="mt-2 text-sm font-medium text-copper/80">
+                {formatSalary(job.salary_min, job.salary_max)}
+              </p>
+            )}
 
             <div className="mt-5 h-px bg-white/8" />
 

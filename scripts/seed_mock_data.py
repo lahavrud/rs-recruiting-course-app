@@ -78,6 +78,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול קמפוס מסחרי — מיזוג, חשמל, אינסטלציה וניקיון.",
             "requirements": "5+ שנות ניסיון בניהול מתקנים. תואר הנדסה.",
             "location": "תל אביב",
+            "salary_min": 18000,
+            "salary_max": 25000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -85,6 +87,8 @@ JOBS_BY_COMPANY = [
             "description": "התקנה ותחזוקת מערכות מיזוג אצל לקוחות מגוונים.",
             "requirements": "3+ שנות ניסיון. תעודת מיזוג. רישיון נהיגה.",
             "location": "תל אביב",
+            "salary_min": 12000,
+            "salary_max": 17000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -92,6 +96,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול מערכות BMS ואופטימיזציית צריכת אנרגיה.",
             "requirements": "תואר הנדסה מכנית/חשמלית. 3+ שנות ניסיון ב-BMS.",
             "location": "הרצליה",
+            "salary_min": 15000,
+            "salary_max": 22000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -99,6 +105,8 @@ JOBS_BY_COMPANY = [
             "description": "פיקוח על צוות חשמלאים ב-5 נכסי לקוח.",
             "requirements": "הנדסאי חשמל. 5+ שנות ניסיון. רישיון משרד האנרגיה.",
             "location": "תל אביב",
+            "salary_min": 14000,
+            "salary_max": 20000,
             "status": JobStatus.PENDING_APPROVAL,
         },
         {
@@ -106,6 +114,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול תחזוקת אינסטלציה בקמפוס בית חולים.",
             "requirements": "10+ שנות ניסיון. 3+ שנות ניהול. תעודת מים.",
             "location": "רמת גן",
+            "salary_min": 16000,
+            "salary_max": 22000,
             "status": JobStatus.CLOSED,
         },
     ],
@@ -116,6 +126,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול אבטחת 8 מבנים מסחריים ו-40 מאבטחים.",
             "requirements": "5+ שנות ניסיון. רישיון מנהל ביטחון ממשרד הפנים.",
             "location": "תל אביב",
+            "salary_min": 18000,
+            "salary_max": 24000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -123,6 +135,8 @@ JOBS_BY_COMPANY = [
             "description": "הטמעת תוכניות בטיחות אש ופיקוח על ציוד כיבוי.",
             "requirements": "תעודת בטיחות אש. 3+ שנות ניסיון. הדרכת עזרה ראשונה.",
             "location": "חיפה",
+            "salary_min": 12000,
+            "salary_max": 16000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -130,6 +144,8 @@ JOBS_BY_COMPANY = [
             "description": "התקנת מערכות RFID, ביומטריה ואינטרקום.",
             "requirements": "2+ שנות ניסיון בבקרת כניסה. רקע אלקטרוניקה.",
             "location": "פתח תקווה",
+            "salary_min": 10000,
+            "salary_max": 14000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -137,6 +153,8 @@ JOBS_BY_COMPANY = [
             "description": "סיורים, ניטור CCTV וקבלת אורחים בקמפוס טכנולוגי.",
             "requirements": "רישיון מאבטח בתוקף. עברית ואנגלית בסיסית.",
             "location": "הרצליה",
+            "salary_min": 8000,
+            "salary_max": 11000,
             "status": JobStatus.PENDING_APPROVAL,
         },
         {
@@ -144,6 +162,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול Milestone XProtect, בריאות מצלמות ואחסון.",
             "requirements": "הסמכת Milestone. 3+ שנות ניסיון. זמינות כוננות.",
             "location": "תל אביב",
+            "salary_min": 14000,
+            "salary_max": 19000,
             "status": JobStatus.CLOSED,
         },
     ],
@@ -154,6 +174,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול ניקיון ב-12 נכסים וצוות של 80+ עובדים.",
             "requirements": "5+ שנות ניסיון בניהול ניקיון. שליטה בעברית ובערבית.",
             "location": "ירושלים",
+            "salary_min": 16000,
+            "salary_max": 22000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -161,6 +183,8 @@ JOBS_BY_COMPANY = [
             "description": "ניקיון מפעלי מזון ומחסנים. תפעול ציוד תעשייתי.",
             "requirements": "2+ שנות ניסיון. הסמכת חומרים מסוכנים.",
             "location": "אשדוד",
+            "salary_min": 9000,
+            "salary_max": 13000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -168,6 +192,8 @@ JOBS_BY_COMPANY = [
             "description": "פיקוח על מיחזור ופינוי פסולת עבור לקוחות עסקיים.",
             "requirements": "3+ שנות ניסיון. ידע ברגולציית משרד הסביבה.",
             "location": "ראשון לציון",
+            "salary_min": 11000,
+            "salary_max": 16000,
             "status": JobStatus.PUBLISHED,
         },
         {
@@ -175,6 +201,8 @@ JOBS_BY_COMPANY = [
             "description": "ביקורות איכות בלתי מוכרזות בכל אתרי הלקוחות.",
             "requirements": "2+ שנות ניסיון. עין חדה לפרטים. רכב פרטי.",
             "location": "תל אביב",
+            "salary_min": 10000,
+            "salary_max": 14000,
             "status": JobStatus.PENDING_APPROVAL,
         },
         {
@@ -182,6 +210,8 @@ JOBS_BY_COMPANY = [
             "description": "ניהול 6 עובדים בקומפלקס משרדי ממשלתי.",
             "requirements": "ניסיון ניהולי. אוריינות מחשב. אישור ביטחון.",
             "location": "ירושלים",
+            "salary_min": 9000,
+            "salary_max": 13000,
             "status": JobStatus.CLOSED,
         },
     ],

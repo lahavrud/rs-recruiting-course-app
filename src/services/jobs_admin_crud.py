@@ -86,6 +86,8 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
         description=data.description,
         requirements=data.requirements,
         location=data.location,
+        salary_min=data.salary_min,
+        salary_max=data.salary_max,
         status=data.status,
     )
     session.add(job)

@@ -240,6 +240,9 @@ export default function AdminJobsPage() {
                     {t("admin.jobs.fields.location")}
                   </th>
                   <th className="px-4 py-3 text-start">
+                    {t("common.salary")}
+                  </th>
+                  <th className="px-4 py-3 text-start">
                     {t("admin.jobs.fields.status")}
                   </th>
                   <th className="px-4 py-3 text-start">
@@ -257,6 +260,11 @@ export default function AdminJobsPage() {
                   >
                     <td className="px-4 py-3 font-medium text-white/85">{job.title}</td>
                     <td className="px-4 py-3 text-white/60">{job.location}</td>
+                    <td className="px-4 py-3 text-sm text-copper/70">
+                      {job.salary_min != null && job.salary_max != null
+                        ? `${job.salary_min.toLocaleString("he-IL")}–${job.salary_max.toLocaleString("he-IL")} ₪`
+                        : <span className="text-white/20">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[job.status]}`}
@@ -464,6 +472,11 @@ function DetailDialog({
           <span className="text-white/40">
             {t("admin.jobs.submittedLabel")} {formatDate(job.created_at)}
           </span>
+          {job.salary_min != null && job.salary_max != null && (
+            <span className="font-medium text-copper/80">
+              {job.salary_min.toLocaleString("he-IL")}–{job.salary_max.toLocaleString("he-IL")} ₪/חודש
+            </span>
+          )}
           <button
             type="button"
             onClick={() => { onClose(); navigate(`/admin/applications?job=${job.id}`); }}
@@ -513,6 +526,8 @@ function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
       description: job.description,
       requirements: job.requirements,
       location: job.location,
+      salary_min: job.salary_min ?? undefined,
+      salary_max: job.salary_max ?? undefined,
       status: job.status,
     };
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -543,6 +558,9 @@ function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
     else if (form.description.length > 5000) e.description = t("common.validation.tooLong", { max: 5000 });
     if (!form.requirements?.trim()) e.requirements = t("common.validation.required");
     else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
+    if (form.salary_min == null || form.salary_min < 0) e.salary_min = t("common.validation.required");
+    if (form.salary_max == null || form.salary_max < 0) e.salary_max = t("common.validation.required");
+    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = "המקסימום חייב להיות גבוה מהמינימום";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -620,6 +638,26 @@ function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
               ))}
             </select>
           </Field>
+          <Field label={`${t("common.salaryMin")} (₪/חודש)`}>
+            <input
+              type="number"
+              min={0}
+              value={form.salary_min ?? ""}
+              onChange={(e) => set("salary_min", e.target.value ? Number(e.target.value) : undefined)}
+              className={inputCls}
+            />
+            {errors.salary_min && <p className="mt-1 text-xs text-danger">{errors.salary_min}</p>}
+          </Field>
+          <Field label={`${t("common.salaryMax")} (₪/חודש)`}>
+            <input
+              type="number"
+              min={0}
+              value={form.salary_max ?? ""}
+              onChange={(e) => set("salary_max", e.target.value ? Number(e.target.value) : undefined)}
+              className={inputCls}
+            />
+            {errors.salary_max && <p className="mt-1 text-xs text-danger">{errors.salary_max}</p>}
+          </Field>
           <Field label={t("admin.jobs.fields.description")} full>
             <textarea
               rows={4}
@@ -673,6 +711,8 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     requirements: "",
     location: "",
     status: JobStatus.PUBLISHED,
+    salary_min: undefined,
+    salary_max: undefined,
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -690,6 +730,8 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
       requirements: "",
       location: "",
       status: JobStatus.PUBLISHED,
+      salary_min: undefined,
+      salary_max: undefined,
     });
     /* eslint-enable react-hooks/set-state-in-effect */
     getActiveCompanies({ limit: 100 })
@@ -726,6 +768,9 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     else if (form.description.length > 5000) e.description = t("common.validation.tooLong", { max: 5000 });
     if (!form.requirements?.trim()) e.requirements = t("common.validation.required");
     else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
+    if (form.salary_min == null || form.salary_min < 0) e.salary_min = t("common.validation.required");
+    if (form.salary_max == null || form.salary_max < 0) e.salary_max = t("common.validation.required");
+    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = "המקסימום חייב להיות גבוה מהמינימום";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -740,6 +785,8 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
         description: form.description!,
         requirements: form.requirements!,
         location: form.location!,
+        salary_min: form.salary_min!,
+        salary_max: form.salary_max!,
         status: form.status,
       });
       onCreated(created);
@@ -831,6 +878,26 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
               </option>
             ))}
           </select>
+        </Field>
+        <Field label={`${t("common.salaryMin")} (₪/חודש)`}>
+          <input
+            type="number"
+            min={0}
+            value={form.salary_min ?? ""}
+            onChange={(e) => set("salary_min", e.target.value ? Number(e.target.value) : undefined)}
+            className={inputCls}
+          />
+          {errors.salary_min && <p className="mt-1 text-xs text-danger">{errors.salary_min}</p>}
+        </Field>
+        <Field label={`${t("common.salaryMax")} (₪/חודש)`}>
+          <input
+            type="number"
+            min={0}
+            value={form.salary_max ?? ""}
+            onChange={(e) => set("salary_max", e.target.value ? Number(e.target.value) : undefined)}
+            className={inputCls}
+          />
+          {errors.salary_max && <p className="mt-1 text-xs text-danger">{errors.salary_max}</p>}
         </Field>
         <Field label={t("admin.jobs.fields.description")} full>
           <textarea

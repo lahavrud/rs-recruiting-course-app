@@ -77,6 +77,8 @@ async def test_create_job_success(
         description="We are looking for a senior Python developer...",
         requirements="5+ years experience with Python, FastAPI, PostgreSQL",
         location="Tel Aviv, Israel",
+        salary_min=20000,
+        salary_max=30000,
     )
 
     result = await create_job(job_data, company_with_user.id, session)
@@ -104,6 +106,8 @@ async def test_create_job_company_not_found(session: AsyncSession):
         description="Description",
         requirements="Requirements",
         location="Location",
+        salary_min=10000,
+        salary_max=15000,
     )
 
     with pytest.raises(CompanyNotFoundError, match="Company with ID 999 not found"):

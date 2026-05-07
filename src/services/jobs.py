@@ -54,6 +54,8 @@ async def create_job(
         description=job_data.description,
         requirements=job_data.requirements,
         location=job_data.location,
+        salary_min=job_data.salary_min,
+        salary_max=job_data.salary_max,
         status=JobStatus.PENDING_APPROVAL,
     )
     session.add(new_job)
@@ -184,6 +186,10 @@ async def update_job(
         job.requirements = job_data.requirements
     if job_data.location is not None:
         job.location = job_data.location
+    if job_data.salary_min is not None:
+        job.salary_min = job_data.salary_min
+    if job_data.salary_max is not None:
+        job.salary_max = job_data.salary_max
 
     # Update updated_at timestamp
     job.updated_at = datetime.now(timezone.utc)

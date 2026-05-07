@@ -123,6 +123,8 @@ export interface JobRead {
   description: string;
   requirements: string;
   location: string;
+  salary_min: number | null;
+  salary_max: number | null;
   status: JobStatus;
   created_at: string;
   updated_at: string;
@@ -133,6 +135,8 @@ export interface JobCreate {
   description: string;
   requirements: string;
   location: string;
+  salary_min: number;
+  salary_max: number;
 }
 
 export interface JobUpdate {
@@ -140,6 +144,8 @@ export interface JobUpdate {
   description?: string;
   requirements?: string;
   location?: string;
+  salary_min?: number | null;
+  salary_max?: number | null;
   status?: JobStatus;
 }
 
@@ -150,6 +156,8 @@ export interface JobAdminCreate {
   description: string;
   requirements: string;
   location: string;
+  salary_min: number;
+  salary_max: number;
   status?: JobStatus;
 }
 
@@ -162,6 +170,8 @@ export interface JobPublicRead {
   description: string;
   requirements: string;
   location: string;
+  salary_min: number | null;
+  salary_max: number | null;
   created_at: string;
 }
 

@@ -28,6 +28,8 @@ async def test_create_job_success(
         "description": "We are looking for a senior Python developer...",
         "requirements": "5+ years experience with Python, FastAPI, PostgreSQL",
         "location": "Tel Aviv, Israel",
+        "salary_min": 20000,
+        "salary_max": 30000,
     }
 
     response = await company_client.post("/api/jobs/", json=job_data)
@@ -39,6 +41,8 @@ async def test_create_job_success(
     assert data["company_id"] == company_profile.id
     assert "id" in data
     assert "created_at" in data
+    assert data["salary_min"] == 20000
+    assert data["salary_max"] == 30000
 
     # Verify email was sent
     mock_enqueue_email.assert_called_once()
@@ -167,3 +171,52 @@ async def test_job_write_endpoints_require_auth(test_db):
 
         response = await client.delete("/api/jobs/1")
         assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+@patch("src.services.jobs.enqueue_email_task")
+@patch("src.services.jobs.get_all_admin_emails")
+async def test_create_job_with_salary(
+    mock_get_admin_emails,
+    mock_enqueue_email,
+    company_client: AsyncClient,
+):
+    """Salary is stored and returned when provided at creation."""
+    mock_enqueue_email.return_value = "test-job-id"
+    mock_get_admin_emails.return_value = []
+
+    response = await company_client.post(
+        "/api/jobs/",
+        json={
+            "title": "Facility Manager",
+            "description": "Manage facilities.",
+            "requirements": "3+ years experience.",
+            "location": "Tel Aviv",
+            "salary_min": 15000,
+            "salary_max": 20000,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["salary_min"] == 15000
+    assert response.json()["salary_max"] == 20000
+
+
+@pytest.mark.asyncio
+@patch("src.services.jobs.enqueue_email_task")
+@patch("src.services.jobs.get_all_admin_emails")
+async def test_update_job_salary(
+    mock_get_admin_emails,
+    mock_enqueue_email,
+    company_client: AsyncClient,
+    job: Job,
+):
+    """Salary range can be updated."""
+    mock_enqueue_email.return_value = "test-job-id"
+    mock_get_admin_emails.return_value = []
+
+    response = await company_client.put(
+        f"/api/jobs/{job.id}", json={"salary_min": 12000, "salary_max": 15000}
+    )
+    assert response.status_code == 200
+    assert response.json()["salary_min"] == 12000
+    assert response.json()["salary_max"] == 15000

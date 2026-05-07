@@ -160,6 +160,8 @@ class Job(SQLModel, table=True):
     description: str
     requirements: str
     location: str
+    salary_min: int | None = Field(default=None)
+    salary_max: int | None = Field(default=None)
     status: JobStatus = Field(default=JobStatus.PENDING_APPROVAL)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

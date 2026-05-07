@@ -26,6 +26,8 @@ def _payload(company_id: int, title: str = "Backend Engineer") -> JobAdminCreate
         description="ניהול שרתים ופיתוח backend",
         requirements="3+ שנות ניסיון",
         location="תל אביב",
+        salary_min=15000,
+        salary_max=22000,
     )
 
 

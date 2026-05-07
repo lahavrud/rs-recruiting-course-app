@@ -235,9 +235,16 @@ export default function JobBoardPage() {
               <p className="mt-3 text-sm leading-relaxed text-white/50">
                 {truncate(job.description, 160)}
               </p>
-              <p className="mt-4 text-xs text-white/25">
-                {t("publicJobs.board.posted")} {formatDate(job.created_at)}
-              </p>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="text-xs text-white/25">
+                  {t("publicJobs.board.posted")} {formatDate(job.created_at)}
+                </p>
+                {job.salary_min != null && job.salary_max != null && (
+                  <p className="shrink-0 text-xs font-medium text-copper/70">
+                    {job.salary_min.toLocaleString("he-IL")}–{job.salary_max.toLocaleString("he-IL")} ₪
+                  </p>
+                )}
+              </div>
             </Link>
           ))}
         </div>

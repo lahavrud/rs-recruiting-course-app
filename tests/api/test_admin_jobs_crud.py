@@ -14,6 +14,8 @@ def _payload(company_id: int, **overrides) -> dict:
         "description": "ביצוע בדיקות אוטומטיות ומאניאוליות",
         "requirements": "ניסיון של 2 שנים לפחות",
         "location": "רמת גן",
+        "salary_min": 14000,
+        "salary_max": 20000,
     }
     base.update(overrides)
     return base
