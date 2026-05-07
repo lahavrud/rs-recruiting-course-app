@@ -31,7 +31,15 @@
     "posted": "פורסם",
     "pending": "ממתין",
     "error": "שגיאה",
-    "optional": "אופציונלי"
+    "optional": "אופציונלי",
+    "confirm": "אישור",
+    "retry": "ניסיון נוסף",
+    "search": "חיפוש",
+    "searchPlaceholder": "חיפוש…",
+    "errorEyebrow": "שגיאה",
+    "genericError": "אירעה שגיאה. אנא נסו שוב מאוחר יותר.",
+    "noResultsHeadline": "אין תוצאות",
+    "noResultsDescription": "נסו לשנות את המסננים או את מילות החיפוש."
   },
   "auth": {
     "appName": "RS Recruiting",

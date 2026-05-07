@@ -2,9 +2,11 @@ import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { ToastProvider } from "@/contexts/ToastContext";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import Logo from "@/components/ui/Logo";
+import Toaster from "@/components/ui/Toaster";
 
 interface Props {
   children: ReactNode;
@@ -24,7 +26,10 @@ function PublicHeader() {
           </span>
         </Link>
         <nav className="flex items-center gap-5">
-          <Link to="/jobs" className="text-sm text-white/40 transition hover:text-white/70">
+          <Link
+            to="/jobs"
+            className="text-sm text-white/40 transition hover:text-white/70"
+          >
             {t("nav.jobs")}
           </Link>
           {isAuthenticated ? (
@@ -48,7 +53,7 @@ function PublicHeader() {
   );
 }
 
-export default function AppShell({ children }: Props) {
+function ShellContent({ children }: Props) {
   const { isAuthenticated } = useAuth();
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -77,12 +82,18 @@ export default function AppShell({ children }: Props) {
   return (
     <div className="min-h-screen bg-page">
       <PublicHeader />
-      <main
-        key={pathname}
-        className="page-enter mx-auto max-w-4xl px-6 py-10 sm:py-14"
-      >
+      <main key={pathname} className="page-enter mx-auto max-w-4xl px-6 py-10 sm:py-14">
         {children}
       </main>
     </div>
+  );
+}
+
+export default function AppShell({ children }: Props) {
+  return (
+    <ToastProvider>
+      <ShellContent>{children}</ShellContent>
+      <Toaster />
+    </ToastProvider>
   );
 }
