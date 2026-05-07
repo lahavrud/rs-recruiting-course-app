@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   adminCreateCompany,
@@ -7,6 +8,7 @@ import {
   createInvite,
   deleteCompany,
   getActiveCompanies,
+  getCompanyProfile,
   getInvites,
   getJobs,
   getPendingCompanies,
@@ -59,9 +61,22 @@ const MOBILE_RE = /^05[0-9]\d{7}$/;
 export default function AdminCompaniesPage() {
   const { t } = useTranslation();
   usePageTitle(t("admin.companies.title"));
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>("pending");
   const [creating, setCreating] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [externalDetail, setExternalDetail] = useState<CompanyProfileRead | null>(null);
+
+  // Auto-open company detail when navigated from another page via ?detail=<profile_id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("detail");
+    if (!id || Number.isNaN(Number(id))) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    getCompanyProfile(Number(id)).then((profile) => {
+      setTab("active");
+      setExternalDetail(profile);
+    }).catch(() => toast.error(t("common.genericError")));
+  }, [t, toast]);
 
   function handleInvite() {
     setTab("invites");
@@ -113,7 +128,12 @@ export default function AdminCompaniesPage() {
         })}
       </div>
 
-      {tab === "active" && <ActiveTab />}
+      {tab === "active" && (
+        <ActiveTab
+          externalDetail={externalDetail}
+          onExternalDetailClose={() => setExternalDetail(null)}
+        />
+      )}
       {tab === "pending" && <PendingTab />}
       {tab === "invites" && (
         <InvitesTab
@@ -129,7 +149,12 @@ export default function AdminCompaniesPage() {
 
 // ── Active tab ─────────────────────────────────────────────────────────────
 
-function ActiveTab() {
+interface ActiveTabProps {
+  externalDetail?: CompanyProfileRead | null;
+  onExternalDetailClose?: () => void;
+}
+
+function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
   const { t } = useTranslation();
   const toast = useToast();
 
@@ -154,6 +179,14 @@ function ActiveTab() {
   const [editing, setEditing] = useState<CompanyProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<ActiveCompanyRead | null>(null);
   const [pendingMutation, setPendingMutation] = useState(false);
+
+  useEffect(() => {
+    if (externalDetail) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDetail(externalDetail);
+      onExternalDetailClose?.();
+    }
+  }, [externalDetail, onExternalDetailClose]);
 
   async function handleDelete() {
     if (!deletePending) return;
@@ -660,6 +693,7 @@ interface DetailProps {
 
 function CompanyDetailDialog({ profile, onClose, onEdit }: DetailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobRead[] | null>(null);
   const [jobsError, setJobsError] = useState(false);
 
@@ -762,12 +796,15 @@ function CompanyDetailDialog({ profile, onClose, onEdit }: DetailProps) {
           ) : (
             <ul className="mt-3 space-y-1.5">
               {jobs.map((j) => (
-                <li
-                  key={j.id}
-                  className="flex items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2"
-                >
-                  <span className="text-white/80">{j.title}</span>
-                  <span className="text-xs text-white/40">{j.location}</span>
+                <li key={j.id}>
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate(`/admin/jobs?detail=${j.id}`); }}
+                    className="flex w-full items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2 transition hover:border-copper/25 hover:bg-card-raised"
+                  >
+                    <span className="text-white/80">{j.title}</span>
+                    <span className="text-xs text-white/40">{j.location}</span>
+                  </button>
                 </li>
               ))}
             </ul>

@@ -57,10 +57,7 @@ export function DropdownMenuItem({
   return (
     <RadixDropdown.Item
       disabled={disabled}
-      onSelect={(e) => {
-        e.preventDefault();
-        onSelect();
-      }}
+      onSelect={onSelect}
       className={[
         "flex cursor-pointer select-none items-center rounded-sm px-3 py-2 outline-none",
         "data-[highlighted]:bg-white/8 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed",

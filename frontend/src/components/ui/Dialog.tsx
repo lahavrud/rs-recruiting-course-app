@@ -1,5 +1,6 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 type Size = "sm" | "md" | "lg";
 
@@ -34,6 +35,7 @@ export default function Dialog({
   footer,
   size = "md",
 }: DialogProps) {
+  const { t } = useTranslation();
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -52,14 +54,26 @@ export default function Dialog({
             sizeCls[size],
           ].join(" ")}
         >
-          <RadixDialog.Title className="font-display text-xl text-white">
-            {title}
-          </RadixDialog.Title>
-          {description && (
-            <RadixDialog.Description className="mt-2 text-sm text-white/60">
-              {description}
-            </RadixDialog.Description>
-          )}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <RadixDialog.Title className="font-display text-xl text-white">
+                {title}
+              </RadixDialog.Title>
+              {description && (
+                <RadixDialog.Description className="mt-1 text-sm text-white/60">
+                  {description}
+                </RadixDialog.Description>
+              )}
+            </div>
+            <RadixDialog.Close
+              aria-label={t("common.close")}
+              className="shrink-0 rounded-sm p-1 text-white/30 transition hover:bg-white/8 hover:text-white/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4" aria-hidden="true">
+                <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+              </svg>
+            </RadixDialog.Close>
+          </div>
           {children && <div className="mt-4">{children}</div>}
           {footer && (
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2 *:flex-1 *:whitespace-nowrap">{footer}</div>

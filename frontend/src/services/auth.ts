@@ -57,15 +57,10 @@ export async function activateAccount(token: string): Promise<void> {
   });
 }
 
-export async function logout(): Promise<void> {
+export function logout(): void {
   const refreshToken = getRefreshToken();
-  try {
-    await api.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : null);
-  } catch {
-    // Best-effort server-side revocation — always clear local state
-  } finally {
-    removeToken();
-    removeRefreshToken();
-    window.location.href = "/login";
-  }
+  removeToken();
+  removeRefreshToken();
+  // Best-effort server-side revocation — fire and forget, don't block the caller
+  void api.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : null).catch(() => {});
 }

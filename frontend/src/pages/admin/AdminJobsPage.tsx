@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   approveJob,
@@ -6,6 +7,7 @@ import {
   createJob,
   deleteJob,
   getActiveCompanies,
+  getJob,
   getJobs,
   rejectJob,
   updateJob,
@@ -92,6 +94,14 @@ export default function AdminJobsPage() {
   const [deletePending, setDeletePending] = useState<JobRead | null>(null);
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
   const [pendingMutation, setPendingMutation] = useState(false);
+
+  // Auto-open detail modal when navigated from another page via ?detail=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("detail");
+    if (!id || Number.isNaN(Number(id))) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    getJob(Number(id)).then(setDetail).catch(() => toast.error(t("common.genericError")));
+  }, [t, toast]);
 
   const STATUS_LABELS: Record<string, string> = {
     PENDING_APPROVAL: t("admin.jobs.statusLabels.PENDING_APPROVAL"),
@@ -407,6 +417,7 @@ function DetailDialog({
   onDelete,
 }: DetailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   if (!job) return null;
   return (
     <Dialog
@@ -439,12 +450,23 @@ function DetailDialog({
           >
             {statusLabels[job.status]}
           </span>
-          <span className="text-white/40">
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate(`/admin/companies?detail=${job.company_id}`); }}
+            className="text-copper/70 underline-offset-2 transition hover:text-copper hover:underline"
+          >
             {t("admin.jobs.companyLabel", { id: job.company_id })}
-          </span>
+          </button>
           <span className="text-white/40">
             {t("admin.jobs.submittedLabel")} {formatDate(job.created_at)}
           </span>
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate(`/admin/applications?job=${job.id}`); }}
+            className="text-copper/70 underline-offset-2 transition hover:text-copper hover:underline"
+          >
+            {t("common.viewApplications")}
+          </button>
         </div>
         <section>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">

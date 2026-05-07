@@ -39,7 +39,14 @@
     "errorEyebrow": "שגיאה",
     "genericError": "אירעה שגיאה. אנא נסו שוב מאוחר יותר.",
     "noResultsHeadline": "אין תוצאות",
-    "noResultsDescription": "נסו לשנות את המסננים או את מילות החיפוש."
+    "noResultsDescription": "נסו לשנות את המסננים או את מילות החיפוש.",
+    "viewCandidate": "צפה במועמד",
+    "viewJob": "צפה במשרה",
+    "viewCompany": "צפה בחברה",
+    "viewApplications": "צפה במועמדויות",
+    "filteredByJob": "מסונן לפי משרה",
+    "filteredByCandidate": "מסונן לפי מועמד",
+    "clearFilter": "הסר סינון"
   },
   "auth": {
     "appName": "RS Recruiting",

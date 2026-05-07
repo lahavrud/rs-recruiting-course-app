@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   deleteCandidate,
   fetchResumeBlob,
   getApplications,
+  getCandidate,
   getCandidates,
   updateCandidate,
 } from "@/services/admin";
@@ -84,6 +86,14 @@ export default function AdminCandidatesPage() {
   const [editing, setEditing] = useState<CandidateProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<CandidateProfileRead | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
+
+  // Auto-open detail modal when navigated from another page via ?detail=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("detail");
+    if (!id || Number.isNaN(Number(id))) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    getCandidate(Number(id)).then(setDetail).catch(() => toast.error(t("common.genericError")));
+  }, [t, toast]);
 
   async function handleDeleteConfirm() {
     if (!deletePending) return;
@@ -297,6 +307,7 @@ interface DetailProps {
 
 function DetailDialog({ candidate, onClose, onEdit, onDelete }: DetailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [applications, setApplications] = useState<ApplicationWithDetails[] | null>(
     null,
   );
@@ -440,15 +451,18 @@ function DetailDialog({ candidate, onClose, onEdit, onDelete }: DetailProps) {
           ) : (
             <ul className="mt-3 space-y-1.5">
               {applications.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2"
-                >
-                  <span className="text-white/80">{a.job.title}</span>
-                  <span className="text-xs text-white/40">
-                    {t(`admin.applications.statusLabels.${a.status}`)} ·{" "}
-                    {formatDate(a.created_at)}
-                  </span>
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate(`/admin/applications?candidate=${a.candidate_id}`, { state: { autoOpen: a } }); }}
+                    className="flex w-full items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2 transition hover:border-copper/25 hover:bg-card-raised"
+                  >
+                    <span className="text-white/80">{a.job.title}</span>
+                    <span className="text-xs text-white/40">
+                      {t(`admin.applications.statusLabels.${a.status}`)} ·{" "}
+                      {formatDate(a.created_at)}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>

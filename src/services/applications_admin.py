@@ -13,7 +13,7 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.enums import ApplicationStatus
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
+from src.models import Application
 from src.schemas import ApplicationRead, ApplicationWithDetails
 from src.services.exceptions import ApplicationNotFoundError
 
@@ -123,85 +123,14 @@ async def update_application_status(
         )
 
     # Admin can move to any status — including reverting from terminal states
-    # for mis-click recovery. Audit logging is intentionally deferred (see
-    # .local/PLAN.md open question).
-    old_status = application.status
+    # for mis-click recovery.
     application.status = new_status
     if admin_notes is not None:
         application.admin_notes = admin_notes
     application.updated_at = datetime.now(timezone.utc)
     await session.flush()
 
-    # Fetch related records needed for email content
-    candidate_result = await session.execute(
-        select(CandidateProfile).where(CandidateProfile.id == application.candidate_id)  # pyright: ignore[reportArgumentType]
-    )
-    candidate = candidate_result.scalar_one()
-
-    job_result = await session.execute(
-        select(Job).where(Job.id == application.job_id)  # pyright: ignore[reportArgumentType]
-    )
-    job = job_result.scalar_one()
-
-    company_result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.id == job.company_id)  # pyright: ignore[reportArgumentType]
-    )
-    company = company_result.scalar_one()
-
-    user_result = await session.execute(
-        select(User).where(User.id == company.user_id)  # pyright: ignore[reportArgumentType]
-    )
-    company_user = user_result.scalar_one()
-
-    from src.templates.email import (
-        build_application_status_candidate_html,
-        build_application_status_company_html,
-    )
-
-    _STATUS_HE = {
-        "NEW": "חדש",
-        "APPROVED_BY_ADMIN": "אושר על-ידי מנהל",
-        "REJECTED": "נדחה",
-        "HIRED": "התקבל לעבודה",
-    }
-    new_status_he = _STATUS_HE.get(str(new_status), str(new_status))
-    old_status_he = _STATUS_HE.get(str(old_status), str(old_status))
-
-    email_payloads: list[dict] = [
-        {
-            "to": candidate.email,
-            "subject": f"עדכון סטטוס מועמדות למשרת '{job.title}'",
-            "body": (
-                f"שלום {candidate.full_name},\n"
-                f"סטטוס מועמדותך למשרת '{job.title}' עודכן ל-{new_status_he}."
-            ),
-            "html_body": build_application_status_candidate_html(
-                candidate_name=candidate.full_name,
-                job_title=job.title,
-                old_status=old_status_he,
-                new_status=new_status_he,
-                notes=admin_notes,
-            ),
-        },
-        {
-            "to": company_user.email,
-            "subject": f"עדכון סטטוס מועמדות למשרת '{job.title}'",
-            "body": (
-                f"שלום {company.name},\n"
-                f"סטטוס מועמדות למשרת '{job.title}' עודכן ל-{new_status_he}."
-            ),
-            "html_body": build_application_status_company_html(
-                company_name=company.name or "",
-                job_title=job.title,
-                candidate_name=candidate.full_name,
-                old_status=old_status_he,
-                new_status=new_status_he,
-                notes=admin_notes,
-            ),
-        },
-    ]
-
-    return ApplicationRead.model_validate(application), email_payloads
+    return ApplicationRead.model_validate(application), []
 
 
 async def update_application_notes(

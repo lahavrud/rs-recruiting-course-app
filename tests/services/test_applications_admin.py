@@ -186,7 +186,7 @@ async def test_update_status_new_to_approved(
 
     assert isinstance(result, ApplicationRead)
     assert result.status == ApplicationStatus.APPROVED_BY_ADMIN
-    assert len(email_payloads) == 2
+    assert email_payloads == []
 
 
 @pytest.mark.asyncio
@@ -306,8 +306,7 @@ async def test_update_status_with_admin_notes(
     )
 
     assert result.admin_notes == "Strong candidate, schedule interview"
-    # Notes are now in the html_body (HTML template), not the plain text body
-    assert any("Strong candidate" in p.get("html_body", "") for p in email_payloads)
+    assert email_payloads == []
 
 
 @pytest.mark.asyncio

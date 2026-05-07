@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   deleteApplication,
@@ -87,15 +88,32 @@ export default function AdminApplicationsPage() {
 
   const [filter, setFilter] = useState<FilterValue>(ALL_FILTER);
 
+  // Pre-fill job/candidate filters from URL params (?job=<id> or ?candidate=<id>)
+  const [filterJobId, setFilterJobId] = useState<number | undefined>(() => {
+    const val = new URLSearchParams(window.location.search).get("job");
+    return val && !Number.isNaN(Number(val)) ? Number(val) : undefined;
+  });
+  const [filterCandidateId, setFilterCandidateId] = useState<number | undefined>(() => {
+    const val = new URLSearchParams(window.location.search).get("candidate");
+    return val && !Number.isNaN(Number(val)) ? Number(val) : undefined;
+  });
+
+  // Clean URL params on mount after reading them
+  useEffect(() => {
+    if (filterJobId != null || filterCandidateId != null) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [filterJobId, filterCandidateId]);
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
       const params: ApplicationListParams = { cursor };
-      if (filter !== ALL_FILTER) {
-        params.status = filter as ApplicationStatus;
-      }
+      if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
+      if (filterJobId != null) params.job_id = filterJobId;
+      if (filterCandidateId != null) params.candidate_id = filterCandidateId;
       return getApplications(params);
     },
-    [filter],
+    [filter, filterJobId, filterCandidateId],
   );
 
   const {
@@ -109,6 +127,9 @@ export default function AdminApplicationsPage() {
     removeItem,
   } = useInfiniteList<ApplicationWithDetails>(fetcher);
 
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [detail, setDetail] = useState<ApplicationWithDetails | null>(null);
   const [statusModal, setStatusModal] = useState<ApplicationWithDetails | null>(null);
   const [notesModal, setNotesModal] = useState<ApplicationWithDetails | null>(null);
@@ -116,6 +137,16 @@ export default function AdminApplicationsPage() {
     null,
   );
   const [pendingDelete, setPendingDelete] = useState(false);
+
+  // Auto-open application passed via navigation state (e.g. from Candidate detail)
+  useEffect(() => {
+    const app = (location.state as { autoOpen?: ApplicationWithDetails } | null)
+      ?.autoOpen;
+    if (!app) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDetail(app);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, navigate]);
 
   const STATUS_LABELS: Record<string, string> = {
     NEW: t("admin.applications.statusLabels.NEW"),
@@ -151,6 +182,26 @@ export default function AdminApplicationsPage() {
         eyebrow={t("admin.applications.title")}
         subtitle={t("admin.applications.subtitle")}
       />
+
+      {(filterJobId != null || filterCandidateId != null) && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-copper/30 bg-copper/10 py-1 ps-3 pe-2 text-xs text-copper">
+            {filterJobId != null
+              ? `${t("common.filteredByJob")} #${filterJobId}`
+              : `${t("common.filteredByCandidate")} #${filterCandidateId}`}
+            <button
+              type="button"
+              aria-label={t("common.clearFilter")}
+              onClick={() => { setFilterJobId(undefined); setFilterCandidateId(undefined); }}
+              className="rounded-full p-0.5 hover:bg-copper/20"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="currentColor" className="size-3" aria-hidden="true">
+                <path d="M4.22 3.22a.75.75 0 0 0-1.06 1.06L4.94 6 3.16 7.78a.75.75 0 1 0 1.06 1.06L6 7.06l1.78 1.78a.75.75 0 1 0 1.06-1.06L7.06 6l1.78-1.78a.75.75 0 0 0-1.06-1.06L6 4.94 4.22 3.22Z" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className="mb-5 flex flex-wrap gap-2">
         {filterTabs.map((tab) => {
@@ -392,6 +443,7 @@ function DetailDialog({
   onDelete,
 }: DetailProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   if (!app) return null;
   const c = app.candidate;
   return (
@@ -425,6 +477,22 @@ function DetailDialog({
       }
     >
       <div className="space-y-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-white/8 pb-3">
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate(`/admin/candidates?detail=${app.candidate_id}`); }}
+            className="text-xs text-copper/70 underline-offset-2 transition hover:text-copper hover:underline"
+          >
+            {t("common.viewCandidate")}
+          </button>
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate(`/admin/jobs?detail=${app.job_id}`); }}
+            className="text-xs text-copper/70 underline-offset-2 transition hover:text-copper hover:underline"
+          >
+            {t("common.viewJob")}
+          </button>
+        </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1">
           <span className="text-white/60">{c.email}</span>
           {c.phone && <span className="text-white/60">{c.phone}</span>}
