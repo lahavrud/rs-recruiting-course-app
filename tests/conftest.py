@@ -121,10 +121,43 @@ def mock_storage_provider():
         yield mock
 
 
-TEST_DATABASE_URL = os.environ.get(
+_BASE_DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5432/rs_recruitment",
 )
+
+# Each xdist worker gets its own database so they don't fight over the shared
+# table.delete() cleanup. Solo (non-xdist) runs keep the original DB name.
+WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
+
+
+def _per_worker_url(base_url: str, worker_id: str) -> str:
+    if worker_id == "master":
+        return base_url
+    base, sep, dbname = base_url.rpartition("/")
+    db_only, qs_sep, qs = dbname.partition("?")
+    return f"{base}{sep}{db_only}_{worker_id}{qs_sep}{qs}"
+
+
+def _admin_url(base_url: str) -> str:
+    """URL for the postgres maintenance DB — used to CREATE/DROP per-worker DBs."""
+    base, sep, dbname = base_url.rpartition("/")
+    _db_only, qs_sep, qs = dbname.partition("?")
+    return f"{base}{sep}postgres{qs_sep}{qs}"
+
+
+def _per_worker_dbname(base_url: str, worker_id: str) -> str:
+    _, _, dbname = base_url.rpartition("/")
+    db_only, _, _ = dbname.partition("?")
+    return f"{db_only}_{worker_id}"
+
+
+TEST_DATABASE_URL = _per_worker_url(_BASE_DATABASE_URL, WORKER_ID)
+
+# Several test modules read DATABASE_URL directly at import time to build their
+# own engines (tests/api/test_auth.py, tests/core/infrastructure/test_dependencies.py,
+# etc.). Rewrite the env var here so those reads pick up the per-worker URL too.
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL, echo=False, future=True, poolclass=NullPool
@@ -137,11 +170,67 @@ TestSessionLocal = async_sessionmaker(
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_testing_environment():
-    """Set up testing environment before all tests."""
+    """Set up testing environment + per-worker database before any tests run.
+
+    Solo runs use the existing DATABASE_URL DB. Under pytest-xdist each worker
+    creates its own DB (rs_recruitment_test_gw0, _gw1, …) so workers cannot
+    collide on the shared autouse table.delete() cleanup.
+    """
     # Enable testing mode (disables rate limiting and config validation)
     settings.testing = True
+
+    if WORKER_ID != "master":
+        import asyncio
+
+        worker_dbname = _per_worker_dbname(_BASE_DATABASE_URL, WORKER_ID)
+        admin_url = _admin_url(_BASE_DATABASE_URL)
+
+        async def _create_db() -> None:
+            engine = create_async_engine(
+                admin_url, isolation_level="AUTOCOMMIT", poolclass=NullPool
+            )
+            try:
+                async with engine.connect() as conn:
+                    from sqlalchemy import text
+
+                    await conn.execute(
+                        text(f'DROP DATABASE IF EXISTS "{worker_dbname}"')
+                    )
+                    await conn.execute(text(f'CREATE DATABASE "{worker_dbname}"'))
+            finally:
+                await engine.dispose()
+
+        async def _drop_db() -> None:
+            engine = create_async_engine(
+                admin_url, isolation_level="AUTOCOMMIT", poolclass=NullPool
+            )
+            try:
+                async with engine.connect() as conn:
+                    from sqlalchemy import text
+
+                    await conn.execute(
+                        text(
+                            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity"
+                            f" WHERE datname = '{worker_dbname}'"
+                        )
+                    )
+                    await conn.execute(
+                        text(f'DROP DATABASE IF EXISTS "{worker_dbname}"')
+                    )
+            finally:
+                await engine.dispose()
+
+        asyncio.run(_create_db())
+        try:
+            yield
+        finally:
+            # Engine may have lingering connections; release them before dropping.
+            asyncio.run(test_engine.dispose())
+            asyncio.run(_drop_db())
+            settings.testing = False
+        return
+
     yield
-    # Cleanup
     settings.testing = False
 
 
