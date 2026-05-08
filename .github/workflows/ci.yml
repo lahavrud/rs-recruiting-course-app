@@ -142,6 +142,15 @@ jobs:
         working-directory: frontend
         run: npx tsc -b
 
+  validate-deploy-artifacts:
+    name: Validate deploy artifacts (HTTPS contract)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - run: bash scripts/validate_deploy_artifacts.sh
+
   docker-build:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' # On push to main the deploy job handles building
@@ -237,7 +246,7 @@ jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [lint, test, frontend-lint]
+    needs: [lint, test, frontend-lint, validate-deploy-artifacts]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       id-token: write # Required for OIDC token exchange
@@ -282,6 +291,9 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm ci && npm run build
+
+      - name: Validate deploy artifacts (HTTPS contract)
+        run: bash scripts/validate_deploy_artifacts.sh
 
       - name: Upload artifacts to S3
         run: |
