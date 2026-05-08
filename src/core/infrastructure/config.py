@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rs_recruitment"  # pragma: allowlist secret  # noqa: E501
     database_echo: bool = False  # Enable SQL query logging (for debugging only)
+    # Connection pool — SQLAlchemy defaults (5+10) saturate quickly on the
+    # production t3.micro target (#230). Sized for modest concurrency; tune
+    # via env vars (DB_POOL_SIZE, DB_MAX_OVERFLOW, etc.) per environment.
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 1800  # 30 min — avoid stale conns from RDS / NAT
+    db_pool_pre_ping: bool = True  # SELECT 1 before checkout — survives blips
 
     # Redis Configuration (for Arq task queue)
     redis_url: str = "redis://localhost:6379/0"

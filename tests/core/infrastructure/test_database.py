@@ -125,6 +125,27 @@ class TestEngineConfiguration:
         assert engine is not None
         # The echo setting is set during engine creation based on settings.database_echo
 
+    def test_engine_pool_uses_configured_settings(self):
+        """Engine pool reflects db_pool_* settings, not SQLAlchemy defaults (5+10)."""
+        from src.core.infrastructure.config import settings
+
+        # QueuePool exposes size() (configured pool_size) and overflow capacity
+        # via internal _max_overflow. Verify configured values made it through.
+        assert engine.pool.size() == settings.db_pool_size
+        assert getattr(engine.pool, "_max_overflow") == settings.db_max_overflow
+        assert getattr(engine.pool, "_recycle") == settings.db_pool_recycle
+        assert getattr(engine.pool, "_pre_ping") == settings.db_pool_pre_ping
+
+    def test_pool_settings_have_sensible_defaults(self):
+        """Defaults must beat SQLAlchemy's 5+10 to handle modest production load."""
+        from src.core.infrastructure.config import Settings
+
+        defaults = Settings.model_fields
+        assert defaults["db_pool_size"].default >= 10
+        assert defaults["db_max_overflow"].default >= 10
+        assert defaults["db_pool_recycle"].default > 0
+        assert defaults["db_pool_pre_ping"].default is True
+
 
 class TestSessionFactory:
     """Tests for session factory configuration."""
