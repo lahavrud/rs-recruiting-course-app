@@ -53,6 +53,7 @@ class S3StorageProvider(StorageProvider):
                 "Bucket": self.bucket_name,
                 "Key": file_key,
                 "Body": file_content,
+                "ServerSideEncryption": "AES256",
             }
             if content_type:
                 upload_kwargs["ContentType"] = content_type

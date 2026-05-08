@@ -134,6 +134,7 @@ class TestS3StorageProvider:
             call_kwargs = mock_s3_client.put_object.call_args[1]
             assert call_kwargs["Bucket"] == mock_s3_bucket["bucket_name"]
             assert call_kwargs["Body"] == file_content
+            assert call_kwargs["ServerSideEncryption"] == "AES256"
 
     @pytest.mark.asyncio
     async def test_get_file_url(self, mock_s3_bucket):
