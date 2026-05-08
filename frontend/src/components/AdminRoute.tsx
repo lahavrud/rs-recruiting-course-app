@@ -5,9 +5,10 @@ import { UserRole } from "@/types/api";
 
 /** Renders children only for authenticated admins; redirects otherwise. */
 export default function AdminRoute({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loggingOut } = useAuth();
   const location = useLocation();
 
+  if (loggingOut) return null;
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
