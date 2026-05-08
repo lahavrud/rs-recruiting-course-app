@@ -1,5 +1,7 @@
 """Admin endpoints for company approval and direct CRUD."""
 
+import logging
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +36,8 @@ from src.services.exceptions import (
     CompanyNotPendingError,
     InvalidCursorError,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -137,6 +141,14 @@ async def approve_company_registration(
             result = await approve_company(company_user_id, session)
             return ApprovedCompanyRead.model_validate(result)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
+        logger.warning(
+            "admin company approve failed: %s",
+            e,
+            extra={
+                "company_user_id": company_user_id,
+                "error_type": type(e).__name__,
+            },
+        )
         raise service_exception_to_http(e) from e
 
 
@@ -153,4 +165,12 @@ async def reject_company_registration(
         async with transactional(session):
             await reject_company(company_user_id, session)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
+        logger.warning(
+            "admin company reject failed: %s",
+            e,
+            extra={
+                "company_user_id": company_user_id,
+                "error_type": type(e).__name__,
+            },
+        )
         raise service_exception_to_http(e) from e
