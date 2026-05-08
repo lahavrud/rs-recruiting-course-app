@@ -560,7 +560,7 @@ function EditDialog({ job, onClose, onSaved, onError }: EditProps) {
     else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
     if (form.salary_min == null || form.salary_min < 0) e.salary_min = t("common.validation.required");
     if (form.salary_max == null || form.salary_max < 0) e.salary_max = t("common.validation.required");
-    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = "המקסימום חייב להיות גבוה מהמינימום";
+    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = t("common.validation.salaryMaxBelowMin");
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -770,7 +770,7 @@ function CreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
     else if (form.requirements.length > 5000) e.requirements = t("common.validation.tooLong", { max: 5000 });
     if (form.salary_min == null || form.salary_min < 0) e.salary_min = t("common.validation.required");
     if (form.salary_max == null || form.salary_max < 0) e.salary_max = t("common.validation.required");
-    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = "המקסימום חייב להיות גבוה מהמינימום";
+    else if (form.salary_min != null && form.salary_max < form.salary_min) e.salary_max = t("common.validation.salaryMaxBelowMin");
     setErrors(e);
     return Object.keys(e).length === 0;
   }

@@ -73,5 +73,5 @@ app.include_router(seo.router)
 
 
 @app.get("/health")
-def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}

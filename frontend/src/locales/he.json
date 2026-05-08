@@ -57,8 +57,10 @@
       "tooShort": "לפחות {{min}} תווים",
       "emailInvalid": "כתובת אימייל לא תקינה",
       "phoneInvalid": "מספר טלפון לא תקין",
-      "linkedinInvalid": "יש להזין קישור LinkedIn תקין (https://linkedin.com/...)"
+      "linkedinInvalid": "יש להזין קישור LinkedIn תקין (https://linkedin.com/...)",
+      "salaryMaxBelowMin": "המקסימום חייב להיות גבוה מהמינימום"
     },
+    "clear": "נקה",
     "viewCandidate": "צפה במועמד",
     "viewJob": "צפה במשרה",
     "viewCompany": "צפה בחברה",

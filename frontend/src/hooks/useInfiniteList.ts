@@ -23,8 +23,12 @@ export interface UseInfiniteListResult<T> {
   reload: () => void;
   /** Append a single item to the head of the list. */
   prependItem: (item: T) => void;
-  /** Replace one matching item. */
-  updateItem: (predicate: (item: T) => boolean, next: T) => void;
+  /**
+   * Replace one matching item. Pass either the full new item, or an updater
+   * function that receives the current item — use the function form when only
+   * a few fields change so joined/derived fields aren't lost.
+   */
+  updateItem: (predicate: (item: T) => boolean, next: T | ((prev: T) => T)) => void;
   /** Remove all items matching a predicate. */
   removeItem: (predicate: (item: T) => boolean) => void;
 }
@@ -155,12 +159,21 @@ export function useInfiniteList<T>(
     setState((prev) => ({ ...prev, items: [item, ...prev.items] }));
   }, []);
 
-  const updateItem = useCallback((predicate: (item: T) => boolean, next: T) => {
-    setState((prev) => ({
-      ...prev,
-      items: prev.items.map((item) => (predicate(item) ? next : item)),
-    }));
-  }, []);
+  const updateItem = useCallback(
+    (predicate: (item: T) => boolean, next: T | ((prev: T) => T)) => {
+      setState((prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          predicate(item)
+            ? typeof next === "function"
+              ? (next as (p: T) => T)(item)
+              : next
+            : item,
+        ),
+      }));
+    },
+    [],
+  );
 
   const removeItem = useCallback((predicate: (item: T) => boolean) => {
     setState((prev) => ({

@@ -1,4 +1,5 @@
-import { forwardRef, useRef, useImperativeHandle } from "react";
+import { forwardRef, useMemo, useRef, useImperativeHandle } from "react";
+import { useTranslation } from "react-i18next";
 import ReactSignatureCanvas from "react-signature-canvas";
 
 export interface SignatureCanvasRef {
@@ -14,7 +15,17 @@ interface Props {
 
 const SignatureCanvas = forwardRef<SignatureCanvasRef, Props>(
   ({ hasError, onBegin }, ref) => {
+    const { t } = useTranslation();
     const innerRef = useRef<ReactSignatureCanvas>(null);
+
+    // Resolve copper token at mount so the pen color follows theme tokens.
+    const penColor = useMemo(() => {
+      if (typeof window === "undefined") return "#B87333";
+      const v = getComputedStyle(document.documentElement)
+        .getPropertyValue("--color-copper")
+        .trim();
+      return v || "#B87333";
+    }, []);
 
     useImperativeHandle(ref, () => ({
       toDataURL: () => innerRef.current?.toDataURL("image/png") ?? "",
@@ -38,7 +49,7 @@ const SignatureCanvas = forwardRef<SignatureCanvasRef, Props>(
               style: { display: "block" },
             }}
             backgroundColor="transparent"
-            penColor="#B87333"
+            penColor={penColor}
           />
         </div>
         <button
@@ -46,7 +57,7 @@ const SignatureCanvas = forwardRef<SignatureCanvasRef, Props>(
           onClick={() => innerRef.current?.clear()}
           className="rounded-sm border border-white/20 px-3 py-1 text-xs text-white/50 transition hover:border-white/40 hover:text-white/80"
         >
-          נקה
+          {t("common.clear")}
         </button>
       </div>
     );

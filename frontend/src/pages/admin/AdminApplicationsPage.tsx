@@ -382,12 +382,15 @@ export default function AdminApplicationsPage() {
         app={statusModal}
         onClose={() => setStatusModal(null)}
         onSaved={(updated) => {
-          updateItem((a) => a.id === updated.id, {
-            ...statusModal!,
-            status: updated.status,
-            admin_notes: updated.admin_notes,
-            updated_at: updated.updated_at,
-          });
+          updateItem(
+            (a) => a.id === updated.id,
+            (prev) => ({
+              ...prev,
+              status: updated.status,
+              admin_notes: updated.admin_notes,
+              updated_at: updated.updated_at,
+            }),
+          );
           toast.success(t("admin.applications.savedToast"));
           setStatusModal(null);
         }}
@@ -399,11 +402,14 @@ export default function AdminApplicationsPage() {
         app={notesModal}
         onClose={() => setNotesModal(null)}
         onSaved={(updated) => {
-          updateItem((a) => a.id === updated.id, {
-            ...notesModal!,
-            admin_notes: updated.admin_notes,
-            updated_at: updated.updated_at,
-          });
+          updateItem(
+            (a) => a.id === updated.id,
+            (prev) => ({
+              ...prev,
+              admin_notes: updated.admin_notes,
+              updated_at: updated.updated_at,
+            }),
+          );
           toast.success(t("admin.applications.notesSavedToast"));
           setNotesModal(null);
         }}

@@ -1,6 +1,6 @@
 """Admin endpoints for company invite-token management."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
@@ -38,7 +38,8 @@ async def create_company_invite(
     session: AsyncSession = Depends(get_session),
 ) -> InviteTokenRead:
     """Generate a single-use invite token and send it via email."""
-    assert current_admin.id is not None
+    if current_admin.id is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     try:
         async with transactional(session):
             return await create_invite(current_admin.id, data, session)
@@ -55,8 +56,7 @@ async def get_company_invites(
 ) -> CursorPage[InviteTokenRead]:
     """List invite tokens, newest first. Expired tokens are marked before returning."""
     try:
-        async with transactional(session):
-            return await list_invites(session, cursor=cursor, limit=limit)
+        return await list_invites(session, cursor=cursor, limit=limit)
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
 
