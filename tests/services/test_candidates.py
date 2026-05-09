@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.transactions import transactional
 from src.enums import ApplicationStatus
 from src.models import Application, CandidateProfile, Job
 from src.schemas import CandidateProfileCreate
@@ -444,9 +445,10 @@ async def test_create_candidate_profile_sends_candidate_confirmation_email(
         phone="123-456-7890",
     )
 
-    await create_candidate_profile(
-        candidate_data=candidate_data, job_id=job.id, session=session
-    )
+    async with transactional(session):
+        await create_candidate_profile(
+            candidate_data=candidate_data, job_id=job.id, session=session
+        )
 
     # First call is the candidate confirmation; second is the admin notification.
     candidate_call = mock_enqueue_email.call_args_list[0].kwargs
@@ -490,9 +492,10 @@ async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
         phone="123-456-7890",
     )
 
-    await create_candidate_profile(
-        candidate_data=candidate_data, job_id=job.id, session=session
-    )
+    async with transactional(session):
+        await create_candidate_profile(
+            candidate_data=candidate_data, job_id=job.id, session=session
+        )
 
     # Two emails: candidate (index 0), admin (index 1).
     assert mock_enqueue_email.call_count == 2
@@ -525,9 +528,10 @@ async def test_create_candidate_profile_admin_email_uses_env_var_when_set(
         phone="123-456-7890",
     )
 
-    await create_candidate_profile(
-        candidate_data=candidate_data, job_id=job.id, session=session
-    )
+    async with transactional(session):
+        await create_candidate_profile(
+            candidate_data=candidate_data, job_id=job.id, session=session
+        )
 
     admin_call = mock_enqueue_email.call_args_list[1].kwargs
     assert admin_call["to"] == "ops@rsrecruit.test"

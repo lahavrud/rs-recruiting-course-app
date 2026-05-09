@@ -32,6 +32,7 @@ from src.core.infrastructure.dependencies import (
     get_current_user,
 )
 from src.core.infrastructure.security import get_password_hash
+from src.core.infrastructure.transactions import transactional
 from src.enums import ApplicationStatus, JobStatus, UserRole
 from src.main import app
 from src.models import Application, CandidateProfile, CompanyProfile, Job, User
@@ -64,6 +65,26 @@ def mock_enqueue_email():
     yield
     for p in patches:
         p.stop()
+
+
+@pytest.fixture(autouse=True)
+def _provide_post_commit_hooks_context():
+    """Establish an empty post-commit hooks contextvar for every test.
+
+    Tests that bypass routes and call services directly never enter
+    transactional() — without this, defer_after_commit() would raise
+    RuntimeError. Tests that need the deferred hooks to actually execute
+    (so that @patch mocks observe the calls) should still wrap their service
+    call in transactional() inside the test body, where mocks are active.
+    Tests that don't care whether the hook runs are unaffected.
+    """
+    from src.core.infrastructure.transactions import _post_commit_hooks
+
+    token = _post_commit_hooks.set([])
+    try:
+        yield
+    finally:
+        _post_commit_hooks.reset(token)
 
 
 @pytest.fixture(autouse=True)
@@ -309,10 +330,15 @@ async def company_user(test_db) -> User:
             password=_STRONG_PASSWORD,
             company_profile=_make_company_profile_create("Test Company"),
         )
-        result = await register_company_user(
-            user_data, session, _FAKE_LOGO, "logo.png", "image/png", _FAKE_SIGNATURE_B64
-        )
-        await session.commit()
+        async with transactional(session):
+            result = await register_company_user(
+                user_data,
+                session,
+                _FAKE_LOGO,
+                "logo.png",
+                "image/png",
+                _FAKE_SIGNATURE_B64,
+            )
         return result.user
 
 
@@ -325,9 +351,15 @@ async def approved_company_user(test_db) -> User:
             password=_STRONG_PASSWORD,
             company_profile=_make_company_profile_create("Approved Company"),
         )
-        result = await register_company_user(
-            user_data, session, _FAKE_LOGO, "logo.png", "image/png", _FAKE_SIGNATURE_B64
-        )
+        async with transactional(session):
+            result = await register_company_user(
+                user_data,
+                session,
+                _FAKE_LOGO,
+                "logo.png",
+                "image/png",
+                _FAKE_SIGNATURE_B64,
+            )
         result.user.is_active = True
         await session.commit()
         return result.user

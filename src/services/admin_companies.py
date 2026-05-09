@@ -11,6 +11,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
 from src.enums import UserRole
@@ -143,15 +144,20 @@ async def reject_company(
     )
     company_profile = result.scalar_one()
 
-    rejected_plain = (
-        f"בקשת ההרשמה של '{company_profile.name}' נדחתה. "
+    _rejection_email = user.email
+    _company_name_for_email = company_profile.name or ""
+    _rejected_plain = (
+        f"בקשת ההרשמה של '{_company_name_for_email}' נדחתה. "
         "אם לדעתכם מדובר בטעות, אנא צרו קשר עם support@rs-recruiting.com"
     )
-    await enqueue_email_task(
-        to=user.email,
-        subject="בקשת ההרשמה נדחתה – RS Recruiting",
-        body=rejected_plain,
-        html_body=build_rejection_html(company_profile.name or ""),
+    _rejection_html = build_rejection_html(_company_name_for_email)
+    defer_after_commit(
+        lambda: enqueue_email_task(
+            to=_rejection_email,
+            subject="בקשת ההרשמה נדחתה – RS Recruiting",
+            body=_rejected_plain,
+            html_body=_rejection_html,
+        )
     )
 
     await _delete_company_files(company_profile)

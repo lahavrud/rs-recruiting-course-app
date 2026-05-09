@@ -16,6 +16,7 @@ from src.core.infrastructure.security import (
     hash_token,
     verify_password,
 )
+from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.file_validation import validate_image_magic_bytes
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
@@ -220,8 +221,10 @@ async def register_company_user(
 
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
-        await _notify_admins_new_registration(
-            new_company_profile, new_user.email, sig_bytes, now, admin_emails
+        defer_after_commit(
+            lambda: _notify_admins_new_registration(
+                new_company_profile, new_user.email, sig_bytes, now, admin_emails
+            )
         )
 
     return UserWithCompanyRead(
@@ -343,7 +346,6 @@ async def logout_user(
         db_token = result.scalar_one_or_none()
         if db_token and not db_token.is_revoked:
             db_token.is_revoked = True
-            session.add(db_token)
 
 
 async def mark_invite_used(token: str, session: AsyncSession) -> None:

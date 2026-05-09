@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.transactions import transactional
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.services.candidates import create_candidate_profile
 from src.services.exceptions import ApplicationAlreadyExistsError, JobNotFoundError
@@ -44,26 +45,22 @@ async def _apply_common(
     )
 
     try:
-        candidate = await create_candidate_profile(
-            candidate_data=candidate_data,
-            job_id=job_id,
-            resume_file=resume_file,
-            resume_filename=resume_filename,
-            session=session,
-        )
+        async with transactional(session):
+            candidate = await create_candidate_profile(
+                candidate_data=candidate_data,
+                job_id=job_id,
+                resume_file=resume_file,
+                resume_filename=resume_filename,
+                session=session,
+            )
         return candidate
     except (JobNotFoundError, ApplicationAlreadyExistsError) as e:
-        await session.rollback()
         raise service_exception_to_http(e) from e
     except ValueError as e:
-        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
-    except Exception:
-        await session.rollback()
-        raise
 
 
 @router.post(

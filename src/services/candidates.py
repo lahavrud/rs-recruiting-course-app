@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
+from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.file_validation import validate_document_magic_bytes
 from src.core.services.storage import StorageProvider, get_storage_provider
 from src.core.tasks import enqueue_email_task
@@ -273,8 +274,15 @@ async def create_candidate_profile(
     candidate = await _upsert_candidate_and_application(
         session, candidate_data, job_id, resume_path
     )
-    await session.commit()
+    await session.flush()
     await session.refresh(candidate)
 
-    await _send_application_emails(candidate, job, company_name, session)
+    _candidate_snapshot = candidate
+    _job_snapshot = job
+    _company_name_snapshot = company_name
+    defer_after_commit(
+        lambda: _send_application_emails(
+            _candidate_snapshot, _job_snapshot, _company_name_snapshot, session
+        )
+    )
     return CandidateProfileRead.model_validate(candidate)
