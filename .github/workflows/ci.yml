@@ -207,6 +207,7 @@ jobs:
             -e POSTGRES_USER=test \
             -e POSTGRES_PASSWORD="$PG_TEST_PASSWORD" \
             postgres:16-alpine
+          docker run -d --name test-redis --network test-net redis:7-alpine
           for i in {1..10}; do
             docker exec test-db pg_isready -U test && break || sleep 2
           done
@@ -219,6 +220,7 @@ jobs:
             -p 8000:8000 \
             -e DATABASE_URL="$TEST_DB_URL" \
             -e JWT_SECRET_KEY="$JWT_SECRET_KEY" \
+            -e REDIS_URL="redis://test-redis:6379/0" \
             rs-recruitment:test
 
       - name: Wait for service to be ready
@@ -263,6 +265,8 @@ jobs:
           docker rm rs-recruitment-test || true
           docker stop test-db || true
           docker rm test-db || true
+          docker stop test-redis || true
+          docker rm test-redis || true
           docker network rm test-net || true
 
   deploy:

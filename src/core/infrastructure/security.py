@@ -10,6 +10,7 @@ import bcrypt
 from jose import JWTError, jwt
 
 from src.core.infrastructure.config import get_jwt_secret_key, settings
+from src.services.exceptions import RedisUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,11 @@ def create_refresh_token() -> tuple[str, str, datetime]:
 
 
 async def blacklist_access_token(jti: str, exp: int) -> None:
-    """Store a JTI in Redis so it is rejected until the token would have expired."""
+    """Store a JTI in Redis so it is rejected until the token would have expired.
+
+    Raises RedisUnavailableError if Redis is unreachable — callers must not
+    silently succeed when blacklisting fails (a logged-out token stays valid).
+    """
     from src.core.tasks import get_redis_pool  # local import avoids circular
 
     ttl = exp - int(datetime.now(timezone.utc).timestamp())
@@ -81,20 +86,32 @@ async def blacklist_access_token(jti: str, exp: int) -> None:
     try:
         redis = await get_redis_pool()
         await redis.set(f"{_BLACKLIST_PREFIX}{jti}", "1", ex=ttl)
-    except Exception:
-        logger.warning("Redis unavailable; access token JTI %s not blacklisted", jti)
+    except Exception as exc:
+        logger.error(
+            "redis_unavailable",
+            extra={"surface": "blacklist_write", "jti": jti},
+        )
+        raise RedisUnavailableError(
+            "Redis unavailable; cannot blacklist token"
+        ) from exc
 
 
 async def is_access_token_blacklisted(jti: str) -> bool:
     """Return True if the JTI has been blacklisted (i.e. logged out).
 
-    Returns False when Redis is unavailable — tokens are assumed valid.
+    Raises RedisUnavailableError when Redis is unavailable — callers must treat
+    this as a service outage (fail-closed) rather than assuming the token is valid.
     """
     from src.core.tasks import get_redis_pool
 
     try:
         redis = await get_redis_pool()
         return await redis.get(f"{_BLACKLIST_PREFIX}{jti}") is not None
-    except Exception:
-        logger.warning("Redis unavailable; skipping blacklist check for JTI %s", jti)
-        return False
+    except Exception as exc:
+        logger.error(
+            "redis_unavailable",
+            extra={"surface": "blacklist_read", "jti": jti},
+        )
+        raise RedisUnavailableError(
+            "Redis unavailable; cannot check token blacklist"
+        ) from exc

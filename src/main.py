@@ -86,4 +86,18 @@ app.include_router(seo.router)
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    return {"status": "ok", "environment": settings.environment}
+    from src.core.tasks import get_redis_pool
+
+    redis_status = "ok"
+    try:
+        redis = await get_redis_pool()
+        await redis.ping()
+    except Exception:
+        redis_status = "unavailable"
+
+    overall = "ok" if redis_status == "ok" else "degraded"
+    return {
+        "status": overall,
+        "environment": settings.environment,
+        "redis": redis_status,
+    }

@@ -62,7 +62,7 @@ async def _check_lockout(email: str) -> None:
     except AccountLockedError:
         raise
     except Exception:
-        logger.warning("Redis unavailable; skipping lockout check for %s", email)
+        logger.error("redis_unavailable", extra={"surface": "lockout_check"})
 
 
 async def _record_failed_attempt(email: str) -> None:
@@ -77,7 +77,7 @@ async def _record_failed_attempt(email: str) -> None:
             await redis.set(_lockout_key(email), "1", ex=_LOCKOUT_SECONDS)
             await redis.delete(key)
     except Exception:
-        logger.warning("Redis unavailable; failed attempt for %s not recorded", email)
+        logger.error("redis_unavailable", extra={"surface": "record_failed_attempt"})
 
 
 async def _clear_failed_attempts(email: str) -> None:
@@ -88,9 +88,7 @@ async def _clear_failed_attempts(email: str) -> None:
         await redis.delete(_attempts_key(email))
         await redis.delete(_lockout_key(email))
     except Exception:
-        logger.warning(
-            "Redis unavailable; could not clear failed attempts for %s", email
-        )
+        logger.error("redis_unavailable", extra={"surface": "clear_failed_attempts"})
 
 
 _MAX_SIGNATURE_SIZE = 2 * 1024 * 1024  # 2 MB decoded

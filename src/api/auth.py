@@ -50,6 +50,7 @@ from src.services.exceptions import (
     InvalidInviteTokenError,
     PendingActivationError,
     PendingApprovalError,
+    RedisUnavailableError,
 )
 
 limiter = get_limiter()
@@ -198,5 +199,11 @@ async def logout(
     exp = payload.get("exp")
     if jti and exp:
         raw_refresh = body.refresh_token if body else None
-        async with transactional(session):
-            await logout_user(jti, int(exp), raw_refresh, session)
+        try:
+            async with transactional(session):
+                await logout_user(jti, int(exp), raw_refresh, session)
+        except RedisUnavailableError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable",
+            )

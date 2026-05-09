@@ -156,3 +156,9 @@ class CandidateNotFoundError(Exception):
     """Raised when a candidate profile is not found."""
 
     pass
+
+
+class RedisUnavailableError(Exception):
+    """Raised when a Redis operation fails and the caller must not degrade silently."""
+
+    pass

@@ -14,6 +14,7 @@ from src.core.infrastructure.security import (
 )
 from src.enums import UserRole
 from src.models import CompanyProfile, User
+from src.services.exceptions import RedisUnavailableError
 
 security = HTTPBearer()
 
@@ -35,11 +36,17 @@ async def get_token_payload(
         )
 
     jti = payload.get("jti")
-    if jti and await is_access_token_blacklisted(jti):
+    try:
+        if jti and await is_access_token_blacklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except RedisUnavailableError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable",
         )
 
     return payload
