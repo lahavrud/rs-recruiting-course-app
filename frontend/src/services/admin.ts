@@ -108,6 +108,10 @@ export async function deleteCompany(userId: number): Promise<void> {
   await api.delete(`/api/admin/companies/${userId}`);
 }
 
+export async function deleteOrphanCompany(profileId: number): Promise<void> {
+  await api.delete(`/api/admin/companies/profile/${profileId}`);
+}
+
 export async function adminCreateCompany(
   body: CompanyProfileAdminCreate,
 ): Promise<CompanyProfileRead> {

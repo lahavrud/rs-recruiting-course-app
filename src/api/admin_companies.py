@@ -28,6 +28,7 @@ from src.services.admin_companies import (
 )
 from src.services.admin_company_profiles import (
     admin_create_company,
+    delete_orphan_company_profile,
     get_company_profile,
     update_company_profile,
 )
@@ -94,6 +95,22 @@ async def update_company_profile_endpoint(
         async with transactional(session):
             return await update_company_profile(profile_id, data, session)
     except CompanyNotFoundError as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.delete(
+    "/companies/profile/{profile_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_orphan_company(
+    profile_id: int,
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete an admin-created CompanyProfile that has no user account."""
+    try:
+        async with transactional(session):
+            await delete_orphan_company_profile(profile_id, session)
+    except (CompanyNotFoundError, CompanyNotPendingError) as e:
         raise service_exception_to_http(e) from e
 
 

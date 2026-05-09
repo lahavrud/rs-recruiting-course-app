@@ -15,7 +15,14 @@ from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
 from src.enums import UserRole
-from src.models import ActivationToken, Application, CompanyProfile, Job, User
+from src.models import (
+    ActivationToken,
+    Application,
+    CompanyProfile,
+    Job,
+    RefreshToken,
+    User,
+)
 from src.schemas import (
     ActiveCompanyRead,
     CompanyProfileRead,
@@ -185,14 +192,23 @@ async def list_active_companies(
     cursor: str | None = None,
     limit: int | None = None,
 ) -> CursorPage[ActiveCompanyRead]:
-    """One page of approved (active) companies, newest first."""
+    """One page of active companies, newest first.
+
+    Includes both company users that have been approved (is_active=True) and
+    admin-created profiles that have no user account yet (user_id=None).
+    """
     page_size = clamp_limit(limit)
     query = apply_cursor(
-        select(User, CompanyProfile)
-        .join(CompanyProfile, User.id == CompanyProfile.user_id)
-        .where(User.role == UserRole.COMPANY, User.is_active == True),  # noqa: E712
-        sort_col=User.created_at,  # pyright: ignore[reportArgumentType]
-        id_col=User.id,  # pyright: ignore[reportArgumentType]
+        select(CompanyProfile, User)
+        .outerjoin(User, CompanyProfile.user_id == User.id)  # pyright: ignore[reportArgumentType]
+        .where(
+            (CompanyProfile.user_id == None)  # noqa: E711 — orphan profiles (IS NULL)
+            | (  # pyright: ignore[reportOperatorIssue]
+                (User.role == UserRole.COMPANY) & (User.is_active == True)  # noqa: E712
+            )
+        ),
+        sort_col=CompanyProfile.created_at,  # pyright: ignore[reportArgumentType]
+        id_col=CompanyProfile.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
     )
@@ -200,8 +216,8 @@ async def list_active_companies(
     return build_cursor_page(
         rows,
         serializer=lambda row: ActiveCompanyRead(
-            user=UserRead.model_validate(row[0]),
-            company_profile=CompanyProfileRead.model_validate(row[1]),
+            user=UserRead.model_validate(row[1]) if row[1] is not None else None,
+            company_profile=CompanyProfileRead.model_validate(row[0]),
         ),
         cursor_key=lambda row: (row[0].created_at, row[0].id),
         limit=page_size,
@@ -215,9 +231,10 @@ async def delete_active_company(
     actor_user_id: int | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Hard-delete a company and cascade through its jobs and applications.
+    """Hard-delete a company and cascade through its dependent rows.
 
-    Delete order: Applications → Jobs → CompanyProfile → User.
+    Delete order: Applications → Jobs → ActivationTokens → RefreshTokens
+                  → CompanyProfile → User.
 
     Raises:
         CompanyNotFoundError: If no COMPANY user with that ID exists
@@ -245,6 +262,20 @@ async def delete_active_company(
             delete(Job).where(Job.id.in_(job_ids))  # pyright: ignore[reportAttributeAccessIssue]
         )
         await session.flush()
+
+    # ActivationToken and RefreshToken both FK-reference User without ON DELETE
+    # CASCADE, so they must be removed before the user row can be deleted.
+    await session.execute(
+        delete(ActivationToken).where(
+            ActivationToken.company_user_id == company_user_id  # type: ignore[arg-type]
+        )
+    )
+    await session.execute(
+        delete(RefreshToken).where(
+            RefreshToken.user_id == company_user_id  # type: ignore[arg-type]
+        )
+    )
+    await session.flush()
 
     await _delete_company_files(cp)
 

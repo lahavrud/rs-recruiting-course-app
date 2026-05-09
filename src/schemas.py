@@ -512,9 +512,12 @@ class ApprovedCompanyRead(BaseModel):
 
 
 class ActiveCompanyRead(BaseModel):
-    """Schema for an active company in the admin company list."""
+    """Schema for an active company in the admin company list.
 
-    user: UserRead
+    ``user`` is ``None`` for profiles created directly by admins (user_id=null).
+    """
+
+    user: UserRead | None
     company_profile: CompanyProfileRead
 
 

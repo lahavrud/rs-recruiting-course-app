@@ -7,6 +7,7 @@ import {
   approveCompany,
   createInvite,
   deleteCompany,
+  deleteOrphanCompany,
   getActiveCompanies,
   getCompanyProfile,
   getInvites,
@@ -148,7 +149,15 @@ export default function AdminCompaniesPage() {
         />
       )}
 
-      <CreateCompanyDialog open={creating} onClose={() => setCreating(false)} />
+      <CreateCompanyDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(profile) => {
+          setCreating(false);
+          setTab("active");
+          setExternalDetail(profile);
+        }}
+      />
     </div>
   );
 }
@@ -198,8 +207,12 @@ function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
     if (!deletePending) return;
     setPendingMutation(true);
     try {
-      await deleteCompany(deletePending.user.id);
-      removeItem((c) => c.user.id === deletePending.user.id);
+      if (deletePending.user) {
+        await deleteCompany(deletePending.user.id);
+      } else {
+        await deleteOrphanCompany(deletePending.company_profile.id);
+      }
+      removeItem((c) => c.company_profile.id === deletePending.company_profile.id);
       toast.success(t("admin.companies.deletedToast"));
       setDeletePending(null);
     } catch {
@@ -225,14 +238,16 @@ function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
           <div className="space-y-2 md:hidden">
             {companies.map((row) => (
               <button
-                key={row.user.id}
+                key={row.company_profile.id}
                 onClick={() => setDetail(row.company_profile)}
                 className="w-full rounded-xl border border-white/8 bg-card px-4 py-3 text-start transition hover:border-white/15"
               >
                 <p className="truncate font-medium text-white/85">
                   {row.company_profile.name}
                 </p>
-                <p className="truncate text-xs text-white/50">{row.user.email}</p>
+                <p className="truncate text-xs text-white/50">
+                  {row.user?.email ?? t("admin.companies.noUserAccount")}
+                </p>
               </button>
             ))}
           </div>
@@ -256,7 +271,7 @@ function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
               <tbody className="divide-y divide-white/6">
                 {companies.map((row) => (
                   <tr
-                    key={row.user.id}
+                    key={row.company_profile.id}
                     onClick={() => setDetail(row.company_profile)}
                     className="cursor-pointer transition hover:bg-white/3"
                   >
@@ -264,14 +279,18 @@ function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
                       <p className="font-medium text-white/85">
                         {row.company_profile.name}
                       </p>
-                      <p className="text-xs text-white/40">{row.user.email}</p>
+                      <p className="text-xs text-white/40">
+                        {row.user?.email ?? t("admin.companies.noUserAccount")}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-white/60">
                       {row.company_profile.contact_first_name}{" "}
                       {row.company_profile.contact_last_name}
                     </td>
                     <td className="px-4 py-3 text-white/40">
-                      {formatDate(row.user.created_at)}
+                      {formatDate(
+                        row.user?.created_at ?? row.company_profile.created_at,
+                      )}
                     </td>
                     <td
                       className="px-4 py-3 text-end"
@@ -340,13 +359,7 @@ function ActiveTab({ externalDetail, onExternalDetailClose }: ActiveTabProps) {
             (() => {
               const target = companies.find((c) => c.company_profile.id === updated.id);
               return {
-                user: target?.user ?? {
-                  id: updated.user_id ?? 0,
-                  email: "",
-                  role: "COMPANY",
-                  is_active: true,
-                  created_at: updated.created_at,
-                },
+                user: target?.user ?? null,
                 company_profile: updated,
               } as ActiveCompanyRead;
             })(),
@@ -953,9 +966,10 @@ function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
 interface CreateProps {
   open: boolean;
   onClose: () => void;
+  onCreated: (profile: CompanyProfileRead) => void;
 }
 
-function CreateCompanyDialog({ open, onClose }: CreateProps) {
+function CreateCompanyDialog({ open, onClose, onCreated }: CreateProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const [form, setForm] = useState<Partial<CompanyProfileAdminCreate>>({});
@@ -980,13 +994,14 @@ function CreateCompanyDialog({ open, onClose }: CreateProps) {
   async function handleSave() {
     setValidationError(null);
     if (
-      !form.name ||
-      !form.company_id ||
-      !form.address ||
-      !form.contact_first_name ||
-      !form.contact_last_name ||
-      !form.contact_mobile_phone
+      !form.name?.trim() ||
+      !form.company_id?.trim() ||
+      !form.address?.trim() ||
+      !form.contact_first_name?.trim() ||
+      !form.contact_last_name?.trim() ||
+      !form.contact_mobile_phone?.trim()
     ) {
+      setValidationError(t("admin.companies.validation.allRequired"));
       return;
     }
     if (!COMPANY_ID_RE.test(form.company_id)) {
@@ -999,7 +1014,7 @@ function CreateCompanyDialog({ open, onClose }: CreateProps) {
     }
     setSaving(true);
     try {
-      await adminCreateCompany({
+      const created = await adminCreateCompany({
         name: form.name,
         company_id: form.company_id,
         address: form.address,
@@ -1009,9 +1024,7 @@ function CreateCompanyDialog({ open, onClose }: CreateProps) {
         contact_landline_phone: form.contact_landline_phone || null,
       });
       toast.success(t("admin.companies.createdToast"));
-      onClose();
-      // The active list won't auto-refresh — admin-created companies don't
-      // appear in the active list until they have a user account anyway.
+      onCreated(created);
     } catch {
       toast.error(t("admin.companies.errors.createFailed"));
     } finally {

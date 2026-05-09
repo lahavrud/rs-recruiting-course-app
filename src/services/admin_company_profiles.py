@@ -6,16 +6,16 @@ approval/rejection lifecycle that's keyed by `User.id` lives in
 `admin_companies.py`.
 """
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CompanyProfile
+from src.models import Application, CompanyProfile, Job
 from src.schemas import (
     CompanyProfileAdminCreate,
     CompanyProfileAdminUpdate,
     CompanyProfileRead,
 )
-from src.services.exceptions import CompanyNotFoundError
+from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 
 
 async def get_company_profile(
@@ -58,6 +58,48 @@ async def admin_create_company(
     await session.flush()
     await session.refresh(profile)
     return CompanyProfileRead.model_validate(profile)
+
+
+async def delete_orphan_company_profile(profile_id: int, session: AsyncSession) -> None:
+    """Delete an admin-created CompanyProfile that has no user account.
+
+    Only deletes profiles with user_id=None (orphan profiles). Raises
+    CompanyNotPendingError if the profile is linked to a user, to prevent
+    accidental deletion of active or pending company accounts.
+
+    Delete order: Applications → Jobs → CompanyProfile.
+
+    Raises:
+        CompanyNotFoundError: If no profile with that id exists.
+        CompanyNotPendingError: If the profile is linked to a user account.
+    """
+    result = await session.execute(
+        select(CompanyProfile).where(CompanyProfile.id == profile_id)  # pyright: ignore[reportArgumentType]
+    )
+    profile = result.scalar_one_or_none()
+    if profile is None:
+        raise CompanyNotFoundError(f"Company profile {profile_id} not found")
+    if profile.user_id is not None:
+        raise CompanyNotPendingError(
+            f"Company profile {profile_id} is linked to user {profile.user_id}; "
+            "use the company-user delete endpoint instead"
+        )
+
+    job_ids_result = await session.execute(
+        select(Job.id).where(Job.company_id == profile_id)  # pyright: ignore[reportArgumentType]
+    )
+    job_ids = [r[0] for r in job_ids_result.all()]
+    if job_ids:
+        await session.execute(
+            delete(Application).where(Application.job_id.in_(job_ids))  # pyright: ignore[reportAttributeAccessIssue]
+        )
+        await session.execute(
+            delete(Job).where(Job.id.in_(job_ids))  # pyright: ignore[reportAttributeAccessIssue]
+        )
+        await session.flush()
+
+    await session.delete(profile)
+    await session.flush()
 
 
 async def update_company_profile(

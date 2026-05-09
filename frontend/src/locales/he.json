@@ -503,7 +503,8 @@
       },
       "validation": {
         "companyId": "ח.פ חייב להיות בן 9 ספרות",
-        "mobile": "מספר נייד ישראלי תקין (05X-XXXXXXX)"
+        "mobile": "מספר נייד ישראלי תקין (05X-XXXXXXX)",
+        "allRequired": "יש למלא את כל השדות הנדרשים"
       },
       "errors": {
         "createFailed": "יצירת החברה נכשלה. נסה שוב.",

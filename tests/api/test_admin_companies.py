@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models import User
+from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.auth import register_company_user
 from tests.conftest import TestSessionLocal
@@ -376,6 +376,53 @@ async def test_update_company_profile_not_found(admin_client: AsyncClient):
         "/api/admin/companies/profile/99999", json={"name": "no"}
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_created_company_appears_in_active_list(admin_client: AsyncClient):
+    """Admin-created profiles (user_id=null) must be visible in GET /admin/companies.
+
+    This is the core regression guard for #345: the query used to INNER JOIN
+    with the user table, making orphan profiles invisible to the admin UI.
+    """
+    create = await admin_client.post("/api/admin/companies", json=_ADMIN_CREATE_PAYLOAD)
+    assert create.status_code == 201
+    profile_id = create.json()["id"]
+
+    list_response = await admin_client.get("/api/admin/companies")
+    assert list_response.status_code == 200
+    items = list_response.json()["items"]
+
+    ids = [item["company_profile"]["id"] for item in items]
+    assert profile_id in ids, "Admin-created company missing from active list"
+
+    matched = next(i for i in items if i["company_profile"]["id"] == profile_id)
+    assert matched["user"] is None
+
+
+@pytest.mark.asyncio
+async def test_admin_create_company_persists_across_sessions(admin_client: AsyncClient):
+    """Profile created via POST /admin/companies is committed, not just flushed.
+
+    Uses a separate DB session after the API call to confirm the row is durably
+    on disk — guarding against a transaction-boundary regression where the
+    service only flushes but never commits.
+    """
+    response = await admin_client.post(
+        "/api/admin/companies", json=_ADMIN_CREATE_PAYLOAD
+    )
+    assert response.status_code == 201
+    profile_id = response.json()["id"]
+
+    async with TestSessionLocal() as separate_session:
+        result = await separate_session.execute(
+            select(CompanyProfile).where(CompanyProfile.id == profile_id)  # pyright: ignore[reportArgumentType]
+        )
+        persisted = result.scalar_one_or_none()
+
+    assert persisted is not None, "Company profile was not committed to the database"
+    assert persisted.user_id is None
+    assert persisted.name == "חברה ישירה"
 
 
 @pytest.mark.asyncio

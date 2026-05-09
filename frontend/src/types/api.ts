@@ -236,7 +236,8 @@ export interface ApprovedCompanyRead {
 }
 
 export interface ActiveCompanyRead {
-  user: UserRead;
+  /** Null for profiles created directly by admins (no user account yet). */
+  user: UserRead | null;
   company_profile: CompanyProfileRead;
 }
 

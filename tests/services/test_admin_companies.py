@@ -8,8 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash
 from src.enums import UserRole
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
-from src.schemas import CompanyProfileCreate, UserCreate
+from src.models import (
+    ActivationToken,
+    Application,
+    CandidateProfile,
+    CompanyProfile,
+    Job,
+    RefreshToken,
+    User,
+)
+from src.schemas import CompanyProfileAdminCreate, CompanyProfileCreate, UserCreate
 from src.services.admin_companies import (
     delete_active_company,
     get_all_admin_emails,
@@ -17,6 +25,7 @@ from src.services.admin_companies import (
     list_pending_companies,
     reject_company,
 )
+from src.services.admin_company_profiles import admin_create_company
 from src.services.auth import register_company_user
 from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 from tests.factories import FAKE_LOGO as _LOGO
@@ -263,6 +272,77 @@ async def test_list_active_companies_paginates(mock_email, session: AsyncSession
 
     assert len(seen) == 5
     assert len(set(seen)) == 5
+
+
+@pytest.mark.asyncio
+async def test_list_active_companies_includes_admin_created_profiles(
+    session: AsyncSession,
+):
+    """Profiles created directly by admins (user_id=None) appear in the active list.
+
+    Regression test for the transaction-boundary bug where admin-created profiles
+    were persisted to the DB but invisible in every admin list view, because the
+    query required an INNER JOIN with a user row.
+    """
+    payload = CompanyProfileAdminCreate(
+        name="ללא חשבון",
+        company_id="111222333",
+        address="רח' כלשהי 1",
+        contact_first_name="אורי",
+        contact_last_name="ישיר",
+        contact_mobile_phone="0501234567",
+    )
+    await admin_create_company(payload, session)
+    await session.commit()
+
+    page = await list_active_companies(session)
+
+    assert len(page.items) == 1
+    item = page.items[0]
+    assert item.user is None
+    assert item.company_profile.name == "ללא חשבון"
+    assert item.company_profile.user_id is None
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.enqueue_email_task")
+async def test_delete_active_company_with_activation_and_refresh_tokens(
+    mock_email, session: AsyncSession
+):
+    """delete_active_company removes ActivationToken + RefreshToken rows before
+    deleting the user, preventing FK constraint violations on fully-activated
+    company accounts.
+    """
+    mock_email.return_value = "job-id"
+    user = await _register(_company_create("fk@example.com", "FK Co"), session)
+    user_id = user.id
+
+    from datetime import datetime, timezone
+
+    # Simulate an activation token (as created by the approval flow).
+    act_token = ActivationToken(
+        token="fake-act-token",
+        company_user_id=user_id,
+        expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        used=True,
+    )
+    # Simulate a refresh token (as stored after the company logs in).
+    ref_token = RefreshToken(
+        token_hash="fake-hash",
+        user_id=user_id,
+        expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+    )
+    session.add(act_token)
+    session.add(ref_token)
+    await session.commit()
+
+    await delete_active_company(user_id, session)
+    await session.commit()
+
+    result = await session.execute(
+        select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
+    )
+    assert result.scalar_one_or_none() is None
 
 
 # ── delete_active_company ─────────────────────────────────────────────────────
