@@ -47,7 +47,7 @@ _EMAIL_TASK_TARGETS = [
     "src.services.admin_companies.enqueue_email_task",
     "src.services.jobs.enqueue_email_task",
     "src.services.jobs_admin.enqueue_email_task",
-    "src.services.candidates.enqueue_email_task",
+    "src.services.applications.enqueue_email_task",
     "src.services.password_reset.enqueue_email_task",
     # applications_admin no longer imports enqueue_email_task directly;
     # the router enqueues after commit — patch at the router level instead.
