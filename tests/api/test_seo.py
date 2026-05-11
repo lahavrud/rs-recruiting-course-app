@@ -1,7 +1,10 @@
-"""Tests for SEO endpoints: /robots.txt and /sitemap.xml."""
+"""Tests for SEO endpoints: /robots.txt, /sitemap.xml, /api/og/jobs/{id}."""
 
 import pytest
 from httpx import AsyncClient
+
+from src.enums import JobStatus
+from src.models import Job
 
 
 @pytest.mark.asyncio
@@ -54,3 +57,74 @@ async def test_sitemap_xml_includes_published_jobs(
     response = await public_client.get("/sitemap.xml")
     assert response.status_code == 200
     assert f"/jobs/{job_id}" in response.text
+
+
+@pytest.mark.asyncio
+async def test_og_job_published_returns_meta_html(
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """OG endpoint returns HTML with per-job <head> for a published job."""
+    response = await public_client.get(f"/api/og/jobs/{published_job.id}")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    body = response.text
+    assert published_job.title in body
+    assert f"<title>{published_job.title} — RS Recruiting</title>" in body
+    assert 'property="og:title"' in body
+    assert 'property="og:type" content="article"' in body
+    assert 'property="og:locale" content="he_IL"' in body
+    assert f"/jobs/{published_job.id}" in body
+    assert "application/ld+json" in body
+    assert '"@type": "JobPosting"' in body
+    assert '"currency": "ILS"' in body
+
+
+@pytest.mark.asyncio
+async def test_og_job_not_found(public_client: AsyncClient):
+    """OG endpoint 404s when the job id doesn't exist."""
+    response = await public_client.get("/api/og/jobs/999999")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_og_job_unpublished_is_404(
+    public_client: AsyncClient,
+    pending_job: Job,
+):
+    """OG endpoint refuses to surface non-PUBLISHED jobs to scrapers."""
+    assert pending_job.status == JobStatus.PENDING_APPROVAL
+    response = await public_client.get(f"/api/og/jobs/{pending_job.id}")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_og_job_escapes_html_in_title(
+    public_client: AsyncClient,
+    company_profile,
+):
+    """User-supplied content must be HTML-escaped to prevent injection."""
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as s:
+        job = Job(
+            company_id=company_profile.id,
+            title='Position <script>alert("xss")</script>',
+            description="Role with <b>tricky</b> characters & symbols.",
+            requirements="n/a",
+            location="Tel Aviv",
+            salary_min=10000,
+            salary_max=20000,
+            status=JobStatus.PUBLISHED,
+        )
+        s.add(job)
+        await s.commit()
+        await s.refresh(job)
+
+    response = await public_client.get(f"/api/og/jobs/{job.id}")
+    assert response.status_code == 200
+    body = response.text
+    # Raw script tag must not appear; ampersand and angles must be escaped.
+    assert "<script>alert" not in body
+    assert "&lt;script&gt;alert" in body
+    assert "&amp;" in body
