@@ -18,6 +18,7 @@ export default function ResetPasswordPage() {
   const [fieldErrors, setFieldErrors] = useState({ password: "", confirm: "" });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [tokenRejected, setTokenRejected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
@@ -68,7 +69,7 @@ export default function ResetPasswordPage() {
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status;
-        if (status === 400) setError(t("auth.resetPassword.errors.invalidToken"));
+        if (status === 400) setTokenRejected(true);
         else if (status === 429) setError(t("auth.resetPassword.errors.tooManyAttempts"));
         else if (status === 422) {
           const detail = err.response?.data?.detail;
@@ -88,7 +89,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  if (!token) {
+  if (!token || tokenRejected) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
         <div className="w-full max-w-md rounded-xl border border-warning/30 bg-card p-10 text-center">

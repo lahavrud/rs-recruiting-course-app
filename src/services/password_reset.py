@@ -50,9 +50,15 @@ async def _per_email_rate_limit_ok(email: str) -> bool:
     key = f"{_EMAIL_RATE_LIMIT_PREFIX}{email.lower()}"
     try:
         redis = await get_redis_pool()
-        count = await redis.incr(key)
-        if count == 1:
-            await redis.expire(key, _EMAIL_RATE_LIMIT_WINDOW_SECONDS)
+        # INCR + EXPIRE(NX) issued as one pipelined transaction so a request
+        # that increments the counter cannot leave the key without a TTL.
+        # A prior implementation set EXPIRE only on count==1, which left the
+        # key permanent if the EXPIRE round-trip dropped — observed in the
+        # wild as count=13, ttl=-1.
+        async with redis.pipeline(transaction=True) as pipe:
+            pipe.incr(key)
+            pipe.expire(key, _EMAIL_RATE_LIMIT_WINDOW_SECONDS, nx=True)
+            count, _ = await pipe.execute()
         return count <= _EMAIL_RATE_LIMIT_MAX
     except Exception:
         logger.error(
