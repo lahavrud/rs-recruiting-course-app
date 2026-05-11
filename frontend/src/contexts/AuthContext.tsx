@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 import { login as loginService, logout as logoutService } from "@/services/auth";
 import type { JwtPayload, LoginRequest } from "@/types/api";
 import type { UserRole } from "@/types/api";
@@ -59,6 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (logoutTimerRef.current !== null) clearTimeout(logoutTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email, role: user.role });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [user]);
 
   const login = useCallback(async (credentials: LoginRequest) => {
     const response = await loginService(credentials);

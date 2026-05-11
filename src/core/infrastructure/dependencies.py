@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import sentry_sdk
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -90,6 +91,12 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive",
         )
+
+    # Attach user to the current Sentry scope so any exception raised later
+    # in this request gets tagged with them. No-op when Sentry isn't init'd.
+    sentry_sdk.set_user(
+        {"id": str(user.id), "email": user.email, "role": user.role.value}
+    )
 
     return user
 
