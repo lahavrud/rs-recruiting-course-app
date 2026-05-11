@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
-from tests.conftest import FAKE_LOGO, FAKE_SIG_B64, TestSessionLocal
+from tests.conftest import TestSessionLocal
 
 
 @pytest.mark.asyncio
@@ -321,75 +321,21 @@ async def test_admin_job_endpoints_require_auth(unauthenticated_client: AsyncCli
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.enqueue_email_task")
-async def test_admin_job_endpoints_require_admin_role(mock_enqueue_email, test_db):
-    """Test that admin job endpoints require admin role."""
-    from httpx import ASGITransport, AsyncClient
-    from sqlalchemy import select
+async def test_admin_job_endpoints_require_admin_role(
+    company_role_client: AsyncClient,
+):
+    """Admin job endpoints reject a COMPANY-role token with 403."""
+    response = await company_role_client.get("/api/admin/jobs/pending")
+    assert response.status_code == 403
+    assert "admin" in response.json()["detail"].lower()
 
-    from src.core.infrastructure.database import get_session
-    from src.core.infrastructure.dependencies import get_current_user
-    from src.main import app
-    from src.models import User
-    from src.schemas import CompanyProfileCreate, UserCreate
-    from src.services.auth import register_company_user
-    from tests.conftest import override_get_session
+    response = await company_role_client.post("/api/admin/jobs/1/approve")
+    assert response.status_code == 403
 
-    app.dependency_overrides.clear()
+    response = await company_role_client.post("/api/admin/jobs/1/reject")
+    assert response.status_code == 403
 
-    mock_enqueue_email.return_value = "test-job-id"
-    # Create a company user (not admin)
-    async with TestSessionLocal() as session:
-        user_data = UserCreate(
-            email="company@test.com",
-            password="SecurePass1!",
-            company_profile=CompanyProfileCreate(
-                name="Company",
-                company_id="123456789",
-                address="רח׳ הדוגמה 1, תל אביב",
-                contact_first_name="ישראל",
-                contact_last_name="ישראלי",
-                contact_mobile_phone="0501234567",
-            ),
-        )
-
-        result = await register_company_user(
-            user_data,
-            session,
-            FAKE_LOGO,
-            "logo.png",
-            "image/png",
-            FAKE_SIG_B64,
-        )
-        await session.commit()
-        company_user = result.user
-
-    # Override get_current_user to return company user
-    async def override_get_current_company_user():
-        async with TestSessionLocal() as session:
-            result = await session.execute(
-                select(User).where(User.id == company_user.id)  # pyright: ignore[reportArgumentType]
-            )
-            return result.scalar_one()
-
-    app.dependency_overrides[get_session] = override_get_session
-    app.dependency_overrides[get_current_user] = override_get_current_company_user
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/admin/jobs/pending")
-        assert response.status_code == 403  # Forbidden (not admin)
-        assert "admin" in response.json()["detail"].lower()
-
-        response = await client.post("/api/admin/jobs/1/approve")
-        assert response.status_code == 403
-
-        response = await client.post("/api/admin/jobs/1/reject")
-        assert response.status_code == 403
-
-        response = await client.post(
-            "/api/admin/jobs/1/contact", json={"admin_note": ""}
-        )
-        assert response.status_code == 403
-
-    app.dependency_overrides.clear()
+    response = await company_role_client.post(
+        "/api/admin/jobs/1/contact", json={"admin_note": ""}
+    )
+    assert response.status_code == 403

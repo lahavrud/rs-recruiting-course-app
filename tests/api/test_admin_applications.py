@@ -26,6 +26,50 @@ async def test_list_applications_empty(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_list_applications_paginates_through_all(
+    admin_client: AsyncClient, published_job: Job
+):
+    """Cursor walk over /api/admin/applications visits every row exactly once."""
+    total = 7
+    async with TestSessionLocal() as session:
+        for i in range(total):
+            candidate = CandidateProfile(
+                full_name=f"Candidate {i:02d}",
+                email=f"cand{i:02d}@test.com",
+                phone="050-0000000",
+            )
+            session.add(candidate)
+            await session.flush()
+            session.add(
+                Application(
+                    job_id=published_job.id,
+                    candidate_id=candidate.id,
+                    status=ApplicationStatus.NEW,
+                )
+            )
+        await session.commit()
+
+    seen: set[int] = set()
+    cursor: str | None = None
+    pages = 0
+    while True:
+        params: dict[str, object] = {"limit": 3}
+        if cursor is not None:
+            params["cursor"] = cursor
+        response = await admin_client.get("/api/admin/applications", params=params)
+        assert response.status_code == 200
+        body = response.json()
+        seen.update(item["id"] for item in body["items"])
+        pages += 1
+        cursor = body["next_cursor"]
+        if cursor is None:
+            break
+
+    assert len(seen) == total
+    assert pages == 3  # 7 / 3 -> 3 pages
+
+
+@pytest.mark.asyncio
 async def test_list_applications_success(
     admin_client: AsyncClient,
     application: Application,

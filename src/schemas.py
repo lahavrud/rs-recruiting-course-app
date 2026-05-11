@@ -5,7 +5,14 @@ import re
 from datetime import datetime
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from src.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
 
@@ -230,6 +237,12 @@ class JobCreate(BaseModel):
     salary_min: int = Field(..., ge=0)
     salary_max: int = Field(..., ge=0)
 
+    @model_validator(mode="after")
+    def _check_salary_range(self):
+        if self.salary_min > self.salary_max:
+            raise ValueError("salary_min must be <= salary_max")
+        return self
+
 
 class JobUpdate(BaseModel):
     """Schema for updating a job posting.
@@ -262,6 +275,19 @@ class JobUpdate(BaseModel):
             raise ValueError("Field cannot be set to null on update")
         return v
 
+    @model_validator(mode="after")
+    def _check_salary_range(self):
+        # Only enforce when BOTH bounds are being set in the same request;
+        # partial updates that change only one bound rely on the DB CHECK
+        # constraint ck_job_salary_range as the safety net.
+        if (
+            self.salary_min is not None
+            and self.salary_max is not None
+            and self.salary_min > self.salary_max
+        ):
+            raise ValueError("salary_min must be <= salary_max")
+        return self
+
 
 class JobAdminCreate(BaseModel):
     """Schema for an admin creating a job posting against a specific company."""
@@ -274,6 +300,12 @@ class JobAdminCreate(BaseModel):
     salary_min: int = Field(..., ge=0)
     salary_max: int = Field(..., ge=0)
     status: JobStatus = JobStatus.PUBLISHED
+
+    @model_validator(mode="after")
+    def _check_salary_range(self):
+        if self.salary_min > self.salary_max:
+            raise ValueError("salary_min must be <= salary_max")
+        return self
 
 
 class JobRead(BaseModel):

@@ -653,3 +653,25 @@ async def unauthenticated_client(test_db) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def company_role_client(
+    approved_company_user: User,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Client authenticated as a COMPANY-role user (NOT admin).
+
+    Use to verify admin-only endpoints return 403 when called with a
+    valid token whose user has the wrong role. The `get_current_user`
+    dep is overridden so the admin guard fires the role check.
+    """
+
+    async def _current_user(
+        credentials=None,  # noqa: ARG001
+        session=None,  # noqa: ARG001
+    ):
+        return approved_company_user
+
+    app.dependency_overrides[get_current_user] = _current_user
+    async for client in _make_client():
+        yield client

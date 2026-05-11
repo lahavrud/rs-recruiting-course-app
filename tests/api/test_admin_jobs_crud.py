@@ -159,6 +159,40 @@ async def test_list_jobs_invalid_cursor_returns_400(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_list_jobs_paginates_through_all(
+    admin_client: AsyncClient,
+    company_profile: CompanyProfile,
+):
+    """Cursor walk over /api/admin/jobs visits every job exactly once."""
+    total = 7
+    for i in range(total):
+        response = await admin_client.post(
+            "/api/admin/jobs",
+            json=_payload(company_profile.id, title=f"Role {i:02d}"),
+        )
+        assert response.status_code == 201
+
+    seen: set[int] = set()
+    cursor: str | None = None
+    pages = 0
+    while True:
+        params: dict[str, object] = {"limit": 3}
+        if cursor is not None:
+            params["cursor"] = cursor
+        response = await admin_client.get("/api/admin/jobs", params=params)
+        assert response.status_code == 200
+        body = response.json()
+        seen.update(item["id"] for item in body["items"])
+        pages += 1
+        cursor = body["next_cursor"]
+        if cursor is None:
+            break
+
+    assert len(seen) == total
+    assert pages == 3
+
+
+@pytest.mark.asyncio
 async def test_list_jobs_requires_admin(public_client: AsyncClient):
     response = await public_client.get("/api/admin/jobs")
     assert response.status_code == 401

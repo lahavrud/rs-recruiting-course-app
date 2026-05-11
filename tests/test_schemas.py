@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from src.schemas import CandidateProfileCreate, CandidateProfileUpdate
+from src.schemas import (
+    CandidateProfileCreate,
+    CandidateProfileUpdate,
+    JobAdminCreate,
+    JobCreate,
+    JobUpdate,
+)
 
 
 @pytest.mark.parametrize(
@@ -288,3 +294,45 @@ def test_invalid_linkedin_url(schema_class, url, error_match):
         kwargs = {"linkedin_url": url}
     with pytest.raises(ValidationError, match=error_match):
         schema_class(**kwargs)
+
+
+# ── Job schemas: salary_min must be <= salary_max ─────────────────────────────
+
+
+_JOB_BASE = {
+    "title": "Backend Engineer",
+    "description": "Build services.",
+    "requirements": "Python, FastAPI.",
+    "location": "Tel Aviv",
+}
+
+
+@pytest.mark.parametrize(
+    "schema_class, extra",
+    [
+        (JobCreate, {}),
+        (JobAdminCreate, {"company_id": 1}),
+    ],
+)
+def test_job_create_rejects_inverted_salary_range(schema_class, extra):
+    """JobCreate / JobAdminCreate reject salary_min > salary_max."""
+    with pytest.raises(ValidationError, match="salary_min must be <= salary_max"):
+        schema_class(**_JOB_BASE, **extra, salary_min=30000, salary_max=20000)
+
+
+def test_job_create_accepts_equal_salaries():
+    """Equal salary_min and salary_max is a valid single-point range."""
+    job = JobCreate(**_JOB_BASE, salary_min=20000, salary_max=20000)
+    assert job.salary_min == job.salary_max == 20000
+
+
+def test_job_update_rejects_inverted_salary_range_when_both_set():
+    """JobUpdate enforces the range when both bounds are in the same payload."""
+    with pytest.raises(ValidationError, match="salary_min must be <= salary_max"):
+        JobUpdate(salary_min=30000, salary_max=20000)
+
+
+def test_job_update_allows_partial_salary_change():
+    """JobUpdate is OK when only one bound is set (DB CHECK guards the rest)."""
+    JobUpdate(salary_min=25000)  # no salary_max in payload -> no schema check
+    JobUpdate(salary_max=25000)  # symmetric
