@@ -14,7 +14,7 @@ async def test_get_public_jobs_empty(public_client: AsyncClient):
     """Test getting public jobs when none exist."""
     response = await public_client.get("/api/public/jobs")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -29,7 +29,7 @@ async def test_get_public_jobs_only_published(
     response = await public_client.get("/api/public/jobs")
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["items"]
     # Should only return published job, not pending or closed
     assert len(data) == 1
     assert data[0]["id"] == published_job.id
@@ -60,7 +60,7 @@ async def test_get_public_jobs_multiple_published(
     response = await public_client.get("/api/public/jobs")
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["items"]
     assert len(data) == 2
     # Should be ordered by creation date (newest first)
     assert all("id" in job for job in data)

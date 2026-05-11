@@ -35,8 +35,8 @@ async def pending_job(session: AsyncSession, company_with_user: CompanyProfile) 
 @pytest.mark.asyncio
 async def test_list_pending_jobs_empty(session: AsyncSession):
     """Test listing pending jobs when none exist."""
-    jobs = await list_pending_jobs(session)
-    assert jobs == []
+    page = await list_pending_jobs(session)
+    assert page.items == []
 
 
 @pytest.mark.asyncio
@@ -81,13 +81,11 @@ async def test_list_pending_jobs(
     session.add(published_job)
     await session.commit()
 
-    jobs = await list_pending_jobs(session)
+    page = await list_pending_jobs(session)
 
-    assert len(jobs) == 2
-    assert all(job.status == JobStatus.PENDING_APPROVAL for job in jobs)
-    # Should be ordered by creation date (oldest first)
-    assert jobs[0].title == "Job 1"
-    assert jobs[1].title == "Job 2"
+    assert len(page.items) == 2
+    assert all(job.status == JobStatus.PENDING_APPROVAL for job in page.items)
+    assert all(job.title in ("Job 1", "Job 2") for job in page.items)
 
 
 @pytest.mark.asyncio

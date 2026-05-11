@@ -12,7 +12,7 @@ async def test_get_company_jobs_empty(company_client: AsyncClient):
     """Test getting jobs when none exist."""
     response = await company_client.get("/api/jobs/")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -48,7 +48,7 @@ async def test_get_company_jobs(
     response = await company_client.get("/api/jobs/")
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["items"]
     assert len(data) == 2
     assert all("id" in job for job in data)
     assert all("title" in job for job in data)

@@ -4,9 +4,12 @@
  */
 import api from "@/services/api";
 import type { JobCreate, JobRead, JobUpdate } from "@/types/api";
+import type { CursorPage } from "@/hooks/useInfiniteList";
 
-export async function getCompanyJobs(): Promise<JobRead[]> {
-  const res = await api.get<JobRead[]>("/api/jobs/");
+export async function getCompanyJobs(cursor: string | null = null): Promise<CursorPage<JobRead>> {
+  const params: Record<string, string> = {};
+  if (cursor) params.cursor = cursor;
+  const res = await api.get<CursorPage<JobRead>>("/api/jobs/", { params });
   return res.data;
 }
 

@@ -205,7 +205,7 @@ export default function LandingPage() {
   useEffect(() => {
     let cancelled = false;
     getPublicJobs()
-      .then((data) => { if (!cancelled) setJobs(data.slice(0, 10)); })
+      .then((page) => { if (!cancelled) setJobs(page.items.slice(0, 10)); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

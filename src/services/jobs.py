@@ -2,9 +2,16 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.database_helpers import get_by_id_or_raise
+from src.core.infrastructure.pagination import (
+    CursorPage,
+    apply_cursor,
+    build_cursor_page,
+    clamp_limit,
+)
 from src.core.tasks import enqueue_email_task
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
@@ -40,12 +47,12 @@ async def create_job(
         CompanyNotFoundError: If company not found
     """
     # Verify company exists
-    result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.id == company_id)  # pyright: ignore[reportArgumentType]
+    company = await get_by_id_or_raise(
+        session,
+        CompanyProfile,
+        company_id,
+        lambda pk: CompanyNotFoundError(f"Company with ID {pk} not found"),
     )
-    company = result.scalar_one_or_none()
-    if not company:
-        raise CompanyNotFoundError(f"Company with ID {company_id} not found")
 
     # Create job with PENDING_APPROVAL status
     new_job = Job(
@@ -98,32 +105,35 @@ async def get_job(job_id: int, session: AsyncSession) -> JobRead:
     Raises:
         JobNotFoundError: If job not found
     """
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise JobNotFoundError(f"Job with ID {job_id} not found")
     return JobRead.model_validate(job)
 
 
-async def list_company_jobs(company_id: int, session: AsyncSession) -> list[JobRead]:
-    """List all jobs for a company.
-
-    Args:
-        company_id: ID of the company
-        session: Database session
-
-    Returns:
-        List of jobs as JobRead schemas
-    """
-    result = await session.execute(
-        select(Job)
-        .where(Job.company_id == company_id)  # pyright: ignore[reportArgumentType]
-        .order_by(desc(Job.created_at))  # pyright: ignore[reportArgumentType]
+async def list_company_jobs(
+    company_id: int,
+    session: AsyncSession,
+    *,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> CursorPage[JobRead]:
+    """One page of jobs for a company, newest first."""
+    page_size = clamp_limit(limit)
+    query = apply_cursor(
+        select(Job).where(Job.company_id == company_id),  # pyright: ignore[reportArgumentType]
+        sort_col=Job.created_at,  # pyright: ignore[reportArgumentType]
+        id_col=Job.id,  # pyright: ignore[reportArgumentType]
+        cursor=cursor,
+        limit=page_size,
     )
-    jobs = result.scalars().all()
-    return [JobRead.model_validate(job) for job in jobs]
+    rows = list((await session.execute(query)).scalars().all())
+    return build_cursor_page(
+        rows,
+        serializer=JobRead.model_validate,
+        cursor_key=lambda j: (j.created_at, j.id),
+        limit=page_size,
+    )
 
 
 async def update_job(
@@ -153,13 +163,9 @@ async def update_job(
         JobNotOwnedByCompanyError: If job is not owned by the company
         JobCannotBeUpdatedError: If job status doesn't allow updates
     """
-    # Get the job
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise JobNotFoundError(f"Job with ID {job_id} not found")
 
     # Verify ownership
     if job.company_id != company_id:
@@ -242,13 +248,9 @@ async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> Non
         JobNotOwnedByCompanyError: If job is not owned by the company
         JobCannotBeDeletedError: If job status doesn't allow deletion
     """
-    # Get the job
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise JobNotFoundError(f"Job with ID {job_id} not found")
 
     # Verify ownership
     if job.company_id != company_id:

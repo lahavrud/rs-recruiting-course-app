@@ -163,12 +163,11 @@ async def test_list_company_jobs(
     session.add(job2)
     await session.commit()
 
-    jobs = await list_company_jobs(company_with_user.id, session)
+    page = await list_company_jobs(company_with_user.id, session)
 
-    assert len(jobs) == 2
-    # Should be ordered by created_at desc (newest first)
-    assert jobs[0].title in ["Job 1", "Job 2"]
-    assert jobs[1].title in ["Job 1", "Job 2"]
+    assert len(page.items) == 2
+    assert page.items[0].title in ["Job 1", "Job 2"]
+    assert page.items[1].title in ["Job 1", "Job 2"]
 
 
 @pytest.mark.asyncio

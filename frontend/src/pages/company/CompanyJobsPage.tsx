@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   createJob,
@@ -6,6 +6,7 @@ import {
   getCompanyJobs,
   updateJob,
 } from "@/services/companyJobs";
+import { useInfiniteList } from "@/hooks/useInfiniteList";
 import { JobStatus } from "@/types/api";
 import type { JobCreate, JobRead, JobUpdate } from "@/types/api";
 import PageHeader from "@/components/ui/PageHeader";
@@ -164,11 +165,24 @@ type Mode = "idle" | "create" | { type: "edit"; job: JobRead };
 
 export default function CompanyJobsPage() {
   const { t } = useTranslation();
-  const [jobs, setJobs] = useState<JobRead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const fetcher = useCallback((cursor: string | null) => getCompanyJobs(cursor), []);
+  const {
+    items: jobs,
+    isLoading: loading,
+    isFetchingMore,
+    hasMore,
+    error: loadError,
+    sentinelRef,
+    prependItem,
+    updateItem,
+    removeItem,
+  } = useInfiniteList<JobRead>(fetcher);
+
+  const error = loadError ? t("company.jobs.errors.loadFailed") : mutationError;
 
   const STATUS_LABEL: Record<string, string> = {
     PENDING_APPROVAL: t("company.jobs.statusLabels.PENDING_APPROVAL"),
@@ -182,23 +196,16 @@ export default function CompanyJobsPage() {
     CLOSED: "bg-white/8 text-white/40",
   };
 
-  useEffect(() => {
-    getCompanyJobs()
-      .then(setJobs)
-      .catch(() => setError(t("company.jobs.errors.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [t]);
-
   async function handleCreate(data: JobCreate) {
     const job = await createJob(data);
-    setJobs((prev) => [job, ...prev]);
+    prependItem(job);
     setMode("idle");
   }
 
   async function handleEdit(jobId: number, data: JobCreate) {
     const update: JobUpdate = { ...data };
     const job = await updateJob(jobId, update);
-    setJobs((prev) => prev.map((j) => (j.id === jobId ? job : j)));
+    updateItem((j) => j.id === jobId, job);
     setMode("idle");
   }
 
@@ -207,9 +214,9 @@ export default function CompanyJobsPage() {
     setDeleting(jobId);
     try {
       await deleteJob(jobId);
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+      removeItem((j) => j.id === jobId);
     } catch {
-      setError(t("company.jobs.errors.deleteFailed"));
+      setMutationError(t("company.jobs.errors.deleteFailed"));
     } finally {
       setDeleting(null);
     }
@@ -324,6 +331,11 @@ export default function CompanyJobsPage() {
               </div>
             );
           })}
+          {(hasMore || isFetchingMore) && (
+            <div ref={sentinelRef} className="py-4 text-center text-xs text-white/25">
+              {isFetchingMore ? t("common.loading") : ""}
+            </div>
+          )}
         </div>
       )}
     </div>

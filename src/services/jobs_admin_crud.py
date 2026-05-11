@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
     apply_cursor,
@@ -59,11 +60,12 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
     Raises:
         CompanyNotFoundError: If the referenced `company_id` does not exist.
     """
-    company_exists = await session.execute(
-        select(CompanyProfile.id).where(CompanyProfile.id == data.company_id)  # pyright: ignore[reportArgumentType]
+    await get_by_id_or_raise(
+        session,
+        CompanyProfile,
+        data.company_id,
+        lambda pk: CompanyNotFoundError(f"Company profile {pk} not found"),
     )
-    if company_exists.scalar_one_or_none() is None:
-        raise CompanyNotFoundError(f"Company profile {data.company_id} not found")
 
     job = Job(
         company_id=data.company_id,
@@ -87,12 +89,9 @@ async def update_job(job_id: int, data: JobUpdate, session: AsyncSession) -> Job
     Raises:
         JobNotFoundError: If no job with that id exists.
     """
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
     )
-    job = result.scalar_one_or_none()
-    if job is None:
-        raise JobNotFoundError(f"Job {job_id} not found")
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(job, field, value)
@@ -112,12 +111,9 @@ async def delete_job(job_id: int, session: AsyncSession) -> None:
     Raises:
         JobNotFoundError: If no job with that id exists.
     """
-    result = await session.execute(
-        select(Job).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
     )
-    job = result.scalar_one_or_none()
-    if job is None:
-        raise JobNotFoundError(f"Job {job_id} not found")
 
     await session.execute(
         delete(Application).where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]

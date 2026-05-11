@@ -4,10 +4,13 @@ import type {
   CandidateProfileRead,
   JobPublicRead,
 } from "@/types/api";
+import type { CursorPage } from "@/hooks/useInfiniteList";
 
-/** Fetch all published jobs for the public job board. */
-export async function getPublicJobs(): Promise<JobPublicRead[]> {
-  const response = await api.get<JobPublicRead[]>("/api/public/jobs");
+/** Fetch one page of published jobs for the public job board. */
+export async function getPublicJobs(cursor: string | null = null): Promise<CursorPage<JobPublicRead>> {
+  const params: Record<string, string> = {};
+  if (cursor) params.cursor = cursor;
+  const response = await api.get<CursorPage<JobPublicRead>>("/api/public/jobs", { params });
   return response.data;
 }
 

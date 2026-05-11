@@ -16,7 +16,7 @@ async def test_get_pending_jobs_empty(admin_client: AsyncClient):
     """Test getting pending jobs when none exist."""
     response = await admin_client.get("/api/admin/jobs/pending")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -43,9 +43,8 @@ async def test_get_pending_jobs(
     response = await admin_client.get("/api/admin/jobs/pending")
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["items"]
     assert len(data) == 2
-    # Should be ordered by creation date (oldest first)
     assert all("id" in job for job in data)
     assert all("title" in job for job in data)
     assert all(job["status"] == "PENDING_APPROVAL" for job in data)
@@ -86,7 +85,7 @@ async def test_get_pending_jobs_excludes_published_and_closed(
     response = await admin_client.get("/api/admin/jobs/pending")
     assert response.status_code == 200
 
-    data = response.json()
+    data = response.json()["items"]
     # Should only return pending job
     assert len(data) == 1
     assert data[0]["id"] == pending_job.id

@@ -15,8 +15,8 @@ from src.services.jobs_public import get_published_job, list_published_jobs
 @pytest.mark.asyncio
 async def test_list_published_jobs_empty(session: AsyncSession):
     """Test listing published jobs when none exist."""
-    jobs = await list_published_jobs(session)
-    assert jobs == []
+    page = await list_published_jobs(session)
+    assert page.items == []
 
 
 @pytest.mark.asyncio
@@ -65,20 +65,20 @@ async def test_list_published_jobs(
     session.add_all([job1, job2, job3])
     await session.commit()
 
-    jobs = await list_published_jobs(session)
+    page = await list_published_jobs(session)
 
     # Gatekeeper: only published jobs are returned
-    assert len(jobs) == 2
+    assert len(page.items) == 2
 
     # Correct schema type
-    assert all(isinstance(j, JobPublicRead) for j in jobs)
+    assert all(isinstance(j, JobPublicRead) for j in page.items)
 
     # Ordering: newest first (job2 before job1)
-    assert jobs[0].title == "Newer Job"
-    assert jobs[1].title == "Older Job"
+    assert page.items[0].title == "Newer Job"
+    assert page.items[1].title == "Older Job"
 
     # Internal fields are not present in the exported data
-    job_dict = jobs[0].model_dump()
+    job_dict = page.items[0].model_dump()
     assert "company_id" not in job_dict
     assert "updated_at" not in job_dict
     assert "status" not in job_dict

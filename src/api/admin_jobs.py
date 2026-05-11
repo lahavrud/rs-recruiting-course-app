@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_admin
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import User
 from src.schemas import JobContactEmailRequest, JobRead
@@ -20,13 +21,15 @@ from src.services.jobs_admin import (
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-@router.get("/jobs/pending", response_model=list[JobRead])
+@router.get("/jobs/pending", response_model=CursorPage[JobRead])
 async def get_pending_jobs(
+    cursor: str | None = None,
+    limit: int = DEFAULT_LIMIT,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
-) -> list[JobRead]:
-    """List all PENDING_APPROVAL job postings."""
-    return await list_pending_jobs(session)
+) -> CursorPage[JobRead]:
+    """List PENDING_APPROVAL job postings, cursor-paginated."""
+    return await list_pending_jobs(session, cursor=cursor, limit=limit)
 
 
 @router.post(

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.schemas import JobPublicRead
 from src.services.exceptions import JobNotFoundError
 from src.services.jobs_public import get_published_job, list_published_jobs
@@ -12,25 +13,14 @@ from src.services.jobs_public import get_published_job, list_published_jobs
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 
-@router.get(
-    "/jobs",
-    response_model=list[JobPublicRead],
-)
+@router.get("/jobs", response_model=CursorPage[JobPublicRead])
 async def get_public_jobs(
+    cursor: str | None = None,
+    limit: int = DEFAULT_LIMIT,
     session: AsyncSession = Depends(get_session),
-) -> list[JobPublicRead]:
-    """List all published jobs for public job board.
-
-    No authentication required. Only returns jobs with PUBLISHED status.
-
-    Args:
-        session: Database session
-
-    Returns:
-        List of published jobs as JobPublicRead schemas
-    """
-    jobs = await list_published_jobs(session)
-    return jobs
+) -> CursorPage[JobPublicRead]:
+    """List published jobs for the public job board, cursor-paginated."""
+    return await list_published_jobs(session, cursor=cursor, limit=limit)
 
 
 @router.get(

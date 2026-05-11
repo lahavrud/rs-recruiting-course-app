@@ -145,11 +145,6 @@ export async function updateCompanyProfile(
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
-export async function getPendingJobs(): Promise<JobRead[]> {
-  const res = await api.get<JobRead[]>("/api/admin/jobs/pending");
-  return res.data;
-}
-
 export async function approveJob(jobId: number): Promise<JobRead> {
   const res = await api.post<JobRead>(`/api/admin/jobs/${jobId}/approve`);
   return res.data;

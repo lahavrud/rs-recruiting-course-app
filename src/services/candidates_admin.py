@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
     apply_cursor,
@@ -56,12 +57,12 @@ async def get_candidate(
     Raises:
         CandidateNotFoundError: If no candidate with that id exists.
     """
-    result = await session.execute(
-        select(CandidateProfile).where(CandidateProfile.id == candidate_id)  # pyright: ignore[reportArgumentType]
+    candidate = await get_by_id_or_raise(
+        session,
+        CandidateProfile,
+        candidate_id,
+        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
-    candidate = result.scalar_one_or_none()
-    if candidate is None:
-        raise CandidateNotFoundError(f"Candidate {candidate_id} not found")
     return CandidateProfileRead.model_validate(candidate)
 
 
@@ -75,12 +76,12 @@ async def update_candidate(
     Raises:
         CandidateNotFoundError: If no candidate with that id exists.
     """
-    result = await session.execute(
-        select(CandidateProfile).where(CandidateProfile.id == candidate_id)  # pyright: ignore[reportArgumentType]
+    candidate = await get_by_id_or_raise(
+        session,
+        CandidateProfile,
+        candidate_id,
+        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
-    candidate = result.scalar_one_or_none()
-    if candidate is None:
-        raise CandidateNotFoundError(f"Candidate {candidate_id} not found")
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(candidate, field, value)
@@ -105,12 +106,12 @@ async def delete_candidate(
     Raises:
         CandidateNotFoundError: If no candidate with that id exists.
     """
-    result = await session.execute(
-        select(CandidateProfile).where(CandidateProfile.id == candidate_id)  # pyright: ignore[reportArgumentType]
+    candidate = await get_by_id_or_raise(
+        session,
+        CandidateProfile,
+        candidate_id,
+        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
-    candidate = result.scalar_one_or_none()
-    if candidate is None:
-        raise CandidateNotFoundError(f"Candidate {candidate_id} not found")
 
     await session.execute(
         delete(Application).where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]

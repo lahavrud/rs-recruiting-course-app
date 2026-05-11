@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_company
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.models import CompanyProfile, User
 from src.schemas import JobRead
 from src.services.exceptions import JobNotFoundError
@@ -14,28 +15,18 @@ from src.services.jobs import get_job, list_company_jobs
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 
-@router.get(
-    "/",
-    response_model=list[JobRead],
-)
+@router.get("/", response_model=CursorPage[JobRead])
 async def get_company_jobs(
+    cursor: str | None = None,
+    limit: int = DEFAULT_LIMIT,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
-) -> list[JobRead]:
-    """List all jobs for the current company.
-
-    Requires company authentication.
-
-    Args:
-        current_company: Current authenticated company user and profile
-        session: Database session
-
-    Returns:
-        List of jobs as JobRead schemas
-    """
+) -> CursorPage[JobRead]:
+    """List the current company's jobs, cursor-paginated."""
     user, company_profile = current_company
-    jobs = await list_company_jobs(company_profile.id, session)
-    return jobs
+    return await list_company_jobs(
+        company_profile.id, session, cursor=cursor, limit=limit
+    )
 
 
 @router.get(

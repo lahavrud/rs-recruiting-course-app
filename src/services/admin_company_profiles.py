@@ -9,6 +9,7 @@ approval/rejection lifecycle that's keyed by `User.id` lives in
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.models import Application, CompanyProfile, Job
 from src.schemas import (
     CompanyProfileAdminCreate,
@@ -26,12 +27,12 @@ async def get_company_profile(
     Raises:
         CompanyNotFoundError: If no company profile with that id exists.
     """
-    result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.id == profile_id)  # pyright: ignore[reportArgumentType]
+    profile = await get_by_id_or_raise(
+        session,
+        CompanyProfile,
+        profile_id,
+        lambda pk: CompanyNotFoundError(f"Company profile {pk} not found"),
     )
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise CompanyNotFoundError(f"Company profile {profile_id} not found")
     return CompanyProfileRead.model_validate(profile)
 
 
@@ -73,12 +74,12 @@ async def delete_orphan_company_profile(profile_id: int, session: AsyncSession) 
         CompanyNotFoundError: If no profile with that id exists.
         CompanyNotPendingError: If the profile is linked to a user account.
     """
-    result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.id == profile_id)  # pyright: ignore[reportArgumentType]
+    profile = await get_by_id_or_raise(
+        session,
+        CompanyProfile,
+        profile_id,
+        lambda pk: CompanyNotFoundError(f"Company profile {pk} not found"),
     )
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise CompanyNotFoundError(f"Company profile {profile_id} not found")
     if profile.user_id is not None:
         raise CompanyNotPendingError(
             f"Company profile {profile_id} is linked to user {profile.user_id}; "
@@ -115,12 +116,12 @@ async def update_company_profile(
     Raises:
         CompanyNotFoundError: If no company profile with that id exists.
     """
-    result = await session.execute(
-        select(CompanyProfile).where(CompanyProfile.id == profile_id)  # pyright: ignore[reportArgumentType]
+    profile = await get_by_id_or_raise(
+        session,
+        CompanyProfile,
+        profile_id,
+        lambda pk: CompanyNotFoundError(f"Company profile {pk} not found"),
     )
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise CompanyNotFoundError(f"Company profile {profile_id} not found")
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
