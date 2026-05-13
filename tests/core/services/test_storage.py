@@ -1,7 +1,7 @@
 """Tests for storage service."""
 
 import tempfile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -164,31 +164,44 @@ class TestS3StorageProvider:
 
     @pytest.mark.asyncio
     async def test_delete_file(self, mock_s3_bucket):
-        """Test S3 file deletion using mocked S3 client."""
-
+        """delete_file permanently removes all versions and delete markers."""
         provider = S3StorageProvider(
             bucket_name=mock_s3_bucket["bucket_name"],
             region=mock_s3_bucket["region"],
             access_key_id="test-key",
             secret_access_key="test-secret",
         )
-
         file_key = "test-file-key.txt"
 
-        # Mock the S3 client
+        # Async generator simulating one page with a version + a delete marker
+        async def fake_paginate(**kwargs):
+            yield {
+                "Versions": [{"Key": file_key, "VersionId": "v1"}],
+                "DeleteMarkers": [{"Key": file_key, "VersionId": "dm1"}],
+            }
+
+        mock_paginator = MagicMock()
+        mock_paginator.paginate = fake_paginate
+
         mock_s3_client = AsyncMock()
-        mock_s3_client.delete_object = AsyncMock()
+        mock_s3_client.get_paginator = AsyncMock(return_value=mock_paginator)
+        mock_s3_client.delete_objects = AsyncMock(return_value={})
 
         with patch.object(provider.session, "client") as mock_client:
             mock_client.return_value.__aenter__.return_value = mock_s3_client
-
             result = await provider.delete_file(file_key)
-            assert result is True
 
-            # Verify delete_object was called
-            mock_s3_client.delete_object.assert_called_once_with(
-                Bucket=mock_s3_bucket["bucket_name"], Key=file_key
-            )
+        assert result is True
+        mock_s3_client.delete_objects.assert_called_once_with(
+            Bucket=mock_s3_bucket["bucket_name"],
+            Delete={
+                "Objects": [
+                    {"Key": file_key, "VersionId": "v1"},
+                    {"Key": file_key, "VersionId": "dm1"},
+                ],
+                "Quiet": True,
+            },
+        )
 
 
 class TestS3StorageProviderErrors:
@@ -265,9 +278,8 @@ class TestS3StorageProviderErrors:
     @pytest.mark.asyncio
     async def test_delete_file_failure_returns_false(self, provider: S3StorageProvider):
         """delete_file swallows ClientError and returns False (idempotent semantics)."""
-
         mock_s3 = AsyncMock()
-        mock_s3.delete_object = AsyncMock(
+        mock_s3.get_paginator = AsyncMock(
             side_effect=self._client_error("AccessDenied")
         )
 

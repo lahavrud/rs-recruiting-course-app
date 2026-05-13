@@ -102,10 +102,42 @@ class S3StorageProvider(StorageProvider):
                 raise ValueError(f"Failed to download {file_identifier}: {e}") from e
 
     async def delete_file(self, file_identifier: str) -> bool:
-        """Delete object from S3. Returns True even if it did not exist."""
+        """Permanently delete an object and every version / delete-marker from S3.
+
+        A plain delete_object on a versioned bucket only inserts a delete marker
+        and leaves all prior versions in place. This method lists every version
+        and delete marker for the key and removes them individually via
+        delete_objects, so nothing remains in the bucket after the call.
+
+        Returns True on success (including when the key never existed).
+        Requires s3:ListBucketVersions and s3:DeleteObjectVersion in addition
+        to the usual s3:DeleteObject.
+        """
         async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
             try:
-                await s3.delete_object(Bucket=self.bucket_name, Key=file_identifier)
+                paginator = await s3.get_paginator("list_object_versions")
+                to_delete: list[dict] = []
+                async for page in paginator.paginate(
+                    Bucket=self.bucket_name, Prefix=file_identifier
+                ):
+                    for v in page.get("Versions", []):
+                        if v["Key"] == file_identifier:
+                            to_delete.append(
+                                {"Key": v["Key"], "VersionId": v["VersionId"]}
+                            )
+                    for m in page.get("DeleteMarkers", []):
+                        if m["Key"] == file_identifier:
+                            to_delete.append(
+                                {"Key": m["Key"], "VersionId": m["VersionId"]}
+                            )
+
+                # delete_objects accepts up to 1000 items per call
+                for i in range(0, len(to_delete), 1000):
+                    await s3.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={"Objects": to_delete[i : i + 1000], "Quiet": True},
+                    )
+
                 return True
             except ClientError:
                 return False

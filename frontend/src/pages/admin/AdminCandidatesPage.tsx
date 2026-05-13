@@ -585,7 +585,7 @@ export default function AdminCandidatesPage() {
       <ConfirmDialog
         open={deletePending != null}
         onOpenChange={(o) => !o && setDeletePending(null)}
-        title={t("admin.candidates.deleteConfirmTitle")}
+        title={t("admin.candidates.deleteConfirmTitle", { name: deletePending?.full_name ?? "" })}
         message={t("admin.candidates.deleteConfirmMessage")}
         confirmLabel={t("admin.candidates.deleteConfirmYes")}
         variant="danger"

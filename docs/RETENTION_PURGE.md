@@ -33,7 +33,7 @@ The query is in `purge_expired_candidates`; it is the **single source of truth**
 
 For each eligible candidate:
 
-1. The resume file in S3 (best-effort — failures are logged and ignored so a partial S3 outage cannot block compliance deletions).
+1. The resume file in S3 — **permanently** (all object versions and delete markers are removed via `list_object_versions` + `delete_objects`; no version lingers after this call). Best-effort: failures are logged and ignored so a partial S3 outage cannot block compliance deletions.
 2. All `Application` rows where `candidate_id` matches.
 3. The `CandidateProfile` row itself.
 4. An audit log line: `INFO retention.purge candidate_id=<id>`.

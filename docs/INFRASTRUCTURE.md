@@ -26,7 +26,7 @@ flowchart LR
       RDS[("RDS Postgres 16<br/>rs-recruitment-prod-db<br/>db.t3.micro · single-AZ<br/>encrypted · 7d backups")]
     end
 
-    S3A[("S3 bucket<br/>rs-recruitment-app<br/>versioned · SSE-S3<br/>resumes + deploy artifacts")]
+    S3A[("S3 bucket<br/>rs-recruitment-app<br/>versioning suspended · SSE-S3<br/>resumes + deploy artifacts")]
     S3CT[("S3 bucket<br/>rs-recruitment-cloudtrail<br/>versioned · SSE-S3 · BPA full")]
     ECR1[("ECR rs-recruitment/api<br/>IMMUTABLE · scanOnPush")]
     ECR2[("ECR rs-recruitment/frontend<br/>IMMUTABLE · scanOnPush")]
@@ -126,7 +126,7 @@ flowchart LR
 ### Storage
 | Bucket / repo | Purpose | Settings |
 |---|---|---|
-| `<APP_BUCKET>` | App data — resumes (`/uploads/`), public assets (`/public/*`), deploy artifacts (`/deploy/${SHA}/`) | Versioning ON, SSE-S3, BPA partial (public path allowed for BIMI logo). **Lifecycle:** `deploy/` current versions expire 30d; noncurrent globally expire 30d; abort incomplete multipart 7d |
+| `<APP_BUCKET>` | App data — resumes (`resumes/`), public assets (`public/*`), deploy artifacts (`deploy/${SHA}/`) | **Versioning SUSPENDED** (was ON; suspended 2026-05-13 — see decisions log). SSE-S3. BPA partial (public path allowed for BIMI logo). **Lifecycle:** noncurrent versions expire after 1d; delete markers auto-cleaned (`ExpiredObjectDeleteMarker: true`); abort incomplete multipart 7d. Deploy artifact prefixes pruned to last 10 by CI post-deploy. |
 | `<CLOUDTRAIL_BUCKET>` | CloudTrail logs | Versioning ON, SSE-S3, BPA full block |
 | ECR `rs-recruitment/api` | Backend image | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" |
 | ECR `rs-recruitment/frontend` | Frontend image (multistage build) | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" |
@@ -135,7 +135,7 @@ flowchart LR
 | Principal | Type | What it does |
 |---|---|---|
 | `lahav-admin` | User | Console + CLI admin (MFA on) |
-| `rs-recruitment-app-role` | EC2 instance profile | EC2-side: ECR pull, SSM read on `/rs-recruitment/*`, S3 R/W on the app bucket, CW Logs write, namespace-scoped `cloudwatch:PutMetricData` for `RsRecruitment/Retention` |
+| `rs-recruitment-app-role` | EC2 instance profile | EC2-side: ECR pull, SSM read on `/rs-recruitment/*`, S3 `GetObject`/`PutObject`/`DeleteObject`/`DeleteObjectVersion`/`ListBucket`/`ListBucketVersions` on the app bucket, CW Logs write, namespace-scoped `cloudwatch:PutMetricData` for `RsRecruitment/Retention` |
 | `github-actions-rs-recruitment` | GHA OIDC | CI: ECR push, S3 write to deploy prefix, SSM SendCommand + PutParameter on CURRENT_SHA |
 | `github-role` | Older GHA role | Legacy — verify if still referenced; candidate for cleanup |
 | `AWSDataLifecycleManagerDefaultRole` | Service | DLM weekly EC2 snapshot policy |
@@ -177,7 +177,7 @@ Default EBS encryption: ON (account-wide).
 |---|---|---|
 | RDS | Automated daily snapshot | 7 days |
 | EC2 root EBS | DLM policy `<DLM_POLICY_ID>` weekly | Last 4 |
-| S3 (app bucket) | Versioning | All versions kept (no lifecycle yet) |
+| S3 (app bucket) | Versioning suspended — new writes get null version; `delete_file` purges all versions + markers explicitly | N/A (versioning off for new objects; lifecycle expires orphaned noncurrent versions within 1d) |
 | S3 (CloudTrail bucket) | Versioning | All versions kept |
 
 ### Custom metrics namespace
@@ -190,6 +190,11 @@ Default EBS encryption: ON (account-wide).
 ## 4. Decisions log (append-only)
 
 Newest first. Each entry: date, what, why, links. When updating, append; don't rewrite history.
+
+### 2026-05-13 — Permanent S3 file deletion + versioning suspended (PR [#406](https://github.com/lahavrud/rs-recruitment/pull/406))
+**Decision:** (1) Suspend S3 versioning on the app bucket. (2) Add lifecycle rule: noncurrent versions expire after 1 day, delete markers auto-cleaned. (3) Update `S3StorageProvider.delete_file` to walk `list_object_versions` and call `delete_objects` with explicit VersionIds, permanently removing every version and marker rather than creating a new delete marker. (4) Extend `rs-recruitment-app-role` S3 policy with `s3:DeleteObjectVersion` and `s3:ListBucketVersions`.
+**Why:** With versioning enabled, `delete_object` only inserts a delete marker — the actual object data remains. A live test confirmed that deleting a candidate left their resume version in S3 (observable via `list_object_versions`). Since all file keys include a UUID (no overwrite risk), versioning bought nothing for the app while making every delete a multi-step operation. Suspension + code-level permanent delete satisfies the 12-month retention policy's "data is gone" guarantee. Lifecycle rule is the safety net for any marker or version that pre-dates this change.
+**Trade:** Can't fully disable versioning once enabled (AWS limitation) — suspension is the equivalent. The permanent-delete code path (version walk + `delete_objects`) is slightly more complex than a plain `delete_object` call, but remains correct on both suspended and fully-versioned buckets.
 
 ### 2026-05-09 — GuardDuty enabled, findings → ops-alerts via EventBridge transformer
 **Decision:** Enable GuardDuty (15-minute publishing frequency, 30-day free trial), wire findings to the existing `ops-alerts` SNS topic via an EventBridge rule with an input transformer that flattens the raw finding JSON into a readable email summary (severity, type, title, description, region, resource type).

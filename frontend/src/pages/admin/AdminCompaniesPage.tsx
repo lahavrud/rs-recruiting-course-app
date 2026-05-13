@@ -570,7 +570,7 @@ function ActiveTab({ query, externalDetail, onExternalDetailClose }: ActiveTabPr
       <ConfirmDialog
         open={deletePending != null}
         onOpenChange={(o) => !o && setDeletePending(null)}
-        title={t("admin.companies.deleteConfirmTitle")}
+        title={t("admin.companies.deleteConfirmTitle", { name: deletePending?.company_profile.name ?? "" })}
         message={t("admin.companies.active.deleteConfirm")}
         confirmLabel={t("admin.companies.deleteAction")}
         variant="danger"
