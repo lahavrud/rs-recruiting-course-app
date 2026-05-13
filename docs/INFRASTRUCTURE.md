@@ -128,8 +128,8 @@ flowchart LR
 |---|---|---|
 | `<APP_BUCKET>` | App data — resumes (`/uploads/`), public assets (`/public/*`), deploy artifacts (`/deploy/${SHA}/`) | Versioning ON, SSE-S3, BPA partial (public path allowed for BIMI logo). **Lifecycle:** `deploy/` current versions expire 30d; noncurrent globally expire 30d; abort incomplete multipart 7d |
 | `<CLOUDTRAIL_BUCKET>` | CloudTrail logs | Versioning ON, SSE-S3, BPA full block |
-| ECR `rs-recruitment/api` | Backend image | IMMUTABLE, scanOnPush |
-| ECR `rs-recruitment/frontend` | Frontend image (multistage build) | IMMUTABLE, scanOnPush |
+| ECR `rs-recruitment/api` | Backend image | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" |
+| ECR `rs-recruitment/frontend` | Frontend image (multistage build) | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" |
 
 ### IAM
 | Principal | Type | What it does |

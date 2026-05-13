@@ -475,16 +475,6 @@ jobs:
             --value "${{ github.sha }}" \
             --type String --overwrite
 
-      - name: Apply ECR lifecycle policies (keep last 10 images per repo)
-        run: |
-          POLICY='{"rules":[{"rulePriority":1,"description":"Keep last 10 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}'
-          for repo in rs-recruitment/api rs-recruitment/frontend; do
-            aws ecr put-lifecycle-policy \
-              --repository-name "$repo" \
-              --lifecycle-policy-text "$POLICY"
-            echo "Applied lifecycle policy to $repo"
-          done
-
       - name: Prune old S3 deploy artifacts (keep last 10, protect current + prev)
         run: |
           set -euo pipefail
