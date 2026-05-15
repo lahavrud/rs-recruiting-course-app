@@ -69,8 +69,6 @@ export default function LandingPage() {
   const [audienceRef, audienceVisible] = useReveal(0.2);
   const [aboutTextRef, aboutTextVisible] = useReveal(0.2);
   const [jobsRef, jobsVisible] = useReveal(0.15);
-  const [contactRef, contactVisible] = useReveal(0.3);
-
   const [jobs, setJobs] = useState<JobPublicRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -601,73 +599,6 @@ export default function LandingPage() {
           </div>
         </section>
       )}
-
-      {/* ── Testimonials ──────────────────────────────────────────────── */}
-      <section className="texture-wave bg-card-raised py-20 sm:py-32">
-        <div className="mx-auto max-w-4xl px-6">
-          <div ref={contactRef} style={sectionReveal(contactVisible)}>
-          <div className="h-px w-8 bg-copper/40" />
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-copper/70">
-            {t("landing.testimonials.eyebrow")}
-          </p>
-
-          {/* Cards — each uses a different signature animation (same as About feature cards) */}
-          <div className="mt-10 grid gap-5 sm:grid-cols-3">
-            {(
-              [
-                {
-                  quoteKey: "landing.testimonials.quote1",
-                  nameKey:  "landing.testimonials.name1",
-                  roleKey:  "landing.testimonials.role1",
-                  initials: "ר.כ",
-                  anim:     "card-tilt-in",
-                  delay:    "0ms",
-                },
-                {
-                  quoteKey: "landing.testimonials.quote2",
-                  nameKey:  "landing.testimonials.name2",
-                  roleKey:  "landing.testimonials.role2",
-                  initials: "נ.ל",
-                  anim:     "card-rise-in",
-                  delay:    "160ms",
-                },
-                {
-                  quoteKey: "landing.testimonials.quote3",
-                  nameKey:  "landing.testimonials.name3",
-                  roleKey:  "landing.testimonials.role3",
-                  initials: "ע.מ",
-                  anim:     "card-swing-in",
-                  delay:    "320ms",
-                },
-              ] as const
-            ).map((item) => (
-              <div
-                key={item.quoteKey}
-                className="flex flex-col rounded-xl border border-white/8 bg-card p-6"
-                style={contactVisible
-                  ? { animation: `${item.anim} 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) ${item.delay} both` }
-                  : { opacity: 0 }}
-              >
-                <span className="select-none font-wordmark text-3xl leading-none text-copper/30">"</span>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-white/65">
-                  {t(item.quoteKey)}
-                </p>
-                {/* Author row with initials avatar */}
-                <div className="mt-5 flex items-center gap-3 border-t border-white/8 pt-4">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-copper/12 text-[11px] font-semibold text-copper/70">
-                    {item.initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white/80">{t(item.nameKey)}</p>
-                    <p className="mt-0.5 text-xs text-copper/60">{t(item.roleKey)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          </div>
-        </div>
-      </section>
 
     </div>
   );

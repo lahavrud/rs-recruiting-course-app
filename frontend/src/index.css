@@ -266,8 +266,9 @@ html {
   to   { transform: scaleX(1); }
 }
 
-/* Section-level entrance — whole content block rises as one unit, no scale  */
+/* Section-level entrance — content rises with a slight scale settle (Allbirds style) */
 @keyframes section-rise {
-  from { opacity: 0; transform: translateY(56px); }
+  from { opacity: 0; transform: translateY(56px) scale(0.98); }
+  60%  { opacity: 1; }
   to   { opacity: 1; transform: none; }
 }
