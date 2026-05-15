@@ -608,8 +608,8 @@ export default function LandingPage() {
               ref={scrollRef}
               dir="ltr"
               className="scrollbar-none mt-8 flex gap-4 overflow-x-scroll pb-2"
-              style={cardRise(jobsVisible, "0.22s")}
               style={{
+                ...cardRise(jobsVisible, "0.22s"),
                 WebkitOverflowScrolling: "touch" as React.CSSProperties["WebkitOverflowScrolling"],
               }}
               onClickCapture={(e) => {

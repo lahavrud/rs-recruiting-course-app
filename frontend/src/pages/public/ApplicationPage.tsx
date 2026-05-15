@@ -994,7 +994,7 @@ function QuestionsStep({
         const value = form[name] ?? "";
         const count = value.length;
         const over = count > TEXT_FIELD_MAX;
-        const isHalf = name === "personality_strength" || name === "personality_weakness";
+        const isHalf = name === "strength" || name === "growth_area";
         return (
           <Field key={name} label={label} id={name} optional className={isHalf ? "sm:col-span-1" : "sm:col-span-2"}>
             <textarea
