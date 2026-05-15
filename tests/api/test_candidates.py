@@ -29,6 +29,8 @@ async def test_apply_endpoint_success(
         "linkedin_url": "https://linkedin.com/in/johndoe",
         "service_concept": "I want to work on exciting projects",
         "salary_expectations": "100k-120k",
+        "strength": "Problem solving",
+        "growth_area": "Public speaking",
         "privacy_accepted": "true",
     }
 
@@ -54,7 +56,7 @@ async def test_apply_endpoint_success(
         assert candidate.consent_given_at is not None
         assert candidate.consent_policy_version == "1.1"
 
-        # Verify Application was created
+        # Verify Application was created with interview fields
         result = await session.execute(
             select(Application).where(
                 and_(
@@ -66,6 +68,10 @@ async def test_apply_endpoint_success(
         application = result.scalar_one_or_none()
         assert application is not None
         assert application.status == ApplicationStatus.NEW
+        assert application.service_concept == "I want to work on exciting projects"
+        assert application.salary_expectations == "100k-120k"
+        assert application.strength == "Problem solving"
+        assert application.growth_area == "Public speaking"
 
 
 @pytest.mark.asyncio

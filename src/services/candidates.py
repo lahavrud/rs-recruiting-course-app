@@ -36,7 +36,7 @@ async def update_candidate_profile(
 
     Update strategy:
     - Always update: full_name (may have changed)
-    - Update if None: linkedin_url, resume_path, interview fields
+    - Update if None: linkedin_url, resume_path
     - Never overwrite: email, phone, created_at
     """
     if session is None:
@@ -48,22 +48,5 @@ async def update_candidate_profile(
         candidate.linkedin_url = candidate_data.linkedin_url
     if candidate.resume_path is None and resume_path is not None:
         candidate.resume_path = resume_path
-    if candidate.service_concept is None and candidate_data.service_concept is not None:
-        candidate.service_concept = candidate_data.service_concept
-    if (
-        candidate.salary_expectations is None
-        and candidate_data.salary_expectations is not None
-    ):
-        candidate.salary_expectations = candidate_data.salary_expectations
-    if (
-        candidate.personality_weakness is None
-        and candidate_data.personality_weakness is not None
-    ):
-        candidate.personality_weakness = candidate_data.personality_weakness
-    if (
-        candidate.personality_strength is None
-        and candidate_data.personality_strength is not None
-    ):
-        candidate.personality_strength = candidate_data.personality_strength
 
     return candidate

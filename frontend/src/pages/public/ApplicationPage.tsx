@@ -32,16 +32,16 @@ const EMPTY_FORM: Omit<CandidateApplicationForm, "job_id"> = {
   linkedin_url: "",
   service_concept: "",
   salary_expectations: "",
-  personality_weakness: "",
-  personality_strength: "",
+  growth_area: "",
+  strength: "",
 };
 
 const STEP_1_FIELDS = ["full_name", "email", "phone", "linkedin_url"] as const;
 const STEP_3_FIELDS = [
   "service_concept",
   "salary_expectations",
-  "personality_strength",
-  "personality_weakness",
+  "strength",
+  "growth_area",
 ] as const;
 
 const textareaCls = textareaBase + " min-h-[96px]";
@@ -972,14 +972,14 @@ function QuestionsStep({
         ph: t("publicJobs.application.placeholders.salaryExpectations"),
       },
       {
-        name: "personality_strength",
+        name: "strength",
         label: t("publicJobs.application.strength"),
         ph: t("publicJobs.application.placeholders.strength"),
       },
       {
-        name: "personality_weakness",
-        label: t("publicJobs.application.weakness"),
-        ph: t("publicJobs.application.placeholders.weakness"),
+        name: "growth_area",
+        label: t("publicJobs.application.growthArea"),
+        ph: t("publicJobs.application.placeholders.growthArea"),
       },
     ];
   return (

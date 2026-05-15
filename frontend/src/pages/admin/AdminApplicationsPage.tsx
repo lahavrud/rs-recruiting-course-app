@@ -808,41 +808,41 @@ function ApplicationDetailBody({
         )}
       </div>
 
-      {(c.service_concept ||
-        c.salary_expectations ||
-        c.personality_strength ||
-        c.personality_weakness) && (
+      {(app.service_concept ||
+        app.salary_expectations ||
+        app.strength ||
+        app.growth_area) && (
         <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-          {c.service_concept && (
+          {app.service_concept && (
             <>
               <dt className="text-white/35">
                 {t("admin.applications.details.serviceConcept")}
               </dt>
-              <dd className="text-white/70">{c.service_concept}</dd>
+              <dd className="text-white/70">{app.service_concept}</dd>
             </>
           )}
-          {c.salary_expectations && (
+          {app.salary_expectations && (
             <>
               <dt className="text-white/35">
                 {t("admin.applications.details.salaryExpectations")}
               </dt>
-              <dd className="text-white/70">{c.salary_expectations}</dd>
+              <dd className="text-white/70">{app.salary_expectations}</dd>
             </>
           )}
-          {c.personality_strength && (
+          {app.strength && (
             <>
               <dt className="text-white/35">
                 {t("admin.applications.details.strength")}
               </dt>
-              <dd className="text-white/70">{c.personality_strength}</dd>
+              <dd className="text-white/70">{app.strength}</dd>
             </>
           )}
-          {c.personality_weakness && (
+          {app.growth_area && (
             <>
               <dt className="text-white/35">
                 {t("admin.applications.details.weakness")}
               </dt>
-              <dd className="text-white/70">{c.personality_weakness}</dd>
+              <dd className="text-white/70">{app.growth_area}</dd>
             </>
           )}
         </dl>

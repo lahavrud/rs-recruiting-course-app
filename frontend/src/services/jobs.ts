@@ -39,10 +39,8 @@ export async function submitApplication(
   if (form.service_concept) data.append("service_concept", form.service_concept);
   if (form.salary_expectations)
     data.append("salary_expectations", form.salary_expectations);
-  if (form.personality_weakness)
-    data.append("personality_weakness", form.personality_weakness);
-  if (form.personality_strength)
-    data.append("personality_strength", form.personality_strength);
+  if (form.growth_area) data.append("growth_area", form.growth_area);
+  if (form.strength) data.append("strength", form.strength);
 
   // Privacy consent — always true at this point (UI blocks submit otherwise)
   data.append("privacy_accepted", "true");

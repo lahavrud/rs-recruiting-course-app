@@ -473,11 +473,6 @@ class CandidateProfileCreate(BaseModel):
     phone: str = Field(..., max_length=30)
     resume_path: str | None = None
     linkedin_url: str | None = Field(None, max_length=500)
-    # Interview form fields
-    service_concept: str | None = Field(None, max_length=2000)
-    salary_expectations: str | None = Field(None, max_length=2000)
-    personality_weakness: str | None = Field(None, max_length=2000)
-    personality_strength: str | None = Field(None, max_length=2000)
 
     @field_validator("resume_path")
     @classmethod
@@ -552,10 +547,6 @@ class CandidateProfileUpdate(BaseModel):
     phone: str | None = Field(None, max_length=30)
     resume_path: str | None = None
     linkedin_url: str | None = Field(None, max_length=500)
-    service_concept: str | None = Field(None, max_length=2000)
-    salary_expectations: str | None = Field(None, max_length=2000)
-    personality_weakness: str | None = Field(None, max_length=2000)
-    personality_strength: str | None = Field(None, max_length=2000)
 
     @field_validator("resume_path")
     @classmethod
@@ -611,10 +602,6 @@ class CandidateProfileRead(BaseModel):
     phone: str
     resume_path: str | None
     linkedin_url: str | None
-    service_concept: str | None
-    salary_expectations: str | None
-    personality_weakness: str | None
-    personality_strength: str | None
     consent_given_at: datetime | None
     consent_policy_version: str | None
     created_at: datetime
@@ -662,6 +649,10 @@ class ApplicationRead(BaseModel):
     candidate_id: int
     status: ApplicationStatus
     admin_notes: str | None
+    service_concept: str | None
+    salary_expectations: str | None
+    strength: str | None
+    growth_area: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -676,6 +667,10 @@ class ApplicationWithDetails(BaseModel):
     candidate_id: int
     status: ApplicationStatus
     admin_notes: str | None
+    service_concept: str | None
+    salary_expectations: str | None
+    strength: str | None
+    growth_area: str | None
     created_at: datetime
     updated_at: datetime
     job: JobRead

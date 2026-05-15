@@ -219,10 +219,6 @@ export interface CandidateProfileRead {
   phone: string;
   resume_path: string | null;
   linkedin_url: string | null;
-  service_concept: string | null;
-  salary_expectations: string | null;
-  personality_weakness: string | null;
-  personality_strength: string | null;
   created_at: string;
 }
 
@@ -234,10 +230,6 @@ export interface CandidateProfileUpdate {
   phone?: string;
   resume_path?: string | null;
   linkedin_url?: string | null;
-  service_concept?: string | null;
-  salary_expectations?: string | null;
-  personality_weakness?: string | null;
-  personality_strength?: string | null;
 }
 
 /**
@@ -253,8 +245,8 @@ export interface CandidateApplicationForm {
   // Interview questions
   service_concept: string;
   salary_expectations: string;
-  personality_weakness: string;
-  personality_strength: string;
+  growth_area: string;
+  strength: string;
   // File — handled separately as File | null
 }
 
@@ -284,6 +276,10 @@ export interface ApplicationRead {
   candidate_id: number;
   status: ApplicationStatus;
   admin_notes: string | null;
+  service_concept: string | null;
+  salary_expectations: string | null;
+  strength: string | null;
+  growth_area: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -294,6 +290,10 @@ export interface ApplicationWithDetails {
   candidate_id: number;
   status: ApplicationStatus;
   admin_notes: string | null;
+  service_concept: string | null;
+  salary_expectations: string | null;
+  strength: string | null;
+  growth_area: string | null;
   created_at: string;
   updated_at: string;
   job: JobRead;

@@ -51,6 +51,9 @@ select = ["E", "F", "I"]
 
 ignore = []
 
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*.py" = ["E501"]
+
 [tool.ruff.format]
 quote-style = "double"
 

@@ -285,14 +285,6 @@ class CandidateProfile(SQLModel, table=True):
     resume_path: str | None = None
     linkedin_url: str | None = None
 
-    # Interview Form Fields (Subject to Change)
-    service_concept: str | None = Field(default=None, sa_column=Column(Text))
-    salary_expectations: str | None = Field(default=None, sa_column=Column(Text))
-    military_service_details: str | None = Field(default=None, sa_column=Column(Text))
-    transportation: str | None = Field(default=None, sa_column=Column(Text))
-    personality_weakness: str | None = Field(default=None, sa_column=Column(Text))
-    personality_strength: str | None = Field(default=None, sa_column=Column(Text))
-
     # Privacy consent — captured at application time
     consent_given_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
@@ -383,6 +375,10 @@ class Application(SQLModel, table=True):
     )
     status: ApplicationStatus = Field(default=ApplicationStatus.NEW, index=True)
     admin_notes: str | None = Field(default=None, sa_column=Column(Text))
+    service_concept: str | None = Field(default=None, sa_column=Column(Text))
+    salary_expectations: str | None = Field(default=None, sa_column=Column(Text))
+    strength: str | None = Field(default=None, sa_column=Column(Text))
+    growth_area: str | None = Field(default=None, sa_column=Column(Text))
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

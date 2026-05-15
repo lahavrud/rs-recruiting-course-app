@@ -71,50 +71,6 @@ async def test_candidate_profile_unique_email(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_candidate_profile_interview_fields(session: AsyncSession):
-    """Test interview form fields can be stored."""
-    candidate = CandidateProfile(
-        full_name="Interview Candidate",
-        email="interview@example.com",
-        service_concept="I understand the role is about...",
-        salary_expectations="15,000 - 20,000 ILS per month",
-        personality_weakness="Sometimes too detail-oriented",
-        personality_strength="Strong problem-solving skills",
-        phone="050-000-0000",
-    )
-    session.add(candidate)
-    await session.commit()
-    await session.refresh(candidate)
-
-    # Verify interview fields are stored correctly
-    assert candidate.service_concept == "I understand the role is about..."
-    assert candidate.salary_expectations == "15,000 - 20,000 ILS per month"
-    assert candidate.personality_weakness == "Sometimes too detail-oriented"
-    assert candidate.personality_strength == "Strong problem-solving skills"
-
-
-@pytest.mark.asyncio
-async def test_candidate_profile_long_text_fields(session: AsyncSession):
-    """Test that text fields can handle long content."""
-    long_text = "This is a very long text " * 100  # 2500+ characters
-
-    candidate = CandidateProfile(
-        full_name="Long Text User",
-        email="longtext@example.com",
-        service_concept=long_text,
-        salary_expectations=long_text,
-        phone="050-000-0000",
-    )
-    session.add(candidate)
-    await session.commit()
-    await session.refresh(candidate)
-
-    assert candidate.service_concept is not None
-    assert len(candidate.service_concept) > 2000
-    assert candidate.service_concept == long_text
-
-
-@pytest.mark.asyncio
 async def test_candidate_profile_query_by_email(session: AsyncSession):
     """Test querying candidates by email."""
     candidate = CandidateProfile(

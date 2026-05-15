@@ -75,6 +75,10 @@ async def _upsert_candidate_and_application(
     resume_path: str | None,
     consent_ip: str | None,
     consent_ua: str | None,
+    service_concept: str | None = None,
+    salary_expectations: str | None = None,
+    strength: str | None = None,
+    growth_area: str | None = None,
 ) -> CandidateProfile:
     """Find-or-create the candidate profile and create the application row.
 
@@ -117,10 +121,6 @@ async def _upsert_candidate_and_application(
             phone=candidate_data.phone,
             resume_path=resume_path,
             linkedin_url=candidate_data.linkedin_url,
-            service_concept=candidate_data.service_concept,
-            salary_expectations=candidate_data.salary_expectations,
-            personality_weakness=candidate_data.personality_weakness,
-            personality_strength=candidate_data.personality_strength,
             consent_given_at=now,
             consent_policy_version=_PRIVACY_POLICY_VERSION,
             consent_ip=consent_ip,
@@ -134,6 +134,10 @@ async def _upsert_candidate_and_application(
             job_id=job_id,
             candidate_id=candidate.id,  # type: ignore[arg-type]
             status=ApplicationStatus.NEW,
+            service_concept=service_concept,
+            salary_expectations=salary_expectations,
+            strength=strength,
+            growth_area=growth_area,
         )
     )
     return candidate
@@ -199,6 +203,10 @@ async def create_candidate_profile(
     session: AsyncSession | None = None,
     consent_ip: str | None = None,
     consent_ua: str | None = None,
+    service_concept: str | None = None,
+    salary_expectations: str | None = None,
+    strength: str | None = None,
+    growth_area: str | None = None,
 ) -> CandidateProfileRead:
     """Create a candidate profile and application for a job.
 
@@ -229,7 +237,16 @@ async def create_candidate_profile(
             raise ValueError(f"Failed to upload resume file: {e}") from e
 
     candidate = await _upsert_candidate_and_application(
-        session, candidate_data, job_id, resume_path, consent_ip, consent_ua
+        session,
+        candidate_data,
+        job_id,
+        resume_path,
+        consent_ip,
+        consent_ua,
+        service_concept=service_concept,
+        salary_expectations=salary_expectations,
+        strength=strength,
+        growth_area=growth_area,
     )
     await session.flush()
     await session.refresh(candidate)

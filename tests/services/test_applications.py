@@ -76,11 +76,11 @@ async def test_create_candidate_profile_success(
     candidate = await create_candidate_profile(
         candidate_data=_default_candidate(
             linkedin_url="https://linkedin.com/in/johndoe",
-            service_concept="I want to work on exciting projects",
-            salary_expectations="100k-120k",
         ),
         job_id=job.id,
         session=session,
+        service_concept="I want to work on exciting projects",
+        salary_expectations="100k-120k",
     )
 
     assert candidate.id is not None
@@ -97,6 +97,8 @@ async def test_create_candidate_profile_success(
         )
     ).scalar_one()
     assert application.status == ApplicationStatus.NEW
+    assert application.service_concept == "I want to work on exciting projects"
+    assert application.salary_expectations == "100k-120k"
 
 
 @pytest.mark.asyncio

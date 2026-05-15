@@ -589,7 +589,7 @@
       "militaryService": "פרטי שירות צבאי",
       "transportation": "הסעות",
       "strength": "חוזק מרכזי",
-      "weakness": "תחום לשיפור",
+      "growthArea": "תחום לשיפור",
       "placeholders": {
         "fullName": "ישראל ישראלי",
         "email": "israel@example.com",
@@ -600,7 +600,7 @@
         "militaryService": "נא לתאר את השירות הצבאי שלך (אם רלוונטי)...",
         "transportation": "כיצד אתה מתכנן להגיע לעבודה?",
         "strength": "מהו החוזק המקצועי הגדול ביותר שלך?",
-        "weakness": "באיזה תחום אתה פועל לשיפור?"
+        "growthArea": "באיזה תחום אתה פועל לשיפור?"
       },
       "submitText": "שליחת מועמדות",
       "submittingText": "שולח...",

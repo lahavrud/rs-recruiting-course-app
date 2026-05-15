@@ -38,7 +38,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
-import { inputCls, textareaCls } from "@/styles/forms";
+import { inputCls } from "@/styles/forms";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("he-IL", {
@@ -687,11 +687,6 @@ function CandidateDetailBody({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const c = candidate;
-  const hasAnswers =
-    c.service_concept ||
-    c.salary_expectations ||
-    c.personality_strength ||
-    c.personality_weakness;
 
   // Self-fetch the applications list when the parent didn't pass one (mobile).
   const useLocal = appsProp === undefined;
@@ -747,43 +742,6 @@ function CandidateDetailBody({
         )}
       </div>
 
-      {hasAnswers && (
-        <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-          {c.service_concept && (
-            <>
-              <dt className="text-white/35">
-                {t("admin.candidates.details.serviceConcept")}
-              </dt>
-              <dd className="text-white/70">{c.service_concept}</dd>
-            </>
-          )}
-          {c.salary_expectations && (
-            <>
-              <dt className="text-white/35">
-                {t("admin.candidates.details.salaryExpectations")}
-              </dt>
-              <dd className="text-white/70">{c.salary_expectations}</dd>
-            </>
-          )}
-          {c.personality_strength && (
-            <>
-              <dt className="text-white/35">
-                {t("admin.candidates.details.strength")}
-              </dt>
-              <dd className="text-white/70">{c.personality_strength}</dd>
-            </>
-          )}
-          {c.personality_weakness && (
-            <>
-              <dt className="text-white/35">
-                {t("admin.candidates.details.weakness")}
-              </dt>
-              <dd className="text-white/70">{c.personality_weakness}</dd>
-            </>
-          )}
-        </dl>
-      )}
-
       <div className="border-t border-white/8 pt-4">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
           {t("admin.candidates.applicationsSection")}
@@ -800,26 +758,69 @@ function CandidateDetailBody({
           </p>
         ) : (
           <ul className="mt-3 space-y-1.5">
-            {applications.map((a) => (
-              <li key={a.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLeavePage?.();
-                    navigate(`/admin/applications?candidate=${a.candidate_id}`, {
-                      state: { autoOpen: a },
-                    });
-                  }}
-                  className="flex w-full items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2 transition hover:border-copper/25 hover:bg-card-raised"
-                >
-                  <span className="text-white/80">{a.job.title}</span>
-                  <span className="text-xs text-white/40">
-                    {t(`admin.applications.statusLabels.${a.status}`)} ·{" "}
-                    {formatDate(a.created_at)}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {applications.map((a) => {
+              const hasAppAnswers =
+                a.service_concept ||
+                a.salary_expectations ||
+                a.strength ||
+                a.growth_area;
+              return (
+                <li key={a.id} className="rounded-sm border border-white/6 bg-card">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLeavePage?.();
+                      navigate(`/admin/applications?candidate=${a.candidate_id}`, {
+                        state: { autoOpen: a },
+                      });
+                    }}
+                    className="flex w-full items-center justify-between px-3 py-2 transition hover:border-copper/25 hover:bg-card-raised"
+                  >
+                    <span className="text-white/80">{a.job.title}</span>
+                    <span className="text-xs text-white/40">
+                      {t(`admin.applications.statusLabels.${a.status}`)} ·{" "}
+                      {formatDate(a.created_at)}
+                    </span>
+                  </button>
+                  {hasAppAnswers && (
+                    <dl className="grid grid-cols-1 gap-x-8 gap-y-1 border-t border-white/6 px-3 py-2 text-xs sm:grid-cols-2">
+                      {a.service_concept && (
+                        <>
+                          <dt className="text-white/35">
+                            {t("admin.candidates.details.serviceConcept")}
+                          </dt>
+                          <dd className="text-white/60">{a.service_concept}</dd>
+                        </>
+                      )}
+                      {a.salary_expectations && (
+                        <>
+                          <dt className="text-white/35">
+                            {t("admin.candidates.details.salaryExpectations")}
+                          </dt>
+                          <dd className="text-white/60">{a.salary_expectations}</dd>
+                        </>
+                      )}
+                      {a.strength && (
+                        <>
+                          <dt className="text-white/35">
+                            {t("admin.candidates.details.strength")}
+                          </dt>
+                          <dd className="text-white/60">{a.strength}</dd>
+                        </>
+                      )}
+                      {a.growth_area && (
+                        <>
+                          <dt className="text-white/35">
+                            {t("admin.candidates.details.weakness")}
+                          </dt>
+                          <dd className="text-white/60">{a.growth_area}</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -854,10 +855,6 @@ function EditDialog({ candidate, onClose, onSaved, onError }: EditProps) {
       email: candidate.email,
       phone: candidate.phone ?? "",
       linkedin_url: candidate.linkedin_url ?? "",
-      service_concept: candidate.service_concept ?? "",
-      salary_expectations: candidate.salary_expectations ?? "",
-      personality_strength: candidate.personality_strength ?? "",
-      personality_weakness: candidate.personality_weakness ?? "",
     };
     /* eslint-disable react-hooks/set-state-in-effect */
     setForm(seed);
@@ -896,10 +893,6 @@ function EditDialog({ candidate, onClose, onSaved, onError }: EditProps) {
         e.linkedin_url = t("common.validation.linkedinInvalid");
       }
     }
-    const textFields = ["service_concept", "salary_expectations", "personality_strength", "personality_weakness"] as const;
-    for (const f of textFields) {
-      if ((form[f]?.length ?? 0) > 2000) e[f] = t("common.validation.tooLong", { max: 2000 });
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -912,10 +905,6 @@ function EditDialog({ candidate, onClose, onSaved, onError }: EditProps) {
       email: form.email,
       phone: form.phone,
       linkedin_url: form.linkedin_url?.trim() ? form.linkedin_url : null,
-      service_concept: form.service_concept?.trim() ? form.service_concept : null,
-      salary_expectations: form.salary_expectations?.trim() ? form.salary_expectations : null,
-      personality_strength: form.personality_strength?.trim() ? form.personality_strength : null,
-      personality_weakness: form.personality_weakness?.trim() ? form.personality_weakness : null,
     };
     try {
       const updated = await updateCandidate(candidate.id, body);
@@ -972,22 +961,6 @@ function EditDialog({ candidate, onClose, onSaved, onError }: EditProps) {
         <Field label={t("admin.candidates.fields.linkedin")}>
           <input type="url" value={form.linkedin_url ?? ""} onChange={(e) => set("linkedin_url", e.target.value)} className={inputCls} />
           {errors.linkedin_url && <p className="mt-1 text-xs text-danger">{errors.linkedin_url}</p>}
-        </Field>
-        <Field label={t("admin.candidates.fields.serviceConcept")} full>
-          <textarea rows={2} value={form.service_concept ?? ""} onChange={(e) => set("service_concept", e.target.value)} className={textareaCls} />
-          {errors.service_concept && <p className="mt-1 text-xs text-danger">{errors.service_concept}</p>}
-        </Field>
-        <Field label={t("admin.candidates.fields.salaryExpectations")} full>
-          <textarea rows={2} value={form.salary_expectations ?? ""} onChange={(e) => set("salary_expectations", e.target.value)} className={textareaCls} />
-          {errors.salary_expectations && <p className="mt-1 text-xs text-danger">{errors.salary_expectations}</p>}
-        </Field>
-        <Field label={t("admin.candidates.fields.strength")} full>
-          <textarea rows={2} value={form.personality_strength ?? ""} onChange={(e) => set("personality_strength", e.target.value)} className={textareaCls} />
-          {errors.personality_strength && <p className="mt-1 text-xs text-danger">{errors.personality_strength}</p>}
-        </Field>
-        <Field label={t("admin.candidates.fields.weakness")} full>
-          <textarea rows={2} value={form.personality_weakness ?? ""} onChange={(e) => set("personality_weakness", e.target.value)} className={textareaCls} />
-          {errors.personality_weakness && <p className="mt-1 text-xs text-danger">{errors.personality_weakness}</p>}
         </Field>
       </div>
     </Dialog>
