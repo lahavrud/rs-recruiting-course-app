@@ -259,7 +259,7 @@ export default function JobDetailPage() {
 
   return (
     // pb-24 leaves room for the mobile fixed apply bar; cleared on lg.
-    <div className="mx-auto max-w-4xl pb-24 lg:pb-0">
+    <div className="mx-auto max-w-4xl px-6 pt-24 pb-24 lg:pb-0">
       <SeoHead
         title={job.title}
         description={job.short_description || job.description.slice(0, 160)}
@@ -319,9 +319,7 @@ export default function JobDetailPage() {
                 {job.location}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
-              {t("publicJobs.detail.open")}
-            </span>
+
           </div>
           {job.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">

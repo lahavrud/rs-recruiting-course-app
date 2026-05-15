@@ -53,16 +53,17 @@ interface FieldProps {
   id: string;
   required?: boolean;
   optional?: boolean;
+  className?: string;
   children: ReactNode;
 }
 
-function Field({ label, id, required, optional, children }: FieldProps) {
+function Field({ label, id, required, optional, className, children }: FieldProps) {
   const { t } = useTranslation();
   return (
-    <div data-field={id}>
+    <div data-field={id} className={className}>
       <label
         htmlFor={id}
-        className="flex items-center gap-1.5 text-xs text-white/55"
+        className="flex items-center gap-1.5 text-xs text-white/55 sm:text-sm"
       >
         <span>{label}</span>
         {required && <span className="text-copper/80">*</span>}
@@ -470,7 +471,10 @@ export default function ApplicationPage() {
         : null;
 
   return (
-    <div className="mx-auto max-w-2xl pb-24">
+    /* full-width bg; StepNav siblings here are sticky-until-parent-ends */
+    <div className="flex min-h-screen flex-col bg-page">
+    <div className="flex-1 overflow-auto">
+    <div className="mx-auto max-w-2xl px-6 pt-24 pb-8">
       <SeoHead
         title={
           job
@@ -503,7 +507,7 @@ export default function ApplicationPage() {
       </Link>
 
       {/* Compact job header */}
-      <div className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-white/8 bg-card p-4">
+      <div className="mb-8 flex items-start justify-between gap-4 rounded-xl border border-white/8 bg-card p-5 sm:p-6">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
             {t("publicJobs.application.applyFor")}
@@ -530,9 +534,7 @@ export default function ApplicationPage() {
             </p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-success/10 px-2.5 py-0.5 text-[10px] font-medium text-success">
-          {t("publicJobs.board.open")}
-        </span>
+
       </div>
 
       <Stepper step={step} maxStep={maxStep} onJump={jumpTo} />
@@ -579,18 +581,25 @@ export default function ApplicationPage() {
           )}
         </div>
 
-        <StepNav
-          step={step}
-          submitting={submitting}
-          privacyAccepted={privacyAccepted}
-          onBack={handleBack}
-          onNext={handleNext}
-        />
       </form>
+
 
       {privacyOpen && (
         <PrivacyModal onClose={() => setPrivacyOpen(false)} />
       )}
+    </div>
+    </div>
+
+    {/* StepNav — sticky bottom-0 INSIDE bg-page div, so it naturally stops
+        at the footer (sticky can't extend past its parent's bounds).
+        Full-width because it's inside the full-width bg-page wrapper.      */}
+    <StepNav
+      step={step}
+      submitting={submitting}
+      privacyAccepted={privacyAccepted}
+      onBack={handleBack}
+      onNext={handleNext}
+    />
     </div>
   );
 }
@@ -709,7 +718,7 @@ function IdentityStep({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5">
       <Field
         label={t("publicJobs.application.fullName")}
         id="full_name"
@@ -774,6 +783,7 @@ function IdentityStep({
         label={t("publicJobs.application.linkedin")}
         id="linkedin_url"
         optional
+        className="sm:col-span-2"
       >
         <input
           id="linkedin_url"
@@ -976,8 +986,8 @@ function QuestionsStep({
       },
     ];
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border border-copper/20 bg-copper/5 p-4">
+    <div className="grid gap-5 sm:grid-cols-2">
+      <div className="rounded-lg border border-copper/20 bg-copper/5 p-4 sm:col-span-2">
         <p className="text-xs leading-relaxed text-white/65">
           {t("publicJobs.application.questionsStepBanner")}
         </p>
@@ -987,8 +997,9 @@ function QuestionsStep({
         const value = form[name] ?? "";
         const count = value.length;
         const over = count > TEXT_FIELD_MAX;
+        const isHalf = name === "strength" || name === "growth_area";
         return (
-          <Field key={name} label={label} id={name} optional>
+          <Field key={name} label={label} id={name} optional className={isHalf ? "sm:col-span-1" : "sm:col-span-2"}>
             <textarea
               id={name}
               name={name}
@@ -1019,9 +1030,9 @@ function QuestionsStep({
         );
       })}
 
-      {/* Privacy consent */}
+      {/* Privacy consent — spans full width of the 2-col grid */}
       <div
-        className={`rounded-xl border p-4 transition-colors ${
+        className={`sm:col-span-2 rounded-xl border p-4 transition-colors ${
           fieldErrors.privacy
             ? "border-danger/40 bg-danger/5"
             : "border-white/10 bg-card"
@@ -1117,9 +1128,11 @@ function StepNav({
 }) {
   const { t } = useTranslation();
   const isFinal = step === TOTAL_STEPS;
+  // Sticky bottom-0 — works as sibling of content inside min-h-screen flex-col.
+  // Naturally stops before the footer (sticky can't extend past its parent).
   return (
-    <div className="sticky bottom-0 -mx-4 mt-4 border-t border-white/8 bg-page/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-page/80 sm:-mx-6 sm:px-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="sticky bottom-0 z-40 border-t border-white/8 bg-page/96 px-6 py-3 backdrop-blur-md">
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
@@ -1139,7 +1152,7 @@ function StepNav({
             key="step-final-submit"
             type="submit"
             disabled={submitting || !privacyAccepted}
-            className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50 sm:px-8 sm:py-3 sm:text-base"
           >
             {submitting
               ? t("publicJobs.application.submittingText")
@@ -1156,7 +1169,7 @@ function StepNav({
               e.stopPropagation();
               onNext();
             }}
-            className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold"
+            className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold sm:px-8 sm:py-3 sm:text-base"
           >
             {t("publicJobs.application.steps.continue")}
           </button>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
@@ -10,6 +10,16 @@ import RangeSlider from "@/components/ui/RangeSlider";
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
 import type { JobPublicRead } from "@/types/api";
+
+function rise(delay = "0s", duration = "0.8s"): CSSProperties {
+  return { animation: `text-rise ${duration} cubic-bezier(0.16, 1, 0.3, 1) ${delay} both` };
+}
+function revealUp(delay = "0s"): CSSProperties {
+  return { animation: `reveal-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) ${delay} both` };
+}
+function ruleDraw(delay = "0s"): CSSProperties {
+  return { animation: `line-expand-h 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay} both`, transformOrigin: "right" };
+}
 
 const SALARY_STEP = 500;
 
@@ -493,39 +503,91 @@ export default function JobBoardPage() {
   const showFilters = !loading && jobs.length > 0;
 
   return (
-    <div>
+    <div className="pb-14">
       <SeoHead
         title={t("publicJobs.board.title")}
         description={t("publicJobs.board.subtitle")}
         canonical={`${SITE_URL}/jobs`}
         structuredData={structuredData}
       />
-      {/* Header */}
-      <div className="mb-6 sm:mb-10">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          RS Recruiting
-        </p>
-        <div className="mt-3 h-px w-8 bg-copper/40" />
-        <h1 className="mt-4 text-2xl font-semibold text-white/90 sm:mt-5 sm:text-3xl">
-          {t("publicJobs.board.title")}
-        </h1>
-        <p className="mt-2 text-sm text-white/45">
-          {t("publicJobs.board.subtitle")}
-        </p>
-      </div>
 
+      {/* ── Hero strip ──────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden pt-28 pb-14 sm:pt-32 sm:pb-16">
+        {/* Property image background */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: "url(/property-exterior.jpg)",
+            backgroundSize: "cover",
+            backgroundPosition: "center 40%",
+          }}
+        />
+        <div className="absolute inset-0 bg-void/88" />
+        {/* Copper glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 90% at 50% -10%, color-mix(in srgb, var(--color-copper) 11%, transparent), transparent)",
+          }}
+        />
+
+        <div className="relative mx-auto max-w-4xl px-6">
+          {/* Eyebrow */}
+          <div className="h-px w-8 bg-copper/45" style={ruleDraw("0.1s")} />
+          <div className="mt-3 overflow-hidden">
+            <p
+              className="text-[10px] font-semibold uppercase tracking-widest text-copper/75"
+              style={rise("0.2s", "0.55s")}
+            >
+              RS Recruiting
+            </p>
+          </div>
+
+          {/* Headline */}
+          <div className="mt-5 overflow-hidden">
+            <h1
+              className="text-3xl font-semibold leading-snug text-white/92 sm:text-4xl"
+              style={rise("0.3s")}
+            >
+              {t("publicJobs.board.title")}
+            </h1>
+          </div>
+
+          {/* Subtitle */}
+          <p
+            className="mt-3 max-w-xl text-sm leading-relaxed text-white/45"
+            style={revealUp("0.5s")}
+          >
+            {t("publicJobs.board.subtitle")}
+          </p>
+
+          {/* Search bar */}
+          <div className="mt-8 max-w-lg" style={revealUp("0.65s")}>
+            <SearchInput
+              initialValue={initialQuery}
+              onChange={onSearch}
+              placeholder={t("publicJobs.board.searchPlaceholder")}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Job list ────────────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-4xl px-6 pt-10">
       <div
         className={
           loading || showFilters ? "lg:grid lg:grid-cols-[240px_1fr] lg:gap-8" : ""
         }
       >
-        {/* Filter sidebar (desktop only) — skeleton mirrors real layout during load */}
+        {/* Filter sidebar — sticky offset accounts for fixed navbar */}
         {loading ? (
-          <aside className="hidden lg:sticky lg:top-6 lg:block lg:self-start">
+          <aside className="hidden lg:sticky lg:top-28 lg:block lg:self-start">
             <FilterSidebarSkeleton />
           </aside>
         ) : showFilters ? (
-          <aside className="hidden lg:sticky lg:top-6 lg:block lg:self-start">
+          <aside className="hidden lg:sticky lg:top-28 lg:block lg:self-start">
             <div className="rounded-xl border border-white/8 bg-card-raised/40 p-5">
               <p className="mb-4 text-sm font-medium text-white/85">
                 {t("publicJobs.board.filters")}
@@ -537,17 +599,11 @@ export default function JobBoardPage() {
 
         {/* Results column */}
         <div className="min-w-0">
-          {/* Search + mobile filter trigger */}
+          {/* Mobile filter trigger (search bar is in hero) */}
           {loading && <SearchBarSkeleton />}
           {!loading && jobs.length > 0 && (
             <div className="mb-5 flex items-stretch gap-2">
-              <div className="flex-1">
-                <SearchInput
-                  initialValue={initialQuery}
-                  onChange={onSearch}
-                  placeholder={t("publicJobs.board.searchPlaceholder")}
-                />
-              </div>
+              <div className="flex-1" />
               {showFilters && (
                 <button
                   type="button"
@@ -764,6 +820,7 @@ export default function JobBoardPage() {
           </div>,
           document.body,
         )}
+      </div>
     </div>
   );
 }
