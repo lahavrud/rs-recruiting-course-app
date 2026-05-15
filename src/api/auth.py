@@ -18,7 +18,7 @@ from sqlalchemy import exc as sqlalchemy_exc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_token_payload
+from src.core.infrastructure.dependencies import client_ip, get_token_payload
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.invite_tokens import (
     consume_invite_token,
@@ -40,8 +40,8 @@ from src.services.auth import (
     logout_user,
     mark_invite_used,
     refresh_user_tokens,
-    register_company_user,
 )
+from src.services.auth_register import register_company_user
 from src.services.exceptions import (
     AccountLockedError,
     EmailAlreadyExistsError,
@@ -77,6 +77,7 @@ async def register(
     contact_landline_phone: str | None = Form(None),
     agreement_signature: str = Form(...),
     privacy_accepted: bool = Form(...),
+    terms_accepted: bool = Form(...),
     logo: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ) -> UserWithCompanyRead:
@@ -85,6 +86,11 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="יש לאשר את מדיניות הפרטיות",
+        )
+    if not terms_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="יש לאשר את תנאי השימוש",
         )
     try:
         profile_data = CompanyProfileCreate(
@@ -120,6 +126,9 @@ async def register(
                 logo_content_type,
                 agreement_signature,
                 privacy_accepted=privacy_accepted,
+                terms_accepted=terms_accepted,
+                acceptance_ip=client_ip(request),
+                acceptance_user_agent=request.headers.get("user-agent"),
             )
             await mark_invite_used(token, session)
     except InvalidInviteTokenError as e:

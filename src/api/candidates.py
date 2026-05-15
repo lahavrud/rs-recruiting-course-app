@@ -35,6 +35,7 @@ async def _apply_common(
     growth_area: str | None,
     strength: str | None,
     privacy_accepted: bool,
+    terms_accepted: bool,
     resume: UploadFile | None,
     request: Request,
     session: AsyncSession,
@@ -43,6 +44,11 @@ async def _apply_common(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="privacy_consent_required",
+        )
+    if not terms_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="terms_consent_required",
         )
 
     resume_file: bytes | None = None
@@ -100,6 +106,7 @@ async def apply_to_job(
     growth_area: str | None = Form(None),
     strength: str | None = Form(None),
     privacy_accepted: bool = Form(...),
+    terms_accepted: bool = Form(...),
     resume: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_session),
 ) -> CandidateProfileRead:
@@ -114,6 +121,7 @@ async def apply_to_job(
         growth_area=growth_area,
         strength=strength,
         privacy_accepted=privacy_accepted,
+        terms_accepted=terms_accepted,
         resume=resume,
         request=request,
         session=session,
@@ -137,6 +145,7 @@ async def apply_to_job_by_path(
     growth_area: str | None = Form(None),
     strength: str | None = Form(None),
     privacy_accepted: bool = Form(...),
+    terms_accepted: bool = Form(...),
     resume: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_session),
 ) -> CandidateProfileRead:
@@ -151,6 +160,7 @@ async def apply_to_job_by_path(
         growth_area=growth_area,
         strength=strength,
         privacy_accepted=privacy_accepted,
+        terms_accepted=terms_accepted,
         resume=resume,
         request=request,
         session=session,

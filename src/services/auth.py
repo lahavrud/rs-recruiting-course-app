@@ -1,6 +1,9 @@
-"""Authentication service layer for business logic."""
+"""Authentication service layer for business logic.
 
-import base64
+Company registration lives in `auth_register.py` to keep this file
+under the service-layer line cap.
+"""
+
 import logging
 import math
 from datetime import datetime, timezone
@@ -12,31 +15,19 @@ from src.core.infrastructure.security import (
     blacklist_access_token,
     create_access_token,
     create_refresh_token,
-    get_password_hash,
     hash_token,
     verify_password,
 )
-from src.core.infrastructure.transactions import defer_after_commit
-from src.core.services.file_validation import validate_image_magic_bytes
-from src.core.services.storage import get_storage_provider
-from src.core.tasks import enqueue_email_task
-from src.enums import InviteTokenStatus, UserRole
-from src.models import ActivationToken, CompanyProfile, InviteToken, RefreshToken, User
-from src.schemas import CompanyProfileRead, UserCreate, UserRead, UserWithCompanyRead
-from src.services.admin_companies import get_all_admin_emails
+from src.enums import InviteTokenStatus
+from src.models import ActivationToken, InviteToken, RefreshToken, User
 from src.services.exceptions import (
     AccountLockedError,
-    EmailAlreadyExistsError,
     InvalidCredentialsError,
     PendingActivationError,
     PendingApprovalError,
 )
-from src.templates.email import build_new_registration_html
 
 logger = logging.getLogger(__name__)
-
-_ALLOWED_LOGO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-_MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5 MB
 
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 15 * 60  # 15 minutes
@@ -90,148 +81,6 @@ async def _clear_failed_attempts(email: str) -> None:
         await redis.delete(_lockout_key(email))
     except Exception:
         logger.error("redis_unavailable", extra={"surface": "clear_failed_attempts"})
-
-
-_MAX_SIGNATURE_SIZE = 2 * 1024 * 1024  # 2 MB decoded
-
-
-def _decode_signature(agreement_signature: str) -> bytes:
-    if not agreement_signature.strip():
-        raise ValueError("Agreement signature is required")
-    try:
-        sig_bytes = base64.b64decode(agreement_signature, validate=True)
-    except Exception as exc:
-        raise ValueError("Invalid signature data") from exc
-    if not sig_bytes:
-        raise ValueError("Agreement signature is required")
-    if len(sig_bytes) > _MAX_SIGNATURE_SIZE:
-        raise ValueError("Signature image exceeds maximum allowed size")
-    if not sig_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise ValueError("Signature must be a PNG image")
-    return sig_bytes
-
-
-async def _notify_admins_new_registration(
-    profile: "CompanyProfile",
-    email: str,
-    sig_bytes: bytes,
-    signed_at: "datetime",
-    admin_emails: list[str],
-) -> None:
-    from src.core.infrastructure.config import settings
-
-    admin_url = f"{settings.frontend_base_url}/admin/companies"
-    html = build_new_registration_html(
-        company_name=profile.name or "",
-        company_id=profile.company_id or "—",
-        address=profile.address or "—",
-        contact_name=f"{profile.contact_first_name} {profile.contact_last_name}",
-        email=email,
-        mobile=profile.contact_mobile_phone or "—",
-        admin_url=admin_url,
-    )
-    pdf_bytes: bytes | None = None
-    try:
-        from src.services.contract_pdf import generate_signed_contract
-
-        pdf_bytes = await generate_signed_contract(
-            company_name=profile.name or "",
-            company_id=profile.company_id or "",
-            address=profile.address or "",
-            signed_at=signed_at,
-            company_signature_png_bytes=sig_bytes,
-        )
-    except Exception:
-        logger.exception("Failed to generate contract PDF for %s", email)
-    attachments = [("חוזה-RS.pdf", pdf_bytes, "application/pdf")] if pdf_bytes else None
-    await enqueue_email_task(
-        to=admin_emails,
-        subject="בקשת הרשמה חדשה ממתינה לאישור – RS Recruiting",
-        body=f"חברה חדשה '{profile.name}' נרשמה וממתינה לאישור.\nכתובת: {admin_url}",
-        html_body=html,
-        attachments=attachments,
-    )
-
-
-async def register_company_user(
-    user_data: UserCreate,
-    session: AsyncSession,
-    logo_content: bytes,
-    logo_filename: str,
-    logo_content_type: str | None = None,
-    agreement_signature: str = "",
-    privacy_accepted: bool = False,
-) -> UserWithCompanyRead:
-    """Register a new company user with associated company profile."""
-    if logo_content_type and logo_content_type not in _ALLOWED_LOGO_TYPES:
-        raise ValueError("Logo must be an image file (JPEG, PNG, GIF, or WebP)")
-    if len(logo_content) > _MAX_LOGO_SIZE:
-        raise ValueError("Logo file size exceeds 5 MB limit")
-    if logo_content_type and not validate_image_magic_bytes(
-        logo_content, logo_content_type
-    ):
-        raise ValueError("Logo file content does not match the declared image type")
-
-    sig_bytes = _decode_signature(agreement_signature)
-
-    result = await session.execute(
-        select(User).where(User.email == user_data.email)  # pyright: ignore[reportArgumentType]
-    )
-    existing_user = result.scalar_one_or_none()
-    if existing_user:
-        raise EmailAlreadyExistsError(user_data.email)
-
-    storage = get_storage_provider()
-    logo_identifier = await storage.upload_file(
-        logo_content, f"logos/{logo_filename}", logo_content_type
-    )
-    sig_filename = f"{user_data.company_profile.company_id}_agreement.png"
-    sig_identifier = await storage.upload_file(
-        sig_bytes, f"signatures/{sig_filename}", "image/png"
-    )
-
-    hashed_password = get_password_hash(user_data.password)
-    new_user = User(
-        email=user_data.email,
-        hashed_password=hashed_password,
-        role=UserRole.COMPANY,
-        is_active=False,
-    )
-    session.add(new_user)
-    await session.flush()
-
-    profile = user_data.company_profile
-    now = datetime.now(timezone.utc)
-    new_company_profile = CompanyProfile(
-        user_id=new_user.id,
-        name=profile.name,
-        logo_url=logo_identifier,
-        company_id=profile.company_id,
-        address=profile.address,
-        contact_email=user_data.email,
-        contact_first_name=profile.contact_first_name,
-        contact_last_name=profile.contact_last_name,
-        contact_mobile_phone=profile.contact_mobile_phone,
-        contact_landline_phone=profile.contact_landline_phone,
-        agreement_signature_url=sig_identifier,
-        agreement_signed_at=now,
-        privacy_accepted_at=now if privacy_accepted else None,
-    )
-    session.add(new_company_profile)
-    await session.flush()
-
-    admin_emails = await get_all_admin_emails(session)
-    if admin_emails:
-        defer_after_commit(
-            lambda: _notify_admins_new_registration(
-                new_company_profile, new_user.email, sig_bytes, now, admin_emails
-            )
-        )
-
-    return UserWithCompanyRead(
-        user=UserRead.model_validate(new_user),
-        company_profile=CompanyProfileRead.model_validate(new_company_profile),
-    )
 
 
 async def authenticate_user(email: str, password: str, session: AsyncSession) -> User:

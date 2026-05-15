@@ -51,10 +51,10 @@ from src.models import (
     User,
 )
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth import register_company_user
+from src.services.auth_register import register_company_user
 
 _EMAIL_TASK_TARGETS = [
-    "src.services.auth.enqueue_email_task",
+    "src.services.auth_register.enqueue_email_task",
     "src.services.admin_companies.enqueue_email_task",
     "src.services.jobs.enqueue_email_task",
     "src.services.jobs_admin.enqueue_email_task",
@@ -230,7 +230,7 @@ def mock_storage_provider():
     """Patch storage provider for all tests — prevents real S3/disk uploads."""
     mock = MagicMock()
     mock.upload_file = AsyncMock(return_value="logos/test-logo.png")
-    with patch("src.services.auth.get_storage_provider", return_value=mock):
+    with patch("src.services.auth_register.get_storage_provider", return_value=mock):
         yield mock
 
 

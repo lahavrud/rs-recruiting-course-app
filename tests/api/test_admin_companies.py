@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth import register_company_user
+from src.services.auth_register import register_company_user
 from tests.conftest import FAKE_LOGO, FAKE_SIG_B64, TestSessionLocal
 
 
@@ -21,7 +21,7 @@ async def test_get_pending_companies_empty(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.enqueue_email_task")
+@patch("src.services.auth_register.enqueue_email_task")
 async def test_get_pending_companies(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):

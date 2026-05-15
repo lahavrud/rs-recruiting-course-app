@@ -72,6 +72,10 @@ function useValidation() {
       if (!accepted) return t("auth.register.validation.privacyRequired");
       return "";
     },
+    validateTerms(accepted: boolean): string {
+      if (!accepted) return t("auth.register.validation.termsRequired");
+      return "";
+    },
   };
 }
 
@@ -129,14 +133,23 @@ export default function RegisterPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
-    Partial<FormState & { logo: string; signature: string; privacy: string }>
+    Partial<
+      FormState & {
+        logo: string;
+        signature: string;
+        privacy: string;
+        terms: string;
+      }
+    >
   >({});
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(() => !!inviteToken);
   const [tokenInvalid, setTokenInvalid] = useState(false);
@@ -156,12 +169,13 @@ export default function RegisterPage() {
   }, [inviteToken]);
 
   useEffect(() => {
-    if (contractOpen || privacyOpen) document.body.style.overflow = "hidden";
+    if (contractOpen || termsOpen || privacyOpen)
+      document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [contractOpen, privacyOpen]);
+  }, [contractOpen, termsOpen, privacyOpen]);
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -249,6 +263,7 @@ export default function RegisterPage() {
   function validateStep2(): boolean {
     const errors = {
       signature: val.validateSignature(sigCanvasRef.current?.isEmpty() ?? true),
+      terms: val.validateTerms(termsAccepted),
       privacy: val.validatePrivacy(privacyAccepted),
     };
     setFieldErrors((prev) => ({ ...prev, ...errors }));
@@ -283,6 +298,7 @@ export default function RegisterPage() {
       fd.append("contact_landline_phone", form.contactLandlinePhone.trim());
     fd.append("agreement_signature", sigBase64);
     fd.append("privacy_accepted", String(privacyAccepted));
+    fd.append("terms_accepted", String(termsAccepted));
     fd.append("logo", logoFile!);
 
     setSubmitting(true);
@@ -534,6 +550,42 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
+                {/* Site Terms of Service */}
+                <div className="rounded-lg border border-white/6 bg-card-raised px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-white/60">
+                      {t("auth.register.agreementSectionSiteTerms")}
+                    </p>
+                    <button
+                      type="button" onClick={() => setTermsOpen(true)}
+                      className="text-[11px] text-copper/70 transition hover:text-copper"
+                    >
+                      {t("auth.register.agreementReadFull")}
+                    </button>
+                  </div>
+                  <div className="mt-2 max-h-20 overflow-y-auto [scrollbar-width:thin]">
+                    <p className="text-xs leading-relaxed text-white/30">
+                      {t("auth.register.agreementTextSiteTermsPreview")}
+                    </p>
+                  </div>
+                  <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-white/60">
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => {
+                        setTermsAccepted(e.target.checked);
+                        if (e.target.checked)
+                          setFieldErrors((prev) => ({ ...prev, terms: "" }));
+                      }}
+                      className="accent-copper"
+                    />
+                    {t("auth.register.termsCheckboxLabel")}
+                  </label>
+                  {fieldErrors.terms && (
+                    <p className="mt-1 text-xs text-danger">{fieldErrors.terms}</p>
+                  )}
+                </div>
+
                 {/* Privacy */}
                 <div className="rounded-lg border border-white/6 bg-card-raised px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -642,6 +694,47 @@ export default function RegisterPage() {
                 className="rounded-sm bg-copper px-5 py-2 text-sm font-medium text-white transition hover:bg-gold"
               >
                 {t("auth.register.agreementClose")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Site Terms modal */}
+      {termsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setTermsOpen(false); }}
+        >
+          <div className="flex max-h-[88vh] w-full max-w-xl flex-col rounded-xl border border-white/10 bg-card shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-3.5">
+              <h2 className="text-sm font-medium text-white/80">
+                {t("auth.register.agreementSectionSiteTerms")}
+              </h2>
+              <button
+                type="button" onClick={() => setTermsOpen(false)}
+                className="text-white/40 transition hover:text-white/70"
+                aria-label={t("auth.register.agreementClose")}
+              >✕</button>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
+              {t("auth.register.agreementTextSiteTerms")
+                .split("\n\n")
+                .map((para, i) => (
+                  <p key={i} className="text-sm leading-7 text-white/55">{para}</p>
+                ))}
+            </div>
+            <div className="shrink-0 border-t border-white/8 px-5 py-3 text-left">
+              <button
+                type="button"
+                onClick={() => {
+                  setTermsAccepted(true);
+                  setFieldErrors((prev) => ({ ...prev, terms: "" }));
+                  setTermsOpen(false);
+                }}
+                className="rounded-sm bg-copper px-5 py-2 text-sm font-medium text-white transition hover:bg-gold"
+              >
+                {t("auth.register.termsAcceptButton")}
               </button>
             </div>
           </div>

@@ -200,6 +200,16 @@ class CompanyProfile(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
+    privacy_policy_version: str | None = Field(default=None, max_length=20)
+    terms_accepted_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    terms_version: str | None = Field(default=None, max_length=20)
+    acceptance_ip: str | None = Field(default=None, max_length=45)
+    acceptance_user_agent: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -294,6 +304,10 @@ class CandidateProfile(SQLModel, table=True):
     consent_user_agent: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
+    tos_accepted_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    tos_version: str | None = Field(default=None, max_length=20)
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

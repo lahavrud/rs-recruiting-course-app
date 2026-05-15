@@ -32,6 +32,7 @@ async def test_apply_endpoint_success(
         "strength": "Problem solving",
         "growth_area": "Public speaking",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     response = await public_client.post("/api/candidates/apply", data=form_data)
@@ -97,6 +98,7 @@ async def test_apply_endpoint_with_resume(
         "email": "jane@example.com",
         "phone": "050-987-6543",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     files = {"resume": ("resume.pdf", b"%PDF-1.4\x00" * 5, "application/pdf")}
@@ -156,6 +158,7 @@ async def test_apply_endpoint_invalid_file_type(
         "email": "john@example.com",
         "phone": "050-000-0001",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     files = {
@@ -190,6 +193,7 @@ async def test_apply_endpoint_file_size_limit(
         "email": "john@example.com",
         "phone": "050-000-0002",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     # Create file larger than 10MB
@@ -222,6 +226,7 @@ async def test_apply_endpoint_creates_application(
         "email": "john@example.com",
         "phone": "050-000-0003",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     response = await public_client.post("/api/candidates/apply", data=form_data)
@@ -260,6 +265,7 @@ async def test_apply_endpoint_job_not_found(
         "email": "john@example.com",
         "phone": "050-000-0004",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     response = await public_client.post("/api/candidates/apply", data=form_data)
@@ -284,6 +290,7 @@ async def test_apply_endpoint_public_access(
         "email": "john@example.com",
         "phone": "050-000-0005",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     # Should work without authentication
@@ -344,6 +351,7 @@ async def test_apply_endpoint_reuses_existing_profile(
         "email": "john@example.com",
         "phone": "050-000-0006",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     response1 = await public_client.post("/api/candidates/apply", data=form_data1)
     assert response1.status_code == 201
@@ -357,6 +365,7 @@ async def test_apply_endpoint_reuses_existing_profile(
         "email": "john@example.com",  # Same email
         "phone": "050-000-0006",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     response2 = await public_client.post("/api/candidates/apply", data=form_data2)
     assert response2.status_code == 201  # Should succeed, not error
@@ -384,6 +393,7 @@ async def test_apply_endpoint_duplicate_application_conflict(
         "email": "john@example.com",
         "phone": "050-000-0007",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     response1 = await public_client.post("/api/candidates/apply", data=form_data)
     assert response1.status_code == 201
@@ -412,6 +422,7 @@ async def test_apply_endpoint_requires_privacy_consent(
         "email": "john@example.com",
         "phone": "050-000-0008",
         "privacy_accepted": "false",
+        "terms_accepted": "true",
     }
 
     response = await public_client.post("/api/candidates/apply", data=form_data)
@@ -436,6 +447,7 @@ async def test_apply_endpoint_writes_consent_audit_event(
         "email": "audit@example.com",
         "phone": "050-000-0009",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
 
     response = await public_client.post("/api/candidates/apply", data=form_data)
@@ -502,6 +514,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         "email": "repeat@example.com",
         "phone": "050-000-0010",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     resp1 = await public_client.post("/api/candidates/apply", data=form_data1)
     assert resp1.status_code == 201
@@ -522,6 +535,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         "email": "repeat@example.com",
         "phone": "050-000-0010",
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     resp2 = await public_client.post("/api/candidates/apply", data=form_data2)
     assert resp2.status_code == 201
@@ -547,3 +561,73 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         )
         events = audit_result.scalars().all()
         assert len(events) == 2
+
+
+@pytest.mark.asyncio
+@patch("src.services.applications.enqueue_email_task")
+async def test_apply_endpoint_requires_terms_consent(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Test that submitting without terms-of-service consent returns HTTP 400."""
+    mock_enqueue_email.return_value = "test-job-id"
+
+    form_data = {
+        "job_id": published_job.id,
+        "full_name": "John Doe",
+        "email": "john@example.com",
+        "phone": "050-000-0011",
+        "privacy_accepted": "true",
+        "terms_accepted": "false",
+    }
+
+    response = await public_client.post("/api/candidates/apply", data=form_data)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "terms_consent_required"
+
+
+@pytest.mark.asyncio
+@patch("src.services.applications.enqueue_email_task")
+async def test_apply_endpoint_persists_tos_acceptance(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """tos_accepted_at + tos_version + audit row are written on apply."""
+    mock_enqueue_email.return_value = "test-job-id"
+
+    form_data = {
+        "job_id": published_job.id,
+        "full_name": "ToS Candidate",
+        "email": "tos@example.com",
+        "phone": "050-000-0012",
+        "privacy_accepted": "true",
+        "terms_accepted": "true",
+    }
+
+    response = await public_client.post("/api/candidates/apply", data=form_data)
+    assert response.status_code == 201
+    candidate_id = response.json()["id"]
+
+    async with TestSessionLocal() as session:
+        result = await session.execute(
+            select(CandidateProfile).where(
+                CandidateProfile.id == candidate_id  # pyright: ignore[reportArgumentType]
+            )
+        )
+        candidate = result.scalar_one()
+        assert candidate.tos_accepted_at is not None
+        assert candidate.tos_version == "1.0"
+
+        audit = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "candidate.terms_accept",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_type == "CandidateProfile",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_id == candidate_id,  # pyright: ignore[reportArgumentType]
+            )
+        )
+        event = audit.scalar_one_or_none()
+        assert event is not None
+        assert event.detail == "terms_version=1.0"
