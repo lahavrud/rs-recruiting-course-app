@@ -5,6 +5,10 @@ export interface ArticleMeta {
   title: string;
   description: string;
   date: string;
+  /** Banner image — path under `frontend/public/` (e.g. `/hero-buildings.jpg`). */
+  image?: string;
+  /** Alt text for the banner image. Falls back to the title. */
+  imageAlt?: string;
   keywords?: string;
 }
 
@@ -48,6 +52,8 @@ function loadAll(): Article[] {
       title: meta.title,
       description: meta.description,
       date: meta.date,
+      image: meta.image,
+      imageAlt: meta.imageAlt,
       keywords: meta.keywords,
       bodyHtml: marked.parse(body, { async: false }) as string,
     });

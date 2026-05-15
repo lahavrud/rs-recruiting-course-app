@@ -62,20 +62,33 @@ export default function ArticlesIndexPage() {
       {articles.length === 0 ? (
         <p className="text-sm text-white/40">אין כרגע מאמרים זמינים.</p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="space-y-5">
           {articles.map((a) => (
             <li key={a.slug}>
               <Link
                 to={`/articles/${a.slug}`}
-                className="block rounded-xl border border-white/8 bg-card p-6 transition hover:border-copper/40 hover:bg-card-raised"
+                className="block overflow-hidden rounded-xl border border-white/8 bg-card transition hover:border-copper/40 hover:bg-card-raised sm:flex"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
-                  {formatDate(a.date)}
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-white/90 sm:text-xl">
-                  {a.title}
-                </h2>
-                <p className="mt-2 text-sm text-white/55">{a.description}</p>
+                {a.image && (
+                  <div className="relative h-44 shrink-0 overflow-hidden sm:h-auto sm:w-56">
+                    <img
+                      src={a.image}
+                      alt={a.imageAlt || a.title}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-l from-card/30 to-transparent sm:bg-gradient-to-r" />
+                  </div>
+                )}
+                <div className="flex-1 p-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
+                    {formatDate(a.date)}
+                  </p>
+                  <h2 className="mt-2 text-lg font-semibold text-white/90 sm:text-xl">
+                    {a.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-white/55">{a.description}</p>
+                </div>
               </Link>
             </li>
           ))}

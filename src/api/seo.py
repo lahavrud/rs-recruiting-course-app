@@ -40,10 +40,9 @@ _DISALLOWED_PATHS = (
 _SITEMAP_HEADER = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
 _SITEMAP_FOOTER = "</urlset>"
 
-# Static content article URLs for the sitemap. Bodies live in
-# frontend/src/content/articles/*.md; this is the canonical list of
-# slug + last-modified date for crawlers. Update both when adding an article.
-_ARTICLES: tuple[tuple[str, str], ...] = (
+# slug + lastmod for /articles sitemap entries. Sync when adding an article
+# (bodies live in frontend/src/content/articles/*.md).
+_ARTICLES = (
     ("mah-ze-nihul-mabnim", "2026-05-15"),
     ("madrich-raayon-nihul-nechasim", "2026-05-10"),
     ("sachar-nihul-nechasim-2026", "2026-05-05"),

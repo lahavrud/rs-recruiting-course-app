@@ -1,6 +1,11 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import { getArticle } from "@/content/articles";
+import { getPublicJobs } from "@/services/jobs";
+import type { JobPublicRead } from "@/types/api";
+
+const RELATED_JOBS_LIMIT = 6;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("he-IL", {
@@ -8,6 +13,80 @@ function formatDate(iso: string): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function formatSalary(min: number | null, max: number | null): string | null {
+  if (!min && !max) return null;
+  const fmt = (n: number) => n.toLocaleString("he-IL");
+  if (min && max) return `${fmt(min)}–${fmt(max)} ₪`;
+  if (min) return `מ-${fmt(min)} ₪`;
+  return `עד ${fmt(max!)} ₪`;
+}
+
+function RelatedJobs() {
+  const [jobs, setJobs] = useState<JobPublicRead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPublicJobs()
+      .then((page) => {
+        if (!cancelled) setJobs(page.items.slice(0, RELATED_JOBS_LIMIT));
+      })
+      .catch(() => {
+        // Silent — section just won't render if the API is down.
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading || jobs.length === 0) return null;
+
+  return (
+    <section className="mt-16 border-t border-white/8 pt-10">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
+        משרות פתוחות
+      </p>
+      <div className="mt-3 h-px w-8 bg-copper/40" />
+      <h2 className="mt-4 text-xl font-semibold text-white/90 sm:text-2xl">
+        משרות פתוחות בתחום
+      </h2>
+      <p className="mt-2 text-sm text-white/45">
+        משרות אקטואליות שאנחנו מגייסים אליהן עכשיו בתחום ניהול ותפעול מבנים ונכסים.
+      </p>
+
+      <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+        {jobs.map((j) => {
+          const salary = formatSalary(j.salary_min, j.salary_max);
+          return (
+            <li key={j.id}>
+              <Link
+                to={`/jobs/${j.id}`}
+                className="block h-full rounded-xl border border-white/8 bg-card p-5 transition hover:border-copper/40 hover:bg-card-raised"
+              >
+                <h3 className="text-sm font-semibold text-white/90">{j.title}</h3>
+                <p className="mt-1.5 text-xs text-white/45">{j.location}</p>
+                {salary && (
+                  <p className="mt-2 text-xs text-copper/80">{salary}</p>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      <Link
+        to="/jobs"
+        className="mt-6 inline-block text-sm text-copper hover:text-gold"
+      >
+        לכל המשרות ←
+      </Link>
+    </section>
+  );
 }
 
 export default function ArticlePage() {
@@ -35,6 +114,7 @@ export default function ArticlePage() {
   }
 
   const canonical = `${SITE_URL}/articles/${article.slug}`;
+  const absoluteImage = article.image ? `${SITE_URL}${article.image}` : undefined;
   const articleSchema = {
     "@type": "Article",
     headline: article.title,
@@ -49,6 +129,7 @@ export default function ArticlePage() {
       name: SITE_NAME,
       logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.svg` },
     },
+    ...(absoluteImage ? { image: absoluteImage } : {}),
     ...(article.keywords ? { keywords: article.keywords } : {}),
   };
   const breadcrumb = {
@@ -65,38 +146,60 @@ export default function ArticlePage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 pt-24 pb-16">
+    <div className="pt-16">
       <SeoHead
         title={article.title}
         description={article.description}
         canonical={canonical}
         ogType="article"
+        ogImage={absoluteImage}
         structuredData={structuredData}
       />
 
-      <Link
-        to="/articles"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-white/35 transition hover:text-copper"
-      >
-        ← כל המאמרים
-      </Link>
+      {/* Banner — full-bleed hero image with copper-tinted gradient overlay
+          for legibility. Falls through gracefully if no image is set. */}
+      {article.image && (
+        <div className="relative -mt-16 h-[280px] overflow-hidden sm:h-[360px]">
+          <img
+            src={article.image}
+            alt={article.imageAlt || article.title}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-void/40 via-page/55 to-page" />
+        </div>
+      )}
 
-      <article>
-        <header className="mb-8">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
-            {formatDate(article.date)}
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold text-white/95 sm:text-3xl">
-            {article.title}
-          </h1>
-        </header>
+      <div className="mx-auto max-w-2xl px-6 pb-16">
+        <Link
+          to="/articles"
+          className={`${article.image ? "-mt-8 relative" : "mt-6"} mb-6 inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-copper`}
+        >
+          ← כל המאמרים
+        </Link>
 
-        <div
-          className="prose-article text-white/75"
-          // Markdown is in-repo (not user input). Trusted source.
-          dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
-        />
-      </article>
+        <article>
+          <header className="mb-8">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
+              {formatDate(article.date)}
+            </p>
+            <h1 className="mt-3 text-2xl font-semibold text-white/95 sm:text-3xl">
+              {article.title}
+            </h1>
+            <p className="mt-3 text-sm text-white/55 sm:text-base">
+              {article.description}
+            </p>
+          </header>
+
+          <div
+            className="prose-article text-white/75"
+            // Markdown is in-repo (not user input). Trusted source.
+            dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
+          />
+
+          <RelatedJobs />
+        </article>
+      </div>
     </div>
   );
 }
