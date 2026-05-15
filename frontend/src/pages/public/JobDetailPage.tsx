@@ -211,7 +211,7 @@ export default function JobDetailPage() {
 
   return (
     // pb-24 leaves room for the mobile fixed apply bar; cleared on lg.
-    <div className="mx-auto max-w-4xl pb-24 lg:pb-0">
+    <div className="mx-auto max-w-4xl px-6 pt-24 pb-24 lg:pb-0">
       <SeoHead
         title={job.title}
         description={job.short_description || job.description.slice(0, 160)}

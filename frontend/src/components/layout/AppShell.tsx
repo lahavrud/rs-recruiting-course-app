@@ -203,10 +203,8 @@ function ShellContent({ children }: Props) {
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Auth pages manage their own full-screen layout
   if (
-    pathname === "/" ||
-    pathname === "/about" ||
-    pathname === "/contact" ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/forgot-password" ||
@@ -232,11 +230,14 @@ function ShellContent({ children }: Props) {
     );
   }
 
-  /* Public pages (contact, jobs, etc.) — flex column so footer sticks to bottom */
+  // Hero pages start their own full-bleed section from y=0 (navbar floats over it)
+  const heroRoutes = new Set(["/", "/about", "/contact"]);
+
+  // All public pages: single shell — header and footer owned here (DRY)
   return (
-    <div className="flex min-h-screen flex-col bg-page">
-      <PublicHeader />
-      <main key={pathname} className="page-enter mx-auto w-full max-w-4xl flex-1 px-6 pt-24 pb-14 sm:pb-20">
+    <div className="flex min-h-screen flex-col bg-void">
+      <PublicHeader transparent={heroRoutes.has(pathname)} />
+      <main key={pathname} className="page-enter flex-1">
         {children}
       </main>
       <PublicFooter />

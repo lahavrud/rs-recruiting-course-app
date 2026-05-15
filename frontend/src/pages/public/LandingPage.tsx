@@ -7,7 +7,6 @@ import type { JobPublicRead } from "@/types/api";
 import LogoBanner from "@/components/ui/LogoBanner";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
-import { PublicHeader, PublicFooter } from "@/components/layout/AppShell";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("he-IL", {
@@ -232,8 +231,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-page">
-      <PublicHeader transparent />
+    <div className="bg-page">
       <SeoHead
         title={t("landing.seo.title")}
         description={t("landing.seo.description")}
@@ -534,7 +532,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }

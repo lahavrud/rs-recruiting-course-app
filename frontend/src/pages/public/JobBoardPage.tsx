@@ -479,7 +479,7 @@ export default function JobBoardPage() {
   const showFilters = !loading && jobs.length > 0;
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl px-6 pt-24 pb-14">
       <SeoHead
         title={t("publicJobs.board.title")}
         description={t("publicJobs.board.subtitle")}

@@ -470,7 +470,7 @@ export default function ApplicationPage() {
         : null;
 
   return (
-    <div className="mx-auto max-w-2xl pb-24">
+    <div className="mx-auto max-w-2xl px-6 pt-24 pb-24">
       {job && (
         <SeoHead
           title={`${t("publicJobs.application.applyFor")} ${job.title}`}

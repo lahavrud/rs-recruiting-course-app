@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
-import { PublicHeader, PublicFooter } from "@/components/layout/AppShell";
+
 
 /* ── Intersection-observer reveal hook ───────────────────────────────────── */
 function useReveal(threshold = 0.12) {
@@ -151,9 +151,7 @@ export default function AboutPage() {
         }}
       />
 
-      <PublicHeader transparent />
-
-      <div className="flex min-h-screen flex-col overflow-x-hidden bg-void page-enter">
+      <div className="overflow-x-hidden bg-void">
 
       {/* ── Hero — full-bleed, background image ──────────────────────────── */}
       <section className="relative flex min-h-[90vh] flex-col items-center justify-center overflow-hidden px-6 py-24 text-center">
@@ -519,7 +517,6 @@ export default function AboutPage() {
         </div>
       </div>
 
-      <PublicFooter />
     </div>
     </>
   );

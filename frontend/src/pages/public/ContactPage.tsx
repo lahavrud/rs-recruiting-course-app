@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
-import { PublicHeader, PublicFooter } from "@/components/layout/AppShell";
 
 const EMAIL = "support@rs-recruiting.com";
 
@@ -31,9 +30,7 @@ export default function ContactPage() {
         canonical={`${SITE_URL}/contact`}
       />
 
-      <PublicHeader transparent />
-
-      <div className="flex min-h-screen flex-col bg-void page-enter">
+      <div className="bg-void">
 
       {/* ── Single hero section ───────────────────────────────────────────── */}
       <section className="texture-wave relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-32 text-center">
@@ -101,7 +98,6 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
     </>
   );
