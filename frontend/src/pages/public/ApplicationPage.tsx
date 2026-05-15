@@ -1023,9 +1023,9 @@ function QuestionsStep({
         );
       })}
 
-      {/* Privacy consent */}
+      {/* Privacy consent — spans full width of the 2-col grid */}
       <div
-        className={`rounded-xl border p-4 transition-colors ${
+        className={`sm:col-span-2 rounded-xl border p-4 transition-colors ${
           fieldErrors.privacy
             ? "border-danger/40 bg-danger/5"
             : "border-white/10 bg-card"
