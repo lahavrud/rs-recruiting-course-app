@@ -77,6 +77,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const [statsRef, statsVisible] = useReveal(0.3);
+  const [manifestoRef, manifestoVisible] = useReveal(0.3);
   const [audienceRef, audienceVisible] = useReveal(0.2);
   const [aboutTextRef, aboutTextVisible] = useReveal(0.2);
   const [jobsRef, jobsVisible] = useReveal(0.15);
@@ -476,6 +477,100 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Manifesto ellipse — bursts from a dot into full oval ─────────── */}
+      <section className="relative flex min-h-[80vh] items-center justify-center overflow-hidden">
+        {/* Background image with heavy overlay */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: "url(/property-exterior.jpg)",
+            backgroundSize: "cover",
+            backgroundPosition: "center 40%",
+          }}
+        />
+        <div className="absolute inset-0 bg-void/80" />
+
+        {/* Ellipse + text — bursts from scale(0.01) on enter */}
+        <div
+          ref={manifestoRef}
+          className="relative flex items-center justify-center"
+          style={
+            manifestoVisible
+              ? { animation: "ellipse-burst 2s cubic-bezier(0.34, 1.2, 0.64, 1) both" }
+              : { transform: "scale(0.01)", opacity: 0 }
+          }
+        >
+          {/* SVG ellipse with parametric tick marks */}
+          <svg
+            viewBox="-230 -170 460 340"
+            className="w-[min(560px,88vw)]"
+            aria-hidden="true"
+          >
+            {/* Main ellipse border */}
+            <ellipse cx="0" cy="0" rx="210" ry="148" fill="none" stroke="white" strokeWidth="0.7" strokeOpacity="0.45" />
+
+            {/* Tick marks — 24 evenly spaced, 4 cardinal larger, computed parametrically */}
+            {Array.from({ length: 24 }, (_, i) => {
+              const theta = (i * Math.PI * 2) / 24;
+              const a = 210, b = 148;
+              const px = a * Math.cos(theta);
+              const py = b * Math.sin(theta);
+              // Outward normal to ellipse at this angle
+              const nx = b * Math.cos(theta);
+              const ny = a * Math.sin(theta);
+              const mag = Math.sqrt(nx * nx + ny * ny);
+              const isCardinal = i % 6 === 0;
+              const isMid = i % 3 === 0 && !isCardinal;
+              const len = isCardinal ? 14 : isMid ? 8 : 5;
+              const opacity = isCardinal ? 0.65 : isMid ? 0.45 : 0.28;
+              return (
+                <line
+                  key={i}
+                  x1={px} y1={py}
+                  x2={px + len * nx / mag}
+                  y2={py + len * ny / mag}
+                  stroke="white"
+                  strokeWidth={isCardinal ? 1.1 : 0.6}
+                  strokeOpacity={opacity}
+                />
+              );
+            })}
+
+            {/* Small filled dots at cardinal points */}
+            {[0, 6, 12, 18].map(i => {
+              const theta = (i * Math.PI * 2) / 24;
+              return (
+                <circle
+                  key={i}
+                  cx={210 * Math.cos(theta)}
+                  cy={148 * Math.sin(theta)}
+                  r="2.5"
+                  fill="white"
+                  fillOpacity="0.5"
+                />
+              );
+            })}
+          </svg>
+
+          {/* Text — fades in after ellipse has expanded */}
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center px-16 text-center"
+            style={
+              manifestoVisible
+                ? { animation: "manifesto-text-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.9s both" }
+                : { opacity: 0 }
+            }
+          >
+            <p className="text-[clamp(0.9rem,2.2vw,1.3rem)] font-light leading-relaxed tracking-wide text-white/85">
+              {t("landing.manifesto.quote")}
+            </p>
+            <p className="mt-5 text-[10px] font-semibold uppercase tracking-widest text-copper/60">
+              {t("landing.manifesto.sub")}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* ── About — Western Rise split layout ─────────────────────────── */}
       <section className="texture-wave bg-card-raised py-20 sm:py-32">

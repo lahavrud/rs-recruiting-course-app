@@ -266,6 +266,18 @@ html {
   to   { transform: scaleX(1); }
 }
 
+/* Manifesto ellipse burst — starts as a solid dot, expands outward.
+   Inner text counter-fades in only after the ellipse has expanded.            */
+@keyframes ellipse-burst {
+  from { transform: scale(0.01); opacity: 0; }
+  20%  { opacity: 1; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes manifesto-text-in {
+  from { opacity: 0; transform: scale(1.08); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 /* Section-level entrance — content rises with scale settle (Allbirds style)
    Uses power3.out equivalent: cubic-bezier(0.215, 0.61, 0.355, 1)            */
 @keyframes section-rise {
