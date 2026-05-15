@@ -24,20 +24,10 @@ function useReveal(threshold = 0.15) {
   return [ref, visible] as const;
 }
 
-function rise(visible: boolean, delay = "0s", duration = "0.8s"): CSSProperties {
-  return visible
-    ? { animation: `text-rise ${duration} cubic-bezier(0.16, 1, 0.3, 1) ${delay} both` }
-    : { transform: "translateY(110%)" };
-}
 function revealUp(visible: boolean, delay = "0s"): CSSProperties {
   return visible
     ? { animation: `reveal-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) ${delay} both` }
     : { opacity: 0 };
-}
-function ruleDraw(visible: boolean, delay = "0s"): CSSProperties {
-  return visible
-    ? { animation: `line-expand-h 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay} both`, transformOrigin: "right" }
-    : { transform: "scaleX(0)" };
 }
 
 function formatDate(iso: string): string {
@@ -370,10 +360,12 @@ export default function LandingPage() {
         <div ref={audienceRef} className="relative z-10 mx-auto max-w-4xl px-6">
           <div className="grid gap-4 sm:grid-cols-[3fr_2fr] sm:gap-5">
 
-            {/* Primary: job seekers */}
+            {/* Primary: job seekers — slides in from reading start (right in RTL) */}
             <div
               className="flex flex-col rounded-xl border border-copper/25 bg-card-raised p-6 text-start sm:p-8"
-              style={revealUp(audienceVisible, "0.1s")}
+              style={audienceVisible
+                ? { animation: "reveal-from-right 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both" }
+                : { opacity: 0 }}
             >
               <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
                 {t("landing.hero.forSeekers")}
@@ -392,10 +384,12 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Secondary: companies */}
+            {/* Secondary: companies — slides in from reading end (left in RTL) */}
             <div
               className="flex flex-col rounded-xl border border-white/8 bg-card p-6 text-start"
-              style={revealUp(audienceVisible, "0.25s")}
+              style={audienceVisible
+                ? { animation: "reveal-from-left 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both" }
+                : { opacity: 0 }}
             >
               <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/60">
                 {t("landing.hero.forCompanies")}
@@ -424,21 +418,25 @@ export default function LandingPage() {
       {/* ── Stats bar ─────────────────────────────────────────────────── */}
       <div ref={statsRef} className="border-b border-white/6 bg-void py-10 sm:py-12">
         <div className="mx-auto max-w-4xl px-6">
-          <div className="grid grid-cols-3">
+          <div
+            className="grid grid-cols-3"
+            style={statsVisible
+              ? { animation: "reveal-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both" }
+              : { opacity: 0 }}
+          >
             {(
               [
-                { labelKey: "about.stats.placementsLabel", delay: "0.1s" },
-                { labelKey: "about.stats.companiesLabel",  delay: "0.25s" },
-                { labelKey: "about.stats.experienceLabel", delay: "0.4s" },
+                "about.stats.placementsLabel",
+                "about.stats.companiesLabel",
+                "about.stats.experienceLabel",
               ] as const
-            ).map((s) => (
+            ).map((labelKey) => (
               <div
-                key={s.labelKey}
+                key={labelKey}
                 className="border-s border-white/8 px-6 text-center first:border-s-0 first:ps-0 last:pe-0"
-                style={revealUp(statsVisible, s.delay)}
               >
                 <p className="text-4xl font-semibold text-white/75 sm:text-5xl">—</p>
-                <p className="mt-1.5 text-xs text-white/35">{t(s.labelKey)}</p>
+                <p className="mt-1.5 text-xs text-white/35">{t(labelKey)}</p>
               </div>
             ))}
           </div>
@@ -448,37 +446,48 @@ export default function LandingPage() {
       {/* ── About ─────────────────────────────────────────────────────── */}
       <section className="texture-wave bg-card-raised py-14 sm:py-28">
         <div className="mx-auto max-w-4xl px-6">
-          <div ref={aboutTextRef} className="grid gap-10 sm:grid-cols-5 sm:gap-20">
+          {/* About text — single block entrance, no per-element stagger */}
+          <div
+            ref={aboutTextRef}
+            className="grid gap-10 sm:grid-cols-5 sm:gap-20"
+            style={revealUp(aboutTextVisible)}
+          >
             <div className="sm:col-span-2">
-              <div className="h-px w-8 bg-copper/40" style={ruleDraw(aboutTextVisible)} />
-              <div className="mt-3 overflow-hidden">
-                <p className="text-xs font-semibold uppercase tracking-widest text-copper" style={rise(aboutTextVisible, "0.1s", "0.55s")}>
-                  {t("landing.about.eyebrow")}
-                </p>
-              </div>
-              <div className="mt-5 overflow-hidden">
-                <h2 className="text-xl font-semibold leading-snug text-white/90 sm:text-2xl" style={rise(aboutTextVisible, "0.2s")}>
-                  {t("landing.about.headline")}
-                </h2>
-              </div>
+              <div className="h-px w-8 bg-copper/40" />
+              <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-copper">
+                {t("landing.about.eyebrow")}
+              </p>
+              <h2 className="mt-5 text-xl font-semibold leading-snug text-white/90 sm:text-2xl">
+                {t("landing.about.headline")}
+              </h2>
             </div>
             <div className="flex flex-col justify-center sm:col-span-3">
-              <p className="text-base leading-relaxed text-white/60" style={revealUp(aboutTextVisible, "0.3s")}>
+              <p className="text-base leading-relaxed text-white/60">
                 <span className="font-wordmark text-4xl font-light tracking-widest text-gold/60 sm:text-5xl">RS Recruiting</span>{" "}
                 {t("landing.about.body")}
               </p>
-              <p className="mt-4 text-base leading-relaxed text-white/60" style={revealUp(aboutTextVisible, "0.45s")}>
+              <p className="mt-4 text-base leading-relaxed text-white/60">
                 {t("landing.about.body2")}
               </p>
-              <p className="mt-8 text-sm tracking-wide text-white/30" style={revealUp(aboutTextVisible, "0.6s")}>
+              <p className="mt-8 text-sm tracking-wide text-white/30">
                 {t("landing.about.pillars")}
               </p>
             </div>
           </div>
 
+          {/* Photo component — conference room with city view, between text and cards */}
+          <div className="mt-12 overflow-hidden rounded-xl sm:mt-16">
+            <img
+              src="/office-meeting.jpg"
+              alt=""
+              aria-hidden="true"
+              className="h-52 w-full object-cover object-center sm:h-72"
+            />
+          </div>
+
           <div
             ref={cardsRef}
-            className="mt-10 -mx-6 flex gap-4 overflow-x-auto px-6 pb-4 sm:mx-0 sm:mt-16 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0"
+            className="mt-8 -mx-6 flex gap-4 overflow-x-auto px-6 pb-4 sm:mx-0 sm:mt-10 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0"
           >
             {(
               [
@@ -519,24 +528,22 @@ export default function LandingPage() {
       {!loading && featuredJobs.length > 0 && (
         <section className="bg-void py-16 sm:py-24">
           <div ref={jobsRef} className="mx-auto max-w-4xl px-6">
-            <div className="flex items-end justify-between">
-              <div style={revealUp(jobsVisible)}>
-                <div className="h-px w-8 bg-copper/40" style={ruleDraw(jobsVisible)} />
-                <div className="mt-3 overflow-hidden">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70" style={rise(jobsVisible, "0.1s", "0.55s")}>
-                    RS Recruiting
-                  </p>
-                </div>
-                <div className="mt-2 overflow-hidden">
-                  <h2 className="text-2xl font-semibold text-white/92 sm:text-3xl" style={rise(jobsVisible, "0.2s")}>
-                    {t("landing.featuredJobs.title")}
-                  </h2>
-                </div>
+            {/* Single block entrance — no per-element stagger */}
+            <div
+              className="flex items-end justify-between"
+              style={revealUp(jobsVisible)}
+            >
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
+                  RS Recruiting
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white/92 sm:text-3xl">
+                  {t("landing.featuredJobs.title")}
+                </h2>
               </div>
               <Link
                 to="/jobs"
                 className="mb-1 shrink-0 text-sm text-copper/70 transition hover:text-copper"
-                style={revealUp(jobsVisible, "0.4s")}
               >
                 {t("landing.featuredJobs.viewAll")} ←
               </Link>
@@ -608,15 +615,15 @@ export default function LandingPage() {
       {/* ── Testimonials ──────────────────────────────────────────────── */}
       <section className="texture-wave bg-section py-16 sm:py-24">
         <div ref={contactRef} className="mx-auto max-w-4xl px-6">
+          {/* Section header — single fade, no per-element stagger */}
           <div style={revealUp(contactVisible)}>
-            <div className="h-px w-8 bg-copper/40" style={ruleDraw(contactVisible)} />
-            <div className="mt-3 overflow-hidden">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70" style={rise(contactVisible, "0.1s", "0.55s")}>
-                {t("landing.testimonials.eyebrow")}
-              </p>
-            </div>
+            <div className="h-px w-8 bg-copper/40" />
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-copper/70">
+              {t("landing.testimonials.eyebrow")}
+            </p>
           </div>
 
+          {/* Cards — each uses a different signature animation (same as About feature cards) */}
           <div className="mt-10 grid gap-5 sm:grid-cols-3">
             {(
               [
@@ -624,35 +631,48 @@ export default function LandingPage() {
                   quoteKey: "landing.testimonials.quote1",
                   nameKey:  "landing.testimonials.name1",
                   roleKey:  "landing.testimonials.role1",
-                  delay: "0.15s",
+                  initials: "ר.כ",
+                  anim:     "card-tilt-in",
+                  delay:    "0ms",
                 },
                 {
                   quoteKey: "landing.testimonials.quote2",
                   nameKey:  "landing.testimonials.name2",
                   roleKey:  "landing.testimonials.role2",
-                  delay: "0.3s",
+                  initials: "נ.ל",
+                  anim:     "card-rise-in",
+                  delay:    "160ms",
                 },
                 {
                   quoteKey: "landing.testimonials.quote3",
                   nameKey:  "landing.testimonials.name3",
                   roleKey:  "landing.testimonials.role3",
-                  delay: "0.45s",
+                  initials: "ע.מ",
+                  anim:     "card-swing-in",
+                  delay:    "320ms",
                 },
               ] as const
             ).map((item) => (
               <div
                 key={item.quoteKey}
                 className="flex flex-col rounded-xl border border-white/8 bg-card p-6"
-                style={revealUp(contactVisible, item.delay)}
+                style={contactVisible
+                  ? { animation: `${item.anim} 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) ${item.delay} both` }
+                  : { opacity: 0 }}
               >
-                {/* Quote mark */}
                 <span className="select-none font-wordmark text-3xl leading-none text-copper/30">"</span>
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-white/65">
                   {t(item.quoteKey)}
                 </p>
-                <div className="mt-5 border-t border-white/8 pt-4">
-                  <p className="text-sm font-medium text-white/80">{t(item.nameKey)}</p>
-                  <p className="mt-0.5 text-xs text-copper/60">{t(item.roleKey)}</p>
+                {/* Author row with initials avatar */}
+                <div className="mt-5 flex items-center gap-3 border-t border-white/8 pt-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-copper/12 text-[11px] font-semibold text-copper/70">
+                    {item.initials}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white/80">{t(item.nameKey)}</p>
+                    <p className="mt-0.5 text-xs text-copper/60">{t(item.roleKey)}</p>
+                  </div>
                 </div>
               </div>
             ))}
