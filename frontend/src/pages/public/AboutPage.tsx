@@ -186,7 +186,7 @@ export default function AboutPage() {
           </div>
 
           {/* Headline — character-by-character rise */}
-          <h1 className="font-wordmark mt-6 text-[clamp(2.4rem,10vw,9rem)] font-light leading-[0.92] tracking-tight">
+          <h1 className="font-wordmark mt-6 text-[clamp(3.5rem,12vw,9rem)] font-light leading-[0.92] tracking-tight">
             <CharRise
               text={t("about.hero.headlineLine1")}
               baseDelay={0.65}
@@ -418,12 +418,12 @@ export default function AboutPage() {
           style={{
             backgroundImage: "url(/team-meeting.jpg)",
             backgroundSize: "cover",
-            backgroundPosition: "center 30%",
+            backgroundPosition: "center 45%",
             animation: processVisible ? "focus-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both" : undefined,
             opacity: processVisible ? undefined : 0,
           }}
         />
-        <div className="absolute inset-0 bg-card/82" />
+        <div className="absolute inset-0 bg-card/90" />
 
         <div className="relative mx-auto max-w-4xl px-6 py-20 sm:py-24">
           <div className="h-px w-8 bg-copper/40" style={ruleDraw(processVisible)} />
