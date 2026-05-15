@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { lazy, Suspense, useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import CompanyRoute from "@/components/CompanyRoute";
 import AppShell from "@/components/layout/AppShell";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // Eager — entry funnels Google + direct visits land on most often. Keeping
 // these in the main bundle is critical for LCP / Core Web Vitals on the
@@ -17,22 +18,25 @@ import LoginPage from "@/pages/LoginPage";
 
 // Lazy — secondary public pages + every behind-auth screen. Chunked out so
 // they don't bloat the initial download for a visitor landing on / or /jobs.
-const ApplicationPage = lazy(() => import("@/pages/public/ApplicationPage"));
-const AboutPage = lazy(() => import("@/pages/public/AboutPage"));
-const ContactPage = lazy(() => import("@/pages/public/ContactPage"));
-const ArticlesIndexPage = lazy(() => import("@/pages/public/ArticlesIndexPage"));
-const ArticlePage = lazy(() => import("@/pages/public/ArticlePage"));
-const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
-const ActivatePage = lazy(() => import("@/pages/ActivatePage"));
-const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
-const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
-const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
-const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
-const AdminCompaniesPage = lazy(() => import("@/pages/admin/AdminCompaniesPage"));
-const AdminJobsPage = lazy(() => import("@/pages/admin/AdminJobsPage"));
-const AdminApplicationsPage = lazy(() => import("@/pages/admin/AdminApplicationsPage"));
-const AdminCandidatesPage = lazy(() => import("@/pages/admin/AdminCandidatesPage"));
-const CompanyJobsPage = lazy(() => import("@/pages/company/CompanyJobsPage"));
+// `lazyWithRetry` recovers gracefully from a stale-chunk crash when a deploy
+// happens while a user has the SPA open (their tab's bundle references chunk
+// hashes that no longer exist on the server).
+const ApplicationPage = lazyWithRetry(() => import("@/pages/public/ApplicationPage"));
+const AboutPage = lazyWithRetry(() => import("@/pages/public/AboutPage"));
+const ContactPage = lazyWithRetry(() => import("@/pages/public/ContactPage"));
+const ArticlesIndexPage = lazyWithRetry(() => import("@/pages/public/ArticlesIndexPage"));
+const ArticlePage = lazyWithRetry(() => import("@/pages/public/ArticlePage"));
+const RegisterPage = lazyWithRetry(() => import("@/pages/RegisterPage"));
+const ActivatePage = lazyWithRetry(() => import("@/pages/ActivatePage"));
+const ForgotPasswordPage = lazyWithRetry(() => import("@/pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazyWithRetry(() => import("@/pages/ResetPasswordPage"));
+const DashboardPage = lazyWithRetry(() => import("@/pages/DashboardPage"));
+const NotFoundPage = lazyWithRetry(() => import("@/pages/NotFoundPage"));
+const AdminCompaniesPage = lazyWithRetry(() => import("@/pages/admin/AdminCompaniesPage"));
+const AdminJobsPage = lazyWithRetry(() => import("@/pages/admin/AdminJobsPage"));
+const AdminApplicationsPage = lazyWithRetry(() => import("@/pages/admin/AdminApplicationsPage"));
+const AdminCandidatesPage = lazyWithRetry(() => import("@/pages/admin/AdminCandidatesPage"));
+const CompanyJobsPage = lazyWithRetry(() => import("@/pages/company/CompanyJobsPage"));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
