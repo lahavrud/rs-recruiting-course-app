@@ -15,7 +15,7 @@ from src.enums import UserRole
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.admin_company_approval import approve_company
-from src.services.auth import register_company_user
+from src.services.auth_register import register_company_user
 from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 from tests.conftest import FAKE_LOGO as _LOGO
 from tests.conftest import FAKE_SIG_B64 as _SIG
@@ -86,7 +86,7 @@ async def test_approve_company_not_found(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.enqueue_email_task")
+@patch("src.services.auth_register.enqueue_email_task")
 async def test_approve_company_already_approved(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(

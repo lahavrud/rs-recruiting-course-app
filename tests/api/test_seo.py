@@ -1,4 +1,4 @@
-"""Tests for SEO endpoints: /robots.txt, /sitemap.xml, /api/og/jobs/{id}."""
+"""Tests for SEO endpoints: /robots.txt, /sitemap.xml, /api/og/*."""
 
 import pytest
 from httpx import AsyncClient
@@ -83,6 +83,52 @@ async def test_og_job_published_returns_meta_html(
     # description is HTML-formatted (paragraphs + bullet list).
     assert "\\u003cp\\u003e" in body  # <p> escaped inside <script>
     assert "\\u003cul\\u003e" in body  # <ul> escaped inside <script>
+    # BreadcrumbList lives in the same @graph as JobPosting.
+    assert '"@type": "BreadcrumbList"' in body
+    # Visible body content (for Googlebot indexing, not just <head> scraping).
+    assert f"<h1>{published_job.title}</h1>" in body
+    assert published_job.location in body
+    assert "להגיש מועמדות" in body  # apply link anchor
+
+
+@pytest.mark.asyncio
+async def test_og_home_returns_landing_html(public_client: AsyncClient):
+    """/api/og/home returns the landing page prerender with brand JSON-LD."""
+    response = await public_client.get("/api/og/home")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    body = response.text
+    assert "<h1>גיוס לתפקידי ניהול ותפעול מבנים ונכסים</h1>" in body
+    assert 'property="og:type" content="website"' in body
+    # Brand schema graph + WebSite type for canonical brand entity.
+    assert '"@type": "WebSite"' in body
+    assert "EmploymentAgency" in body
+    # Internal nav so crawlers can follow.
+    assert 'href="' in body and "/jobs" in body
+
+
+@pytest.mark.asyncio
+async def test_og_jobs_index_empty(public_client: AsyncClient):
+    """/api/og/jobs renders an empty board cleanly."""
+    response = await public_client.get("/api/og/jobs")
+    assert response.status_code == 200
+    body = response.text
+    assert "<h1>משרות בתחום ניהול ותפעול מבנים</h1>" in body
+    assert '"@type": "BreadcrumbList"' in body
+
+
+@pytest.mark.asyncio
+async def test_og_jobs_index_lists_published_jobs(
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """/api/og/jobs surfaces published jobs as visible links + ItemList."""
+    response = await public_client.get("/api/og/jobs")
+    assert response.status_code == 200
+    body = response.text
+    assert published_job.title in body
+    assert f"/jobs/{published_job.id}" in body
+    assert '"@type": "ItemList"' in body
 
 
 @pytest.mark.asyncio

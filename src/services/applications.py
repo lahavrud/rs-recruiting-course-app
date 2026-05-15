@@ -14,6 +14,10 @@ from sqlalchemy.orm import selectinload
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.transactions import defer_after_commit
+from src.core.legal import (
+    CURRENT_PRIVACY_POLICY_VERSION,
+    CURRENT_TERMS_OF_SERVICE_VERSION,
+)
 from src.core.services.file_validation import validate_document_magic_bytes
 from src.core.services.storage import StorageProvider, get_storage_provider
 from src.core.tasks import enqueue_email_task
@@ -28,9 +32,6 @@ from src.templates.email import (
     build_application_received_html,
     build_new_application_admin_html,
 )
-
-# Must match the version string in he.json::auth.register.agreementTextPrivacy
-_PRIVACY_POLICY_VERSION = "1.1"
 
 _ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
 _MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -98,9 +99,11 @@ async def _upsert_candidate_and_application(
             session=session,
         )
         candidate.consent_given_at = now
-        candidate.consent_policy_version = _PRIVACY_POLICY_VERSION
+        candidate.consent_policy_version = CURRENT_PRIVACY_POLICY_VERSION
         candidate.consent_ip = consent_ip
         candidate.consent_user_agent = consent_ua
+        candidate.tos_accepted_at = now
+        candidate.tos_version = CURRENT_TERMS_OF_SERVICE_VERSION
         await session.flush()
 
         dup = await session.execute(
@@ -122,9 +125,11 @@ async def _upsert_candidate_and_application(
             resume_path=resume_path,
             linkedin_url=candidate_data.linkedin_url,
             consent_given_at=now,
-            consent_policy_version=_PRIVACY_POLICY_VERSION,
+            consent_policy_version=CURRENT_PRIVACY_POLICY_VERSION,
             consent_ip=consent_ip,
             consent_user_agent=consent_ua,
+            tos_accepted_at=now,
+            tos_version=CURRENT_TERMS_OF_SERVICE_VERSION,
         )
         session.add(candidate)
         await session.flush()
@@ -257,7 +262,16 @@ async def create_candidate_profile(
         action="candidate.consent",
         target_type="CandidateProfile",
         target_id=candidate.id,  # type: ignore[arg-type]
-        detail=f"policy_version={_PRIVACY_POLICY_VERSION}",
+        detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
+        ip_address=consent_ip,
+    )
+    await record_audit_event(
+        session,
+        actor_user_id=None,
+        action="candidate.terms_accept",
+        target_type="CandidateProfile",
+        target_id=candidate.id,  # type: ignore[arg-type]
+        detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
         ip_address=consent_ip,
     )
 

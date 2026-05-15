@@ -102,6 +102,8 @@ export default function ApplicationPage() {
 
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   // Wizard state — track current step + the highest step reached so the
   // stepper only lets candidates jump back to steps they've completed.
@@ -206,6 +208,12 @@ export default function ApplicationPage() {
     } else {
       delete errors.privacy;
     }
+    if (!termsAccepted) {
+      errors.terms = t("publicJobs.application.validation.termsRequired");
+      ok = false;
+    } else {
+      delete errors.terms;
+    }
     setFieldErrors(errors);
     return ok;
   }
@@ -224,13 +232,13 @@ export default function ApplicationPage() {
     }
   }
 
-  // Lock body scroll when privacy modal is open
+  // Lock body scroll when any legal modal is open
   useEffect(() => {
-    document.body.style.overflow = privacyOpen ? "hidden" : "";
+    document.body.style.overflow = privacyOpen || termsOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [privacyOpen]);
+  }, [privacyOpen, termsOpen]);
 
   // ── Job fetch ───────────────────────────────────────────────────────────
 
@@ -372,6 +380,9 @@ export default function ApplicationPage() {
       const detail = err.response?.data?.detail;
       if (detail === "privacy_consent_required") {
         return t("publicJobs.application.validation.privacyRequired");
+      }
+      if (detail === "terms_consent_required") {
+        return t("publicJobs.application.validation.termsRequired");
       }
       return t("publicJobs.application.errors.generic");
     }
@@ -539,7 +550,7 @@ export default function ApplicationPage() {
 
       <Stepper step={step} maxStep={maxStep} onJump={jumpTo} />
 
-      <form onSubmit={handleFormSubmit} className="mt-8 space-y-6" noValidate>
+      <form id="apply-form" onSubmit={handleFormSubmit} className="mt-8 space-y-6" noValidate>
         {submitError && (
           <div className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
             {submitError}
@@ -577,6 +588,9 @@ export default function ApplicationPage() {
               privacyAccepted={privacyAccepted}
               onPrivacyChange={setPrivacyAccepted}
               onPrivacyOpen={() => setPrivacyOpen(true)}
+              termsAccepted={termsAccepted}
+              onTermsChange={setTermsAccepted}
+              onTermsOpen={() => setTermsOpen(true)}
             />
           )}
         </div>
@@ -586,6 +600,9 @@ export default function ApplicationPage() {
 
       {privacyOpen && (
         <PrivacyModal onClose={() => setPrivacyOpen(false)} />
+      )}
+      {termsOpen && (
+        <TermsModal onClose={() => setTermsOpen(false)} />
       )}
     </div>
     </div>
@@ -597,6 +614,7 @@ export default function ApplicationPage() {
       step={step}
       submitting={submitting}
       privacyAccepted={privacyAccepted}
+      termsAccepted={termsAccepted}
       onBack={handleBack}
       onNext={handleNext}
     />
@@ -952,6 +970,9 @@ function QuestionsStep({
   privacyAccepted,
   onPrivacyChange,
   onPrivacyOpen,
+  termsAccepted,
+  onTermsChange,
+  onTermsOpen,
 }: {
   form: Omit<CandidateApplicationForm, "job_id">;
   fieldErrors: Record<string, string>;
@@ -960,6 +981,9 @@ function QuestionsStep({
   privacyAccepted: boolean;
   onPrivacyChange: (v: boolean) => void;
   onPrivacyOpen: () => void;
+  termsAccepted: boolean;
+  onTermsChange: (v: boolean) => void;
+  onTermsOpen: () => void;
 }) {
   const { t } = useTranslation();
   const fields: Array<{ name: keyof typeof form; label: string; ph: string }> =
@@ -1029,6 +1053,46 @@ function QuestionsStep({
           </Field>
         );
       })}
+
+      {/* Site Terms of Service consent — spans full width of the 2-col grid */}
+      <div
+        className={`sm:col-span-2 rounded-xl border p-4 transition-colors ${
+          fieldErrors.terms
+            ? "border-danger/40 bg-danger/5"
+            : "border-white/10 bg-card"
+        }`}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
+          {t("publicJobs.application.termsConsentTitle")}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-white/55">
+          {t("publicJobs.application.termsConsentPreview")}
+        </p>
+        <button
+          type="button"
+          onClick={onTermsOpen}
+          className="mt-1 text-xs text-copper/80 underline-offset-2 hover:text-copper hover:underline"
+        >
+          {t("publicJobs.application.termsConsentReadFull")}
+        </button>
+        <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => onTermsChange(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-copper"
+            aria-describedby={fieldErrors.terms ? "terms-error" : undefined}
+          />
+          <span className="text-sm text-white/80">
+            {t("publicJobs.application.termsConsentCheckbox")}
+          </span>
+        </label>
+        {fieldErrors.terms && (
+          <p id="terms-error" className="mt-2 text-xs text-danger">
+            {fieldErrors.terms}
+          </p>
+        )}
+      </div>
 
       {/* Privacy consent — spans full width of the 2-col grid */}
       <div
@@ -1111,18 +1175,58 @@ function PrivacyModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Site Terms of Service modal ──────────────────────────────────────────
+
+function TermsModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="flex max-h-[88vh] w-full max-w-xl flex-col rounded-xl border border-white/10 bg-card shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-3.5">
+          <h2 className="text-sm font-medium text-white/80">
+            {t("publicJobs.application.termsConsentTitle")}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/40 transition hover:text-white/70"
+            aria-label="סגור"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
+          {t("auth.register.agreementTextSiteTerms")
+            .split("\n\n")
+            .map((para, i) => (
+              <p key={i} className="text-sm leading-7 text-white/55">
+                {para}
+              </p>
+            ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Sticky bottom nav ────────────────────────────────────────────────────
 
 function StepNav({
   step,
   submitting,
   privacyAccepted,
+  termsAccepted,
   onBack,
   onNext,
 }: {
   step: Step;
   submitting: boolean;
   privacyAccepted: boolean;
+  termsAccepted: boolean;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -1151,7 +1255,8 @@ function StepNav({
           <button
             key="step-final-submit"
             type="submit"
-            disabled={submitting || !privacyAccepted}
+            form="apply-form"
+            disabled={submitting || !privacyAccepted || !termsAccepted}
             className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50 sm:px-8 sm:py-3 sm:text-base"
           >
             {submitting

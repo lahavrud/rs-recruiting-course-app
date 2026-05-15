@@ -9,7 +9,7 @@ from sqlalchemy import select
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.security import verify_password
 from src.main import app
-from src.models import User
+from src.models import AuditLog, CompanyProfile, User
 from src.services.exceptions import InvalidInviteTokenError
 from tests.conftest import FAKE_PNG, TestSessionLocal
 from tests.conftest import FAKE_SIG_B64 as _FAKE_SIG_B64
@@ -54,6 +54,7 @@ def _reg_data(**overrides):
         "contact_mobile_phone": "0501234567",
         "agreement_signature": FAKE_SIGNATURE_B64,
         "privacy_accepted": "true",
+        "terms_accepted": "true",
     }
     data.update(overrides)
     return data
@@ -92,6 +93,62 @@ async def test_register_success(client: AsyncClient):
         )
         user = result.scalar_one()
         assert verify_password(_STRONG_PASSWORD, user.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_register_persists_legal_acceptance_metadata(client: AsyncClient):
+    """Both acceptances are persisted with version + audit events emitted."""
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(email="legal@example.com"),
+        files={"logo": FAKE_LOGO_FILE},
+        headers={"user-agent": "pytest-ua/1.0"},
+    )
+    assert response.status_code == 201
+
+    async with TestSessionLocal() as session:
+        cp = (
+            await session.execute(
+                select(CompanyProfile).where(
+                    CompanyProfile.contact_email == "legal@example.com"  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).scalar_one()
+        assert cp.privacy_accepted_at is not None
+        assert cp.privacy_policy_version == "1.1"
+        assert cp.terms_accepted_at is not None
+        assert cp.terms_version == "1.0"
+        assert cp.acceptance_user_agent == "pytest-ua/1.0"
+
+        actions = {
+            row.action
+            for row in (
+                await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.target_type == "CompanyProfile",  # pyright: ignore[reportArgumentType]
+                        AuditLog.target_id == cp.id,  # pyright: ignore[reportArgumentType]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        }
+        assert "company.privacy_accept" in actions
+        assert "company.terms_accept" in actions
+        assert "company.contract_sign" in actions
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_missing_terms_acceptance(client: AsyncClient):
+    """Endpoint returns 422 when the terms-of-service checkbox is false."""
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(email="noterms@example.com", terms_accepted="false"),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

@@ -42,8 +42,9 @@ export async function submitApplication(
   if (form.growth_area) data.append("growth_area", form.growth_area);
   if (form.strength) data.append("strength", form.strength);
 
-  // Privacy consent — always true at this point (UI blocks submit otherwise)
+  // Legal consent — always true at this point (UI blocks submit otherwise)
   data.append("privacy_accepted", "true");
+  data.append("terms_accepted", "true");
 
   // Append resume file if provided
   if (resume) {

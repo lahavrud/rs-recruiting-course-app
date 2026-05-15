@@ -174,6 +174,9 @@ class CompanyProfileRead(BaseModel):
     agreement_signature_url: str | None
     contract_pdf_url: str | None
     privacy_accepted_at: datetime | None
+    privacy_policy_version: str | None
+    terms_accepted_at: datetime | None
+    terms_version: str | None
     created_at: datetime
 
 
@@ -604,6 +607,8 @@ class CandidateProfileRead(BaseModel):
     linkedin_url: str | None
     consent_given_at: datetime | None
     consent_policy_version: str | None
+    tos_accepted_at: datetime | None
+    tos_version: str | None
     created_at: datetime
 
 
