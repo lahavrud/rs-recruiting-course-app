@@ -23,9 +23,10 @@ export function PublicFooter() {
           <Logo size={24} />
         </Link>
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-white/30">
-          <Link to="/jobs"    className="transition hover:text-white/60">{t("nav.jobs")}</Link>
-          <Link to="/about"   className="transition hover:text-white/60">{t("nav.about")}</Link>
-          <Link to="/contact" className="transition hover:text-white/60">{t("nav.contact")}</Link>
+          <Link to="/jobs"     className="transition hover:text-white/60">{t("nav.jobs")}</Link>
+          <Link to="/articles" className="transition hover:text-white/60">{t("nav.articles")}</Link>
+          <Link to="/about"    className="transition hover:text-white/60">{t("nav.about")}</Link>
+          <Link to="/contact"  className="transition hover:text-white/60">{t("nav.contact")}</Link>
         </nav>
         <p className="text-xs text-white/20">
           &copy; {new Date().getFullYear()}{" "}
@@ -58,9 +59,10 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
   }, [transparent]);
 
   const links = [
-    { to: "/jobs",    label: t("nav.jobs") },
-    { to: "/about",   label: t("nav.about") },
-    { to: "/contact", label: t("nav.contact") },
+    { to: "/jobs",     label: t("nav.jobs") },
+    { to: "/articles", label: t("nav.articles") },
+    { to: "/about",    label: t("nav.about") },
+    { to: "/contact",  label: t("nav.contact") },
   ];
 
   // Glass style (landing page at top): white-tinted frosted glass

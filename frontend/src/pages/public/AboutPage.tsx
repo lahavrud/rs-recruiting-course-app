@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import { useImageLoaded } from "@/hooks/useImageLoaded";
 
 
 /* ── Intersection-observer reveal hook ───────────────────────────────────── */
@@ -122,6 +123,13 @@ export default function AboutPage() {
   const [processRef, processVisible] = useReveal(0.1);
   const [statsRef, statsVisible] = useReveal(0.2);
 
+  // Hero / story / process backgrounds are CSS `background-image: url(...)`
+  // which has no native load event — preload them so the `focus-in` animation
+  // doesn't run over an empty rect on slow networks.
+  const heroBgLoaded = useImageLoaded("/hero-buildings.jpg");
+  const storyBgLoaded = useImageLoaded("/property-exterior.jpg");
+  const processBgLoaded = useImageLoaded("/team-meeting.jpg");
+
   const quoteWords = t("about.philosophy.quote").split(" ");
 
   return (
@@ -161,7 +169,10 @@ export default function AboutPage() {
             backgroundImage: "url(/hero-buildings.jpg)",
             backgroundSize: "cover",
             backgroundPosition: "center",
-            animation: "focus-in 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both",
+            opacity: heroBgLoaded ? undefined : 0,
+            animation: heroBgLoaded
+              ? "focus-in 2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both"
+              : undefined,
           }}
         />
         {/* Dark overlay — creates the luxury void feel over the image */}
@@ -235,10 +246,11 @@ export default function AboutPage() {
             backgroundImage: "url(/property-exterior.jpg)",
             backgroundSize: "cover",
             backgroundPosition: "center",
-            animation: storyVisible
-              ? "focus-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both"
-              : undefined,
-            opacity: storyVisible ? undefined : 0,
+            animation:
+              storyVisible && storyBgLoaded
+                ? "focus-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both"
+                : undefined,
+            opacity: storyVisible && storyBgLoaded ? undefined : 0,
           }}
         />
         <div className="absolute inset-0 bg-page/85" />
@@ -375,8 +387,11 @@ export default function AboutPage() {
             backgroundImage: "url(/team-meeting.jpg)",
             backgroundSize: "cover",
             backgroundPosition: "center 45%",
-            animation: processVisible ? "focus-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both" : undefined,
-            opacity: processVisible ? undefined : 0,
+            animation:
+              processVisible && processBgLoaded
+                ? "focus-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both"
+                : undefined,
+            opacity: processVisible && processBgLoaded ? undefined : 0,
           }}
         />
         <div className="absolute inset-0 bg-card/90" />

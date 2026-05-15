@@ -9,6 +9,7 @@ import SearchInput from "@/components/ui/SearchInput";
 import RangeSlider from "@/components/ui/RangeSlider";
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
+import { useImageLoaded } from "@/hooks/useImageLoaded";
 import type { JobPublicRead } from "@/types/api";
 
 function rise(delay = "0s", duration = "0.8s"): CSSProperties {
@@ -305,6 +306,7 @@ export default function JobBoardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const heroBgLoaded = useImageLoaded("/property-exterior.jpg");
 
   const fetcher = useCallback((cursor: string | null) => getPublicJobs(cursor), []);
   const {
@@ -512,14 +514,18 @@ export default function JobBoardPage() {
       />
 
       {/* ── Hero strip ──────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden pt-28 pb-14 sm:pt-32 sm:pb-16">
-        {/* Property image background */}
+      <section className="relative overflow-hidden bg-void pt-28 pb-14 sm:pt-32 sm:pb-16">
+        {/* Property image background — CSS bg has no native load event, so
+            we preload it via useImageLoaded and fade in once available to
+            avoid a dark-overlay-over-nothing flash on slow networks. */}
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url(/property-exterior.jpg)",
             backgroundSize: "cover",
             backgroundPosition: "center 40%",
+            opacity: heroBgLoaded ? 1 : 0,
+            transition: "opacity 700ms ease-out",
           }}
         />
         <div className="absolute inset-0 bg-void/88" />

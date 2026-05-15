@@ -305,3 +305,56 @@ html {
   from { transform: translateY(105%); }
   to   { transform: none; }
 }
+
+/* Article body typography — Hebrew prose with copper accents. Used by
+   ArticlePage to style markdown-rendered HTML (h2/h3/p/ul/strong/a). */
+.prose-article {
+  line-height: 1.85;
+}
+.prose-article h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.92);
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+.prose-article h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.85);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.prose-article p {
+  margin-bottom: 1rem;
+}
+.prose-article ul,
+.prose-article ol {
+  margin-bottom: 1rem;
+  padding-inline-start: 1.25rem;
+}
+.prose-article ul { list-style: disc; }
+.prose-article ol { list-style: decimal; }
+.prose-article li {
+  margin-bottom: 0.4rem;
+}
+.prose-article li::marker {
+  color: var(--color-copper);
+}
+.prose-article strong {
+  color: rgb(255 255 255 / 0.95);
+  font-weight: 600;
+}
+.prose-article a {
+  color: var(--color-copper);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-article a:hover {
+  color: var(--color-gold);
+}
+.prose-article hr {
+  margin-block: 2rem;
+  border: none;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}

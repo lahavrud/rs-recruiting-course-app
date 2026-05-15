@@ -109,6 +109,7 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const [aboutImgLoaded, setAboutImgLoaded] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [cardsVisible, setCardsVisible] = useState<boolean>(
     () => typeof window === "undefined" || !("IntersectionObserver" in window),
@@ -546,9 +547,10 @@ export default function LandingPage() {
                 src="/landing-about.jpg"
                 alt=""
                 aria-hidden="true"
+                onLoad={() => setAboutImgLoaded(true)}
                 className="aspect-[4/5] w-full object-cover object-center"
                 style={
-                  aboutTextVisible
+                  aboutTextVisible && aboutImgLoaded
                     ? { animation: "clip-wipe-reveal 1.1s cubic-bezier(0.76, 0, 0.24, 1) 0.08s both" }
                     : { clipPath: "inset(0 0 0 100% round 0.75rem)" }
                 }

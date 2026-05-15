@@ -19,6 +19,14 @@ router = APIRouter()
 _SITEMAP_HEADER = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
 _SITEMAP_FOOTER = "</urlset>"
 
+# slug + lastmod for /articles sitemap entries. Sync when adding an article
+# (bodies live in frontend/src/content/articles/*.md).
+_ARTICLES = (
+    ("mah-ze-nihul-mabnim", "2026-05-15"),
+    ("madrich-raayon-nihul-nechasim", "2026-05-10"),
+    ("sachar-nihul-nechasim-2026", "2026-05-05"),
+)
+
 
 def _url_entry(loc: str, lastmod: str | None = None, changefreq: str = "weekly") -> str:
     mod = f"  <lastmod>{lastmod}</lastmod>\n" if lastmod else ""
@@ -45,6 +53,11 @@ async def sitemap_xml(session: AsyncSession = Depends(get_session)) -> str:
 
     entries = _url_entry(f"{base}/", changefreq="monthly")
     entries += _url_entry(f"{base}/jobs", lastmod=today, changefreq="daily")
+    entries += _url_entry(f"{base}/articles", changefreq="weekly")
+    for slug, lastmod in _ARTICLES:
+        entries += _url_entry(
+            f"{base}/articles/{slug}", lastmod=lastmod, changefreq="monthly"
+        )
     for job_id, updated_at in jobs:
         lastmod = updated_at.date().isoformat() if updated_at else today
         entries += _url_entry(f"{base}/jobs/{job_id}", lastmod=lastmod)
