@@ -40,6 +40,21 @@ function ScrollToTop() {
   return null;
 }
 
+/** Push a page_view event to GTM's dataLayer on every SPA route change.
+ *  GTM only fires once on initial load by default — without this, every
+ *  client-side navigation would be invisible to GA4 / Tag Manager.
+ *  No-ops when dataLayer isn't present (dev build with no VITE_GTM_ID). */
+function GtmPageView() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const dl = (window as unknown as { dataLayer?: unknown[] }).dataLayer;
+    if (Array.isArray(dl)) {
+      dl.push({ event: "page_view", page_path: pathname });
+    }
+  }, [pathname]);
+  return null;
+}
+
 /** Minimal placeholder while a lazy route chunk loads. Matches the dark
  *  page background so there's no light-flash, and shows a subtle copper
  *  ring so the user knows something is happening. */
@@ -60,6 +75,7 @@ export default function App() {
     <HelmetProvider>
     <BrowserRouter>
       <ScrollToTop />
+      <GtmPageView />
       <AuthProvider>
         <AppShell>
           <Suspense fallback={<RouteFallback />}>

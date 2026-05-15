@@ -3,7 +3,35 @@ import path from "path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+/** Injects the Google Tag Manager <head> snippet + <noscript> fallback into
+ *  index.html at build time. Conditional on VITE_GTM_ID so dev builds and
+ *  feature branches don't pollute the prod GTM container with junk events. */
+function gtmPlugin(containerId: string): Plugin {
+  const headSnippet = `<!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','${containerId}');</script>
+    <!-- End Google Tag Manager -->`;
+  const bodySnippet = `<!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${containerId}"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->`;
+  return {
+    name: "gtm-inject",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        return html
+          .replace("<head>", `<head>\n    ${headSnippet}`)
+          .replace("<body>", `<body>\n    ${bodySnippet}`);
+      },
+    },
+  };
+}
 
 export default defineConfig({
   build: {
@@ -32,6 +60,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    ...(process.env.VITE_GTM_ID ? [gtmPlugin(process.env.VITE_GTM_ID)] : []),
     ...(process.env.SENTRY_AUTH_TOKEN
       ? [
           sentryVitePlugin({
