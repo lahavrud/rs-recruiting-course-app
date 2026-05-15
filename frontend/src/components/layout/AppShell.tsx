@@ -184,6 +184,7 @@ function ShellContent({ children }: Props) {
   if (
     pathname === "/" ||
     pathname === "/about" ||
+    pathname === "/contact" ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/forgot-password" ||
