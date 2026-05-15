@@ -569,6 +569,12 @@ export default function LandingPage() {
               <Link to="/jobs" className="transition hover:text-white/70">
                 {t("landing.footer.jobs")}
               </Link>
+              <Link to="/about" className="transition hover:text-white/70">
+                {t("landing.footer.about")}
+              </Link>
+              <Link to="/contact" className="transition hover:text-white/70">
+                {t("landing.footer.contact")}
+              </Link>
               <Link to="/login" className="transition hover:text-white/70">
                 {t("landing.footer.login")}
               </Link>

@@ -12,7 +12,7 @@ interface Props {
   children: ReactNode;
 }
 
-function PublicHeader() {
+export function PublicHeader() {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
 
@@ -31,6 +31,18 @@ function PublicHeader() {
             className="text-sm text-white/40 transition hover:text-white/70"
           >
             {t("nav.jobs")}
+          </Link>
+          <Link
+            to="/about"
+            className="text-sm text-white/40 transition hover:text-white/70"
+          >
+            {t("nav.about")}
+          </Link>
+          <Link
+            to="/contact"
+            className="text-sm text-white/40 transition hover:text-white/70"
+          >
+            {t("nav.contact")}
           </Link>
           {isAuthenticated ? (
             <Link
@@ -60,6 +72,7 @@ function ShellContent({ children }: Props) {
 
   if (
     pathname === "/" ||
+    pathname === "/about" ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/forgot-password" ||

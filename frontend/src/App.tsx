@@ -17,6 +17,8 @@ import JobBoardPage from "@/pages/public/JobBoardPage";
 import JobDetailPage from "@/pages/public/JobDetailPage";
 import ApplicationPage from "@/pages/public/ApplicationPage";
 import LandingPage from "@/pages/public/LandingPage";
+import AboutPage from "@/pages/public/AboutPage";
+import ContactPage from "@/pages/public/ContactPage";
 // Admin
 import AdminCompaniesPage from "@/pages/admin/AdminCompaniesPage";
 import AdminJobsPage from "@/pages/admin/AdminJobsPage";
@@ -40,6 +42,10 @@ export default function App() {
 
             {/* Public landing page */}
             <Route path="/" element={<LandingPage />} />
+
+            {/* Public informational pages */}
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
 
             {/* Public job board */}
             <Route path="/jobs" element={<JobBoardPage />} />

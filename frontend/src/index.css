@@ -214,3 +214,54 @@ html {
 .page-enter {
   animation: page-in 0.18s ease-out both;
 }
+
+/* ── Boutique animations (About page) ────────────────────────────────────────
+   These are deliberate, slow, and theatrical — luxury brand standard.         */
+
+/* Text rises from below its container — requires overflow:hidden on parent.
+   Used for headlines, eyebrow labels, and the philosophy quote words.         */
+@keyframes text-rise {
+  from { transform: translateY(110%); }
+  to   { transform: translateY(0); }
+}
+
+/* Colored panel slides out of frame to reveal the image underneath.
+   Attach to an absolute-positioned sibling that overlays the image.           */
+@keyframes panel-wipe {
+  from { transform: translateX(0%); }
+  to   { transform: translateX(-101%); }
+}
+
+/* Background image emerges from blur + darkness — cinematic reveal.           */
+@keyframes focus-in {
+  from { filter: blur(20px) brightness(0.2); transform: scale(1.08); opacity: 0; }
+  to   { filter: blur(0px)  brightness(1);   transform: scale(1);    opacity: 1; }
+}
+
+/* Subtle fade — for decorative / secondary elements (watermarks, etc.)        */
+@keyframes luxury-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* General scroll-reveal with a slight scale settle                            */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Directional slides for asymmetric rows                                      */
+@keyframes reveal-from-right {
+  from { opacity: 0; transform: translateX(28px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes reveal-from-left {
+  from { opacity: 0; transform: translateX(-28px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Horizontal rule draws from transform-origin (set inline to right for RTL)  */
+@keyframes line-expand-h {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
