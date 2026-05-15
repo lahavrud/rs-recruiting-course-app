@@ -147,7 +147,7 @@ export default function AboutPage() {
         }}
       />
 
-      <PublicHeader />
+      <PublicHeader transparent />
 
       {/* ── Hero — full-bleed, background image ──────────────────────────── */}
       <section className="relative flex min-h-[90vh] flex-col items-center justify-center overflow-hidden px-6 py-24 text-center">
