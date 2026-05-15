@@ -17,6 +17,16 @@ async def test_robots_txt(public_client: AsyncClient):
     assert "User-agent: *" in body
     assert "Allow: /" in body
     assert "Sitemap:" in body
+    # Authenticated areas and auth flow pages must not be indexed.
+    for path in (
+        "/admin",
+        "/company",
+        "/dashboard",
+        "/activate",
+        "/login",
+        "/register",
+    ):
+        assert f"Disallow: {path}" in body
 
 
 @pytest.mark.asyncio
@@ -62,6 +72,14 @@ async def test_og_job_published_returns_meta_html(
     assert "application/ld+json" in body
     assert '"@type": "JobPosting"' in body
     assert '"currency": "ILS"' in body
+    # Google-recommended fields for rich-result eligibility.
+    assert '"validThrough"' in body
+    assert '"employmentType": "FULL_TIME"' in body
+    assert '"directApply": true' in body
+    assert '"identifier"' in body
+    # description is HTML-formatted (paragraphs + bullet list).
+    assert "\\u003cp\\u003e" in body  # <p> escaped inside <script>
+    assert "\\u003cul\\u003e" in body  # <ul> escaped inside <script>
 
 
 @pytest.mark.asyncio

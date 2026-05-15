@@ -471,13 +471,16 @@ export default function ApplicationPage() {
 
   return (
     <div className="mx-auto max-w-2xl pb-24">
-      {job && (
-        <SeoHead
-          title={`${t("publicJobs.application.applyFor")} ${job.title}`}
-          description={`${t("publicJobs.application.applyFor")} ${job.title} ב-RS Recruiting.`}
-          canonical={`${SITE_URL}/jobs/${jobId}/apply`}
-        />
-      )}
+      <SeoHead
+        title={
+          job
+            ? `${t("publicJobs.application.applyFor")} ${job.title}`
+            : t("publicJobs.application.applyFor")
+        }
+        description={`${t("publicJobs.application.applyFor")}${job ? ` ${job.title}` : ""} ב-RS Recruiting.`}
+        canonical={`${SITE_URL}/jobs/${jobId}/apply`}
+        noIndex
+      />
 
       <Link
         to={`/jobs/${jobId}`}

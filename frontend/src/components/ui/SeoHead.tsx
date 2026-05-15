@@ -23,7 +23,9 @@ export default function SeoHead({
   structuredData,
   noIndex = false,
 }: SeoHeadProps) {
-  const fullTitle = `${title} — ${SITE_NAME}`;
+  // Don't double-append the brand if `title` already contains it. Prevents
+  // search results like "RS Recruiting — X — RS Recruiting".
+  const fullTitle = title.includes(SITE_NAME) ? title : `${title} — ${SITE_NAME}`;
 
   return (
     <Helmet>

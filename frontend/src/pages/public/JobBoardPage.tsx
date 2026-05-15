@@ -7,7 +7,7 @@ import { getPublicJobs } from "@/services/jobs";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import SearchInput from "@/components/ui/SearchInput";
 import RangeSlider from "@/components/ui/RangeSlider";
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
 import type { JobPublicRead } from "@/types/api";
 
@@ -436,10 +436,23 @@ export default function JobBoardPage() {
     setSalaryRange(null);
   }, []);
 
-  const itemListSchema = useMemo(() => {
-    if (loading || jobs.length === 0) return undefined;
-    return {
-      "@context": "https://schema.org",
+  const structuredData = useMemo(() => {
+    const breadcrumb = {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: t("publicJobs.board.title"),
+          item: `${SITE_URL}/jobs`,
+        },
+      ],
+    };
+    if (loading || jobs.length === 0) {
+      return { "@context": "https://schema.org", "@graph": [breadcrumb] };
+    }
+    const itemList = {
       "@type": "ItemList",
       name: t("publicJobs.board.title"),
       url: `${SITE_URL}/jobs`,
@@ -451,6 +464,7 @@ export default function JobBoardPage() {
         url: `${SITE_URL}/jobs/${job.id}`,
       })),
     };
+    return { "@context": "https://schema.org", "@graph": [breadcrumb, itemList] };
   }, [loading, jobs, t]);
 
   if (fetchError) {
@@ -484,7 +498,7 @@ export default function JobBoardPage() {
         title={t("publicJobs.board.title")}
         description={t("publicJobs.board.subtitle")}
         canonical={`${SITE_URL}/jobs`}
-        structuredData={itemListSchema}
+        structuredData={structuredData}
       />
       {/* Header */}
       <div className="mb-6 sm:mb-10">

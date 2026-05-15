@@ -20,22 +20,47 @@ function formatDate(iso: string): string {
 const SEARCH_TAGS = ["תפקיד", "מיקום"] as const;
 const LONG_PRESS_MS = 140;
 
-const ORGANIZATION_SCHEMA = {
+// Combined Organization + WebSite schema via @graph. WebSite gives Google a
+// canonical brand entity for the domain (helps consolidate the homepage and
+// /jobs into a single SERP result with sitelinks instead of two separate
+// entries). EmploymentAgency is a more specific Organization subtype that
+// matches the niche.
+const SITE_SCHEMA = {
   "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "RS Recruiting",
-  url: SITE_URL,
-  logo: `${SITE_URL}/logo.svg`,
-  description: "משרד גיוס והשמה בוטיקי המתמחה בגיוס לתפקידי ניהול ותפעול מבנים ונכסים בישראל",
-  areaServed: "IL",
-  knowsAbout: ["ניהול מבנים", "תפעול מבנים", "ניהול נכסים", "גיוס עובדים", "השמה"],
-  contactPoint: {
-    "@type": "ContactPoint",
-    email: "support@rs-recruiting.com",
-    contactType: "כוח אדם וגיוס",
-    areaServed: "IL",
-    availableLanguage: "Hebrew",
-  },
+  "@graph": [
+    {
+      "@type": ["Organization", "EmploymentAgency"],
+      "@id": `${SITE_URL}/#organization`,
+      name: "RS Recruiting",
+      url: SITE_URL,
+      logo: `${SITE_URL}/logo.svg`,
+      description:
+        "משרד גיוס והשמה בוטיקי המתמחה בגיוס לתפקידי ניהול ותפעול מבנים ונכסים בישראל",
+      areaServed: "IL",
+      knowsAbout: [
+        "ניהול מבנים",
+        "תפעול מבנים",
+        "ניהול נכסים",
+        "גיוס עובדים",
+        "השמה",
+      ],
+      contactPoint: {
+        "@type": "ContactPoint",
+        email: "support@rs-recruiting.com",
+        contactType: "כוח אדם וגיוס",
+        areaServed: "IL",
+        availableLanguage: "Hebrew",
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: "RS Recruiting",
+      inLanguage: "he-IL",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
 };
 
 export default function LandingPage() {
@@ -237,7 +262,7 @@ export default function LandingPage() {
         title={t("landing.seo.title")}
         description={t("landing.seo.description")}
         canonical={SITE_URL}
-        structuredData={ORGANIZATION_SCHEMA}
+        structuredData={SITE_SCHEMA}
       />
 
       {/* ── Hero + audience panels share one image so they fade into each

@@ -6,6 +6,29 @@ import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import type { JobPublicRead } from "@/types/api";
 import axios from "axios";
 
+const JOB_POSTING_VALID_DAYS = 90;
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildDescriptionHtml(job: JobPublicRead): string {
+  const paragraphs = job.description
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${escapeHtml(p)}</p>`);
+  const items = job.requirements
+    .map((r) => r.text)
+    .filter(Boolean)
+    .map((t) => `<li>${escapeHtml(t)}</li>`);
+  const reqList = items.length ? `<ul>${items.join("")}</ul>` : "";
+  return paragraphs.join("") + reqList;
+}
+
 function formatSalary(min: number | null, max: number | null): string | null {
   if (!min && !max) return null;
   const fmt = (n: number) => n.toLocaleString("he-IL");
@@ -188,12 +211,23 @@ export default function JobDetailPage() {
   const applyHref = `/jobs/${job.id}/apply`;
   const salaryStr = formatSalary(job.salary_min, job.salary_max);
 
+  const validThrough = new Date(
+    new Date(job.created_at).getTime() + JOB_POSTING_VALID_DAYS * 86_400_000,
+  ).toISOString();
+
   const jobPosting = {
-    "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
-    description: `${job.description}\n\n${job.requirements.map((r) => r.text).join("\n")}`,
+    description: buildDescriptionHtml(job),
     datePosted: job.created_at,
+    validThrough,
+    employmentType: "FULL_TIME",
+    directApply: true,
+    identifier: {
+      "@type": "PropertyValue",
+      name: SITE_NAME,
+      value: String(job.id),
+    },
     url: `${SITE_URL}/jobs/${job.id}`,
     hiringOrganization: { "@type": "Organization", name: SITE_NAME, sameAs: SITE_URL },
     jobLocation: {
@@ -209,6 +243,20 @@ export default function JobDetailPage() {
     } : {}),
   };
 
+  const breadcrumb = {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: t("publicJobs.board.title"), item: `${SITE_URL}/jobs` },
+      { "@type": "ListItem", position: 3, name: job.title, item: `${SITE_URL}/jobs/${job.id}` },
+    ],
+  };
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [jobPosting, breadcrumb],
+  };
+
   return (
     // pb-24 leaves room for the mobile fixed apply bar; cleared on lg.
     <div className="mx-auto max-w-4xl pb-24 lg:pb-0">
@@ -217,7 +265,7 @@ export default function JobDetailPage() {
         description={job.short_description || job.description.slice(0, 160)}
         canonical={`${SITE_URL}/jobs/${job.id}`}
         ogType="article"
-        structuredData={jobPosting}
+        structuredData={structuredData}
       />
       <Link
         to={backTo}

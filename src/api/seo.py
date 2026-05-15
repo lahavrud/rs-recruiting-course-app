@@ -2,7 +2,7 @@
 
 import html
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -19,6 +19,24 @@ router = APIRouter()
 SITE_NAME = "RS Recruiting"
 _OG_DESCRIPTION_LIMIT = 160
 
+# Google drops JobPostings from rich results after 6 months without an
+# explicit validThrough. 90 days matches typical Israeli recruitment cadence —
+# admins can refresh by editing the job (updated_at change → sitemap lastmod).
+_JOB_POSTING_VALID_DAYS = 90
+
+# Routes that should never appear in search results: authenticated areas and
+# auth flow pages. Public routes (/, /jobs, /jobs/:id) remain crawlable.
+_DISALLOWED_PATHS = (
+    "/admin",
+    "/admin/",
+    "/company",
+    "/company/",
+    "/dashboard",
+    "/activate",
+    "/login",
+    "/register",
+)
+
 _SITEMAP_HEADER = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
 _SITEMAP_FOOTER = "</urlset>"
 
@@ -32,7 +50,8 @@ def _url_entry(loc: str, lastmod: str | None = None, changefreq: str = "weekly")
 @router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 async def robots_txt() -> str:
     sitemap_url = f"{settings.frontend_base_url}/sitemap.xml"
-    return f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n"
+    disallow = "\n".join(f"Disallow: {p}" for p in _DISALLOWED_PATHS)
+    return f"User-agent: *\nAllow: /\n{disallow}\nSitemap: {sitemap_url}\n"
 
 
 @router.get("/sitemap.xml", response_class=PlainTextResponse, include_in_schema=False)
@@ -54,13 +73,43 @@ async def sitemap_xml(session: AsyncSession = Depends(get_session)) -> str:
     return _SITEMAP_HEADER + entries + _SITEMAP_FOOTER
 
 
+def _description_html(job: Job) -> str:
+    """Render description + requirements as HTML for JSON-LD.
+
+    Google's JobPosting spec requires `description` to be HTML so paragraphs
+    and bullet lists render in the rich result. Plain text with `\\n` does not.
+    """
+    parts: list[str] = []
+    for paragraph in job.description.split("\n\n"):
+        text = paragraph.strip()
+        if text:
+            parts.append(f"<p>{html.escape(text)}</p>")
+    items = [
+        f"<li>{html.escape(req['text'])}</li>"
+        for req in job.requirements
+        if isinstance(req, dict) and req.get("text")
+    ]
+    if items:
+        parts.append("<ul>" + "".join(items) + "</ul>")
+    return "".join(parts)
+
+
 def _build_job_posting_jsonld(job: Job, site_url: str) -> dict:
+    valid_through = job.created_at + timedelta(days=_JOB_POSTING_VALID_DAYS)
     posting: dict = {
         "@context": "https://schema.org",
         "@type": "JobPosting",
         "title": job.title,
-        "description": f"{job.description}\n\n{job.requirements}",
+        "description": _description_html(job),
         "datePosted": job.created_at.isoformat(),
+        "validThrough": valid_through.isoformat(),
+        "employmentType": "FULL_TIME",
+        "directApply": True,
+        "identifier": {
+            "@type": "PropertyValue",
+            "name": SITE_NAME,
+            "value": str(job.id),
+        },
         "url": f"{site_url}/jobs/{job.id}",
         "hiringOrganization": {
             "@type": "Organization",
