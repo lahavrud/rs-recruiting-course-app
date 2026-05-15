@@ -24,7 +24,7 @@ function useReveal(threshold = 0.05) {
   return [ref, visible] as const;
 }
 
-// ── Animation helpers (Allbirds-style, power3.out = cubic-bezier(0.215,0.61,0.355,1)) ──
+// ── Animation helpers (power3.out = cubic-bezier(0.215, 0.61, 0.355, 1)) ──
 
 /** Card / panel rise — lighter than section */
 function cardRise(visible: boolean, delay = "0s"): CSSProperties {
@@ -33,7 +33,7 @@ function cardRise(visible: boolean, delay = "0s"): CSSProperties {
     : { opacity: 0, transform: "translateY(36px)" };
 }
 
-/** Clip-based text reveal (Allbirds signature). Parent MUST have overflow-hidden.
+/** Clip-based text reveal. Parent MUST have overflow-hidden.
  *  Text slides from below the clipping edge — never visible until it arrives.   */
 function clipRise(visible: boolean, delay = "0s"): CSSProperties {
   return visible
