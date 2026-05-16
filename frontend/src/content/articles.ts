@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 
 export interface ArticleMeta {
@@ -13,8 +14,7 @@ export interface ArticleMeta {
 }
 
 export interface Article extends ArticleMeta {
-  /** Rendered HTML body (markdown → HTML). Safe to inject via dangerouslySetInnerHTML
-   *  because articles are authored in-repo, not user input. */
+  /** Rendered HTML body (markdown → HTML, DOMPurify-sanitized). */
   bodyHtml: string;
 }
 
@@ -55,7 +55,7 @@ function loadAll(): Article[] {
       image: meta.image,
       imageAlt: meta.imageAlt,
       keywords: meta.keywords,
-      bodyHtml: marked.parse(body, { async: false }) as string,
+      bodyHtml: DOMPurify.sanitize(marked.parse(body, { async: false }) as string),
     });
   }
   // Newest first.

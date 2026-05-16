@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (user) {
-      Sentry.setUser({ id: user.id, email: user.email, role: user.role });
+      Sentry.setUser({ id: user.id, role: user.role });
     } else {
       Sentry.setUser(null);
     }
