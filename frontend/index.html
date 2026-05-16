@@ -51,15 +51,17 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="he_IL" />
 
-    <!-- Static hero image: paints at HTML-parse time so the hero is the
-         LCP element instead of waiting for React hydration (see #489-#519).
-         No aria-hidden — Chrome's LCP heuristic was excluding the element
-         from LCP candidates with aria-hidden set, falling back to a small
-         React-rendered SVG logo and reverting the mobile LCP to ~6 s.
-         alt="" still keeps it out of assistive-tech reading order.
-         decoding="sync" + preload + fetchpriority="high" tells the browser
-         to fetch the bytes early and paint the image atomically (no
-         progressive scans visible). -->
+    <!-- Initial paint (LCP): static city image + static LogoBanner. Both
+         render at HTML-parse time so the LCP candidate is no longer the
+         React-rendered SVG logo waiting on hydration (was 6.3 s on mobile).
+         - .page-hero-bg: the city image as a fixed background. Stays at
+           opacity:0 until the browser fires `load`, then fades to 1 over
+           500 ms — clean reveal, hides any progressive WebP decode.
+         - .initial-banner: replicates the LogoBanner JSX (logo SVG +
+           "RS Recruiting" wordmark) inside #root so the SVG paints
+           immediately. Dimensions match the React version so there's no
+           shift when createRoot wipes the placeholder on mount. Inline
+           styles avoid waiting on the Tailwind CSS bundle. -->
     <style>
       html { background: #0D0B09; }
       body { background: transparent; margin: 0; }
@@ -72,6 +74,38 @@
         object-position: center 60%;
         z-index: -1;
         pointer-events: none;
+        opacity: 0;
+        transition: opacity 600ms ease-out;
+      }
+      .page-hero-bg.is-loaded { opacity: 1; }
+
+      .initial-banner {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding-bottom: 4rem;
+        z-index: 1;
+      }
+      .initial-logo { width: 7rem; height: 7rem; flex-shrink: 0; }
+      .initial-wordmark {
+        font-family: 'Playfair Display', Georgia, serif;
+        font-weight: 300;
+        font-size: 3.75rem;
+        letter-spacing: 0.1em;
+        line-height: 1;
+        color: rgba(201, 168, 76, 0.6);
+      }
+      @media (min-width: 640px) {
+        .initial-banner { flex-direction: row; gap: 0; padding-bottom: 6rem; }
+        .initial-logo { width: 6rem; height: 6rem; }
+        .initial-wordmark { margin-inline-start: 2rem; }
+      }
+      @media (min-width: 1024px) {
+        .initial-wordmark { font-size: 4.5rem; }
       }
     </style>
   </head>
@@ -82,15 +116,31 @@
         srcset="/hero-city-768.webp 768w, /hero-city.webp 1920w"
         sizes="100vw"
       />
+      <!-- decoding="async" (default) lets the browser paint the element at
+           opacity:0 *before* the image is decoded — that initial frame is
+           what the transition needs to start from. With decoding="sync"
+           the first paint waited for decode, by which time onload had
+           already added .is-loaded → no transition. Double rAF in onload
+           also ensures the browser commits a frame at opacity:0 before
+           we flip to opacity:1, so the transition reliably plays even
+           when the image is cached and `load` fires synchronously.
+           Partial WebP decode is invisible anyway since the element
+           starts at opacity:0. -->
       <img
         class="page-hero-bg"
         src="/hero-city.jpg"
         alt=""
         fetchpriority="high"
-        decoding="sync"
+        decoding="async"
+        onload="requestAnimationFrame(() => requestAnimationFrame(() => this.classList.add('is-loaded')))"
       />
     </picture>
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-banner" role="presentation">
+        <img class="initial-logo" src="/logo.svg" alt="RS Recruiting" width="112" height="112" />
+        <span class="initial-wordmark">RS Recruiting</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
