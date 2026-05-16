@@ -108,6 +108,7 @@ export default function LandingPage() {
   const [jobs, setJobs] = useState<JobPublicRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [heroLoaded, setHeroLoaded] = useState(false);
   const [aboutImgLoaded, setAboutImgLoaded] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [cardsVisible, setCardsVisible] = useState<boolean>(
@@ -294,7 +295,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div>
+    <div className="bg-page">
       <SeoHead
         title={t("landing.seo.title")}
         description={t("landing.seo.description")}
@@ -302,11 +303,20 @@ export default function LandingPage() {
         structuredData={SITE_SCHEMA}
       />
 
-      {/* ── Hero + audience panels — transparent so the static page-hero-bg
-            in index.html shows through. The hero <img> used to live here but
-            was the LCP floor (waited for React hydration); moving it to
-            index.html dropped mobile LCP from ~5 s to ~0.6 s. ─────────────── */}
-      <div className="relative overflow-hidden">
+      {/* ── Hero + audience panels share one image so they fade into each
+            other without a visible seam where the sections meet. ─────────── */}
+      <div className="relative overflow-hidden bg-void">
+        <img
+          src="/hero-city.jpg"
+          alt=""
+          aria-hidden="true"
+          onLoad={() => setHeroLoaded(true)}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out"
+          style={{
+            objectPosition: "center 60%",
+            opacity: heroLoaded ? 1 : 0,
+          }}
+        />
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="texture-wave relative flex min-h-screen flex-col">
@@ -669,16 +679,11 @@ export default function LandingPage() {
               ))}
             </div>
 
-            {/* Progress bar — animates transform (composited) instead of width
-                so Lighthouse stops flagging non-composited animation. RTL page,
-                so the bar grows from the inline-start side (the right). */}
+            {/* Progress bar */}
             <div className="mt-5 h-px overflow-hidden rounded-full bg-white/8">
               <div
-                className="h-full w-full rounded-full bg-copper/50 transition-transform duration-100"
-                style={{
-                  transform: `scaleX(${scrollProgress / 100})`,
-                  transformOrigin: "right",
-                }}
+                className="h-full rounded-full bg-copper/50 transition-all duration-100"
+                style={{ width: `${scrollProgress}%` }}
               />
             </div>
             </div>

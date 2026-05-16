@@ -236,17 +236,10 @@ function ShellContent({ children }: Props) {
   const heroRoutes = new Set(["/", "/about", "/contact", "/jobs"]);
   // Single-screen pages: constrain to viewport height so nothing scrolls
   const singleScreenRoutes = new Set(["/contact"]);
-  // Landing only: skip the shell-level bg-void so the static
-  // <picture class="page-hero-bg"> from index.html shows through (the LCP
-  // image). Other public pages declare their own bg-void at the page level
-  // (AboutPage, ContactPage, JobBoardPage), so the wrapper bg was redundant
-  // there but is critical here — without it the page-hero-bg was being
-  // covered and LCP regressed from ~0.6 s back to React-hydration time.
-  const isLanding = pathname === "/";
 
   // All public pages: single shell — header and footer owned here (DRY)
   return (
-    <div className={`flex flex-col ${isLanding ? "" : "bg-void"} ${singleScreenRoutes.has(pathname) ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
+    <div className={`flex flex-col bg-void ${singleScreenRoutes.has(pathname) ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       <PublicHeader transparent={heroRoutes.has(pathname)} />
       {/* flex flex-col so children can use flex-1 to fill remaining height */}
       <main key={pathname} className="page-enter flex flex-1 flex-col">
