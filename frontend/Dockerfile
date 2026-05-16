@@ -19,5 +19,6 @@ RUN --mount=type=secret,id=sentry_auth_token \
 
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx_security_headers.conf /etc/nginx/security_headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 443

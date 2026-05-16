@@ -35,7 +35,7 @@ function gtmPlugin(containerId: string): Plugin {
 
 export default defineConfig({
   build: {
-    sourcemap: true,
+    sourcemap: "hidden",
     // Cap-warning at 600KB after the split; the remaining "vendor" bundle
     // bumps near it but doesn't really exceed it once gzipped.
     chunkSizeWarningLimit: 600,
