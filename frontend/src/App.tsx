@@ -6,15 +6,23 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import CompanyRoute from "@/components/CompanyRoute";
 import AppShell from "@/components/layout/AppShell";
+import LandingFallback from "@/components/LandingFallback";
 import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // Eager — entry funnels Google + direct visits land on most often. Keeping
 // these in the main bundle is critical for LCP / Core Web Vitals on the
 // pages that receive organic search traffic.
-import LandingPage from "@/pages/public/LandingPage";
 import JobBoardPage from "@/pages/public/JobBoardPage";
 import JobDetailPage from "@/pages/public/JobDetailPage";
 import LoginPage from "@/pages/LoginPage";
+
+// LandingPage was eager for the same reason but Lighthouse kept picking the
+// hydrated LogoBanner as LCP at ~6 s on mobile. Lazying it shrinks the main
+// bundle so hydration finishes sooner, AND the matching LandingFallback
+// renders the same DOM as the static `.initial-banner` in index.html — so
+// the LCP element is continuous across HTML parse → React mount → chunk
+// arrival, instead of being reset by reconciliation.
+const LandingPage = lazyWithRetry(() => import("@/pages/public/LandingPage"));
 
 // Lazy — secondary public pages + every behind-auth screen. Chunked out so
 // they don't bloat the initial download for a visitor landing on / or /jobs.
@@ -92,8 +100,20 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Public landing page */}
-              <Route path="/" element={<LandingPage />} />
+              {/* Public landing page — nested Suspense with LandingFallback
+                  that mirrors the static index.html `.initial-banner` markup
+                  exactly. The closest Suspense boundary wins, so this fallback
+                  (not RouteFallback) renders while the lazy chunk loads, and
+                  Chrome's LCP timer is set on a visually-continuous element
+                  instead of being reset when the chunk arrives. */}
+              <Route
+                path="/"
+                element={
+                  <Suspense fallback={<LandingFallback />}>
+                    <LandingPage />
+                  </Suspense>
+                }
+              />
 
               {/* Public informational pages */}
               <Route path="/about" element={<AboutPage />} />
