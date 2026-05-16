@@ -59,17 +59,19 @@ function GtmPageView() {
   return null;
 }
 
-/** Minimal placeholder while a lazy route chunk loads. Matches the dark
- *  page background so there's no light-flash, and shows a subtle copper
- *  ring so the user knows something is happening. */
+/** Placeholder while a lazy route chunk loads. Visually matches the
+ *  pre-hydration `<div class="rs-splash">` in index.html so the
+ *  splash → Suspense → page sequence reads as one continuous loading
+ *  state instead of "splash → spinner → page" flashes on first paint. */
 function RouteFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page">
-      <div
-        className="h-9 w-9 animate-spin rounded-full border-2 border-copper/30 border-t-copper"
-        role="status"
-        aria-label="טוען…"
-      />
+    <div
+      aria-hidden="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-void"
+    >
+      <span className="font-wordmark text-[clamp(3.5rem,12vw,5.5rem)] font-light tracking-widest text-gold/60">
+        RS Recruiting
+      </span>
     </div>
   );
 }

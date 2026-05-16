@@ -12,15 +12,16 @@
          then fetch the font CSS. As a <link> they're requested in parallel. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Async font load: media="print" makes the stylesheet non-render-blocking,
-         onload swaps it back to media="all" once it's parsed. With display=swap
-         the page renders with fallback fonts first, then re-renders when web
-         fonts arrive. Saves ~700–900 ms on Slow 4G. -->
+    <!-- Async font load via the preload-swap pattern: `rel="preload" as="style"`
+         downloads the stylesheet without blocking render; onload swaps the rel
+         to "stylesheet" to apply it. More reliable than the `media="print"`
+         trick in Firefox, where media=print can defer @font-face fetches and
+         leave the page in fallback fonts indefinitely. -->
     <link
-      rel="stylesheet"
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap"
-      media="print"
-      onload="this.media='all'"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
     <noscript>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" />

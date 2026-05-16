@@ -315,12 +315,12 @@ export default function LandingPage() {
             src="/hero-city.jpg"
             alt=""
             aria-hidden="true"
-            // LCP image — preloaded in index.html with matching srcset. With
-            // preload + fetchpriority the image is in cache by the time React
-            // renders this element, so no fade-in is needed and the prior
-            // 900 ms opacity transition would have capped the LCP score.
+            // LCP image — preloaded in index.html with matching srcset.
+            // decoding="sync" prevents the visible "half-decoded then complete"
+            // flash some browsers show during WebP decode. ~50 ms main-thread
+            // cost is acceptable for a hero LCP element.
             fetchPriority="high"
-            decoding="async"
+            decoding="sync"
             className="pointer-events-none absolute inset-0 h-full w-full object-cover"
             style={{ objectPosition: "center 60%" }}
           />
