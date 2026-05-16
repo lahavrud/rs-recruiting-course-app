@@ -190,7 +190,7 @@ def build_invite_html(registration_url: str, contact_name: str | None = None) ->
         + _p("הוזמנת להירשם לפלטפורמת RS Recruiting ולהתחיל לפרסם משרות ולקבל מועמדים.")
         + _cta(registration_url, "השלמת תהליך ההרשמה")
         + _rule()
-        + _p("הקישור תקף ל-48 שעות בלבד.", muted=True)
+        + _p("הקישור תקף לשעתיים בלבד.", muted=True)
     )
     return _wrap("הזמנה להרשמה — RS Recruiting", body)
 

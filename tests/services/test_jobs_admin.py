@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.transactions import transactional
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from src.services.exceptions import JobNotFoundError, JobNotPendingError
@@ -107,15 +108,15 @@ async def test_approve_job_success(
     mock_enqueue_email.return_value = "test-job-id"
     assert pending_job.id is not None
 
-    result = await approve_job(pending_job.id, session)
-    await session.commit()
+    async with transactional(session):
+        result = await approve_job(pending_job.id, session)
     await session.refresh(pending_job)
 
     assert result.id == pending_job.id
     assert result.status == JobStatus.PUBLISHED
     assert pending_job.status == JobStatus.PUBLISHED
 
-    # Verify email was sent
+    # Verify email was sent (defer_after_commit fires after transactional commits)
     mock_enqueue_email.assert_called_once()
     call_args = mock_enqueue_email.call_args
     assert call_args.kwargs["to"] == "company@test.com"
@@ -166,13 +167,13 @@ async def test_reject_job_success(
     mock_enqueue_email.return_value = "test-job-id"
     assert pending_job.id is not None
 
-    await reject_job(pending_job.id, session)
-    await session.commit()
+    async with transactional(session):
+        await reject_job(pending_job.id, session)
     await session.refresh(pending_job)
 
     assert pending_job.status == JobStatus.CLOSED
 
-    # Verify email was sent
+    # Verify email was sent (defer_after_commit fires after transactional commits)
     mock_enqueue_email.assert_called_once()
     call_args = mock_enqueue_email.call_args
     assert call_args.kwargs["to"] == "company@test.com"

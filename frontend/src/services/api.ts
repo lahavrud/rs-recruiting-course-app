@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getRefreshToken, getToken, removeRefreshToken, removeToken, setRefreshToken, setToken } from "@/utils/token";
+import { getToken, removeToken, setToken } from "@/utils/token";
 
 /**
  * Axios instance configured for the backend API.
@@ -36,7 +36,6 @@ function drainQueue(newToken: string) {
 
 function clearSession() {
   removeToken();
-  removeRefreshToken();
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
@@ -70,21 +69,14 @@ api.interceptors.response.use(
     }
 
     isRefreshing = true;
-    const refreshToken = getRefreshToken();
-
-    if (!refreshToken) {
-      isRefreshing = false;
-      clearSession();
-      return Promise.reject(error);
-    }
 
     try {
-      const response = await axios.post(`${baseURL}/auth/refresh`, {
-        refresh_token: refreshToken,
+      // Refresh token is an HttpOnly cookie — browser sends it automatically.
+      const response = await axios.post(`${baseURL}/auth/refresh`, null, {
+        withCredentials: true,
       });
-      const { access_token, refresh_token } = response.data;
+      const { access_token } = response.data;
       setToken(access_token);
-      setRefreshToken(refresh_token);
       drainQueue(access_token);
       originalRequest.headers.Authorization = `Bearer ${access_token}`;
       return api(originalRequest);

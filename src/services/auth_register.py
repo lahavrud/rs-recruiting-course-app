@@ -127,15 +127,6 @@ async def register_company_user(
     if existing_user:
         raise EmailAlreadyExistsError(user_data.email)
 
-    storage = get_storage_provider()
-    logo_identifier = await storage.upload_file(
-        logo_content, f"logos/{logo_filename}", logo_content_type
-    )
-    sig_filename = f"{user_data.company_profile.company_id}_agreement.png"
-    sig_identifier = await storage.upload_file(
-        sig_bytes, f"signatures/{sig_filename}", "image/png"
-    )
-
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
         email=user_data.email,
@@ -144,7 +135,28 @@ async def register_company_user(
         is_active=False,
     )
     session.add(new_user)
+    # Flush User first so any constraint violation (e.g. duplicate email race)
+    # raises before any S3 bytes are written — no orphan risk on that path.
     await session.flush()
+
+    storage = get_storage_provider()
+    logo_identifier = await storage.upload_file(
+        logo_content, f"logos/{logo_filename}", logo_content_type
+    )
+    sig_filename = f"{user_data.company_profile.company_id}_agreement.png"
+    sig_identifier: str | None = None
+    try:
+        sig_identifier = await storage.upload_file(
+            sig_bytes, f"signatures/{sig_filename}", "image/png"
+        )
+    except Exception:
+        # Clean up the already-uploaded logo before re-raising so the
+        # transaction rollback leaves no orphaned S3 objects.
+        try:
+            await storage.delete_file(logo_identifier)
+        except Exception:
+            logger.exception("Failed to clean up logo after signature upload error")
+        raise
 
     profile = user_data.company_profile
     now = datetime.now(timezone.utc)
@@ -170,38 +182,52 @@ async def register_company_user(
         acceptance_ip=acceptance_ip,
         acceptance_user_agent=acceptance_user_agent,
     )
-    session.add(new_company_profile)
-    await session.flush()
 
-    if privacy_accepted:
+    # Wrap remaining DB work so any unexpected flush/audit failure triggers
+    # cleanup of both S3 files before propagating.
+    try:
+        session.add(new_company_profile)
+        await session.flush()
+
+        if privacy_accepted:
+            await record_audit_event(
+                session,
+                actor_user_id=new_user.id,
+                action="company.privacy_accept",
+                target_type="CompanyProfile",
+                target_id=new_company_profile.id,  # type: ignore[arg-type]
+                detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
+                ip_address=acceptance_ip,
+            )
+        if terms_accepted:
+            await record_audit_event(
+                session,
+                actor_user_id=new_user.id,
+                action="company.terms_accept",
+                target_type="CompanyProfile",
+                target_id=new_company_profile.id,  # type: ignore[arg-type]
+                detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
+                ip_address=acceptance_ip,
+            )
         await record_audit_event(
             session,
             actor_user_id=new_user.id,
-            action="company.privacy_accept",
+            action="company.contract_sign",
             target_type="CompanyProfile",
             target_id=new_company_profile.id,  # type: ignore[arg-type]
-            detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
+            detail=f"signature_url={sig_identifier}",
             ip_address=acceptance_ip,
         )
-    if terms_accepted:
-        await record_audit_event(
-            session,
-            actor_user_id=new_user.id,
-            action="company.terms_accept",
-            target_type="CompanyProfile",
-            target_id=new_company_profile.id,  # type: ignore[arg-type]
-            detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
-            ip_address=acceptance_ip,
-        )
-    await record_audit_event(
-        session,
-        actor_user_id=new_user.id,
-        action="company.contract_sign",
-        target_type="CompanyProfile",
-        target_id=new_company_profile.id,  # type: ignore[arg-type]
-        detail=f"signature_url={sig_identifier}",
-        ip_address=acceptance_ip,
-    )
+    except Exception:
+        for key in [logo_identifier, sig_identifier]:
+            if key:
+                try:
+                    await storage.delete_file(key)
+                except Exception:
+                    logger.exception(
+                        "Failed to clean up S3 file %s after DB error", key
+                    )
+        raise
 
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:

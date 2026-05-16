@@ -49,7 +49,7 @@ class LocalStorageProvider(StorageProvider):
             file_key = f"{parent}/{uuid4()}{suffix}"
         else:
             file_key = f"{uuid4()}{suffix}"
-        file_path = self.storage_path / file_key
+        file_path = self._safe_path(file_key)  # raises ValueError on traversal
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, file_path.write_bytes, file_content)
         return file_key

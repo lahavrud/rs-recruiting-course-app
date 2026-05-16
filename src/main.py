@@ -24,6 +24,7 @@ from src.api import (
     jobs_write,
     password_reset,
     public,
+    registration,
     resumes,
     sentry_tunnel,
     seo,
@@ -85,6 +86,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(registration.router)
 app.include_router(activation.router)
 app.include_router(password_reset.router)
 app.include_router(invites.router)

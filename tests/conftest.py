@@ -209,9 +209,9 @@ def mock_invite_tokens():
     """
     with (
         patch(
-            "src.api.auth.validate_invite_token", new_callable=AsyncMock
+            "src.api.registration.validate_invite_token", new_callable=AsyncMock
         ) as mock_validate,
-        patch("src.api.auth.consume_invite_token", new_callable=AsyncMock),
+        patch("src.api.registration.consume_invite_token", new_callable=AsyncMock),
         patch("src.api.invites.validate_invite_token", new_callable=AsyncMock),
         patch(
             "src.services.admin_invites.generate_invite_token",

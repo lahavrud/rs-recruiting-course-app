@@ -7,7 +7,7 @@ from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import client_ip, get_current_admin
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
-from src.core.infrastructure.transactions import transactional
+from src.core.infrastructure.transactions import defer_after_commit, transactional
 from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus
 from src.models import User
@@ -89,11 +89,10 @@ async def update_application_status_endpoint(
                 actor_user_id=current_admin.id,
                 ip_address=client_ip(request),
             )
+            for payload in email_payloads:
+                defer_after_commit(lambda p=payload: enqueue_email_task(**p))
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e
-
-    for payload in email_payloads:
-        await enqueue_email_task(**payload)
 
     return result
 

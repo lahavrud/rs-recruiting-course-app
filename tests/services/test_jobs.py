@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.transactions import transactional
 from src.enums import JobStatus, UserRole
 from src.models import CompanyProfile, Job, User
 from src.schemas import JobCreate, JobUpdate
@@ -93,8 +94,8 @@ async def test_create_job_success(
         salary_max=30000,
     )
 
-    result = await create_job(job_data, company_with_user.id, session)
-    await session.commit()
+    async with transactional(session):
+        result = await create_job(job_data, company_with_user.id, session)
 
     assert result.id is not None
     assert result.title == "Senior Python Developer"
@@ -106,7 +107,7 @@ async def test_create_job_success(
     assert db_job is not None
     assert db_job.title == "Senior Python Developer"
 
-    # Verify email was sent to admins
+    # Verify email was sent to admins (fires via defer_after_commit after commit)
     mock_enqueue_email.assert_called_once()
 
 
@@ -201,8 +202,8 @@ async def test_update_job_success(
 
     job_data = JobUpdate(title="Updated Title", location="Updated Location")
 
-    result = await update_job(job.id, job_data, company_with_user.id, session)
-    await session.commit()
+    async with transactional(session):
+        result = await update_job(job.id, job_data, company_with_user.id, session)
 
     assert result.title == "Updated Title"
     assert result.location == "Updated Location"
@@ -214,7 +215,7 @@ async def test_update_job_success(
     assert db_job.title == "Updated Title"
     assert db_job.location == "Updated Location"
 
-    # Verify email was sent to admins
+    # Verify email was sent to admins (fires via defer_after_commit after commit)
     mock_enqueue_email.assert_called_once()
 
 

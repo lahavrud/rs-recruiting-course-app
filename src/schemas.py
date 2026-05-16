@@ -195,6 +195,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class AccessTokenResponse(BaseModel):
+    """Login/refresh response — refresh token delivered via HttpOnly cookie."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
 class TokenResponse(BaseModel):
     """Schema for token response."""
 
