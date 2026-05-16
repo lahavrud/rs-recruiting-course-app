@@ -1,17 +1,20 @@
 """Async transaction context manager for FastAPI + SQLAlchemy write endpoints."""
 
 import contextvars
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+_logger = logging.getLogger(__name__)
+
 _post_commit_hooks: contextvars.ContextVar[
-    list[Callable[[], Awaitable[None]]] | None
+    list[Callable[[], Awaitable[object]]] | None
 ] = contextvars.ContextVar("_post_commit_hooks", default=None)
 
 
-def defer_after_commit(fn: Callable[[], Awaitable[None]]) -> None:
+def defer_after_commit(fn: Callable[[], Awaitable[object]]) -> None:
     """Register an async callable to run after the current transaction commits.
 
     Must be called from within a `transactional()` block.  If the transaction
@@ -37,8 +40,9 @@ async def transactional(session: AsyncSession) -> AsyncGenerator[None, None]:
     ``await session.execute(text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"))``
     before the first DML statement.
 
-    Side effects (emails, file uploads) registered via defer_after_commit()
-    are run after the commit succeeds and are silently dropped on rollback.
+    Side effects registered via defer_after_commit() run after the commit
+    succeeds and are discarded on rollback.  Hook failures are logged but
+    never propagate back to the caller or corrupt the HTTP response.
 
     Usage in API endpoints::
 
@@ -51,15 +55,22 @@ async def transactional(session: AsyncSession) -> AsyncGenerator[None, None]:
     The context manager owns the commit/rollback; the endpoint's except
     block only needs to handle HTTP mapping of domain exceptions.
     """
-    hooks: list[Callable[[], Awaitable[None]]] = []
+    hooks: list[Callable[[], Awaitable[object]]] = []
     token = _post_commit_hooks.set(hooks)
+    committed = False
     try:
         yield
         await session.commit()
-        for hook in hooks:
-            await hook()
+        committed = True
     except Exception:
         await session.rollback()
         raise
     finally:
         _post_commit_hooks.reset(token)
+
+    if committed:
+        for hook in hooks:
+            try:
+                await hook()
+            except Exception:
+                _logger.exception("post-commit hook failed")

@@ -1,11 +1,17 @@
 """Redis-backed invite token management for gated company registration."""
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from src.services.exceptions import InvalidInviteTokenError
 
-TOKEN_TTL_SECONDS = 48 * 60 * 60  # 48 hours
+_logger = logging.getLogger(__name__)
+
+# 2-hour window is enough for an admin to send the link and the company to
+# register; a shorter TTL reduces the reuse window if Redis fails to delete
+# the token after a successful registration.
+TOKEN_TTL_SECONDS = 2 * 60 * 60  # 2 hours
 _KEY_PREFIX = "invite_token:"
 
 
@@ -40,14 +46,26 @@ async def validate_invite_token(token: str) -> None:
 
 
 async def consume_invite_token(token: str) -> None:
-    """Delete the token from Redis after successful registration (best-effort)."""
+    """Delete the token from Redis after successful registration (best-effort).
+
+    Deletion failure is logged loudly so an operator can manually revoke
+    the token.  The TTL acts as the last-resort safety net.
+    """
     try:
         from src.core.tasks import get_redis_pool
 
         redis = await get_redis_pool()
         await redis.delete(_key(token))
     except Exception:
-        pass  # registration already committed; token expiry via TTL is the safety net
+        # Registration is already committed.  Log at WARNING so this is
+        # visible in alerting — an operator should manually verify the token
+        # is no longer usable before it expires.
+        _logger.warning(
+            "invite_token_consume_failed: token could not be deleted from Redis; "
+            "it will expire via TTL in %d seconds. token_prefix=%s",
+            TOKEN_TTL_SECONDS,
+            token[:8],
+        )
 
 
 async def revoke_invite_token(token: str) -> None:
@@ -58,4 +76,9 @@ async def revoke_invite_token(token: str) -> None:
         redis = await get_redis_pool()
         await redis.delete(_key(token))
     except Exception:
-        pass
+        _logger.warning(
+            "invite_token_revoke_failed: token could not be deleted from Redis; "
+            "it will expire via TTL in %d seconds. token_prefix=%s",
+            TOKEN_TTL_SECONDS,
+            token[:8],
+        )

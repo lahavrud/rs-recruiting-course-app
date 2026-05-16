@@ -158,20 +158,19 @@ async def test_enqueue_email_task_success():
 
 
 @pytest.mark.asyncio
-async def test_enqueue_email_task_failure_returns_none():
-    """Test that enqueue failure returns None."""
+async def test_enqueue_email_task_failure_raises():
+    """Test that enqueue failure propagates the exception to the caller."""
     with patch("src.core.tasks.get_redis_pool") as mock_get_pool:
         mock_pool = AsyncMock()
         mock_pool.enqueue_job.side_effect = Exception("Redis connection failed")
         mock_get_pool.return_value = mock_pool
 
-        job_id = await enqueue_email_task(
-            to="test@example.com",
-            subject="Test Subject",
-            body="Test Body",
-        )
-
-        assert job_id is None
+        with pytest.raises(Exception, match="Redis connection failed"):
+            await enqueue_email_task(
+                to="test@example.com",
+                subject="Test Subject",
+                body="Test Body",
+            )
 
 
 @pytest.mark.asyncio

@@ -131,9 +131,7 @@ async def register(
                 acceptance_user_agent=request.headers.get("user-agent"),
             )
             await mark_invite_used(token, session)
-    except InvalidInviteTokenError as e:
-        raise service_exception_to_http(e) from e
-    except EmailAlreadyExistsError as e:
+    except (InvalidInviteTokenError, EmailAlreadyExistsError) as e:
         raise service_exception_to_http(e) from e
     except ValueError as e:
         raise HTTPException(
@@ -181,7 +179,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("30/minute")
 async def refresh(
+    request: Request,
     body: RefreshRequest,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:

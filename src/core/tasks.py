@@ -166,21 +166,23 @@ async def enqueue_email_task(
     html_body: Optional[str] = None,
     attachments: Optional[List[tuple]] = None,
     from_email: Optional[str] = None,
-) -> Optional[str]:
-    """Enqueue an email task for async processing via Arq workers."""
-    try:
-        pool = await get_redis_pool()
-        job = await pool.enqueue_job(
-            "send_email_task",
-            to=to,
-            subject=subject,
-            body=body,
-            html_body=html_body,
-            attachments=attachments,
-            from_email=from_email,
-        )
-        logger.info(f"Enqueued email task {job.job_id} for {to}")
-        return job.job_id
-    except Exception as e:
-        logger.error(f"Failed to enqueue email task: {e}", exc_info=True)
-        return None
+) -> str:
+    """Enqueue an email task for async processing via Arq workers.
+
+    Raises on any Redis / Arq failure so callers are never silently
+    missing email sends.  Call sites inside transactional blocks should
+    use defer_after_commit so the DB write is not rolled back on an Arq
+    outage.
+    """
+    pool = await get_redis_pool()
+    job = await pool.enqueue_job(
+        "send_email_task",
+        to=to,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+        attachments=attachments,
+        from_email=from_email,
+    )
+    logger.info(f"Enqueued email task {job.job_id} for {to}")
+    return job.job_id

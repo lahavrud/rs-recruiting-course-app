@@ -13,6 +13,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.infrastructure.transactions import defer_after_commit
 from src.core.tasks import enqueue_email_task
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
@@ -77,19 +78,21 @@ async def create_job(
         from src.core.infrastructure.config import settings
 
         admin_url = f"{settings.frontend_base_url}/admin/jobs"
-        plain = f"משרה חדשה ממתינה לאישור: {new_job.title} ({company.name})"
-        html = build_new_job_html(
+        _plain = f"משרה חדשה ממתינה לאישור: {new_job.title} ({company.name})"
+        _html = build_new_job_html(
             job_title=new_job.title,
             company_name=company.name or "",
             location=new_job.location,
             job_id=new_job.id or 0,
             admin_url=admin_url,
         )
-        await enqueue_email_task(
-            to=admin_emails,
-            subject="משרה חדשה ממתינה לאישור – RS Recruiting",
-            body=plain,
-            html_body=html,
+        defer_after_commit(
+            lambda: enqueue_email_task(
+                to=admin_emails,
+                subject="משרה חדשה ממתינה לאישור – RS Recruiting",
+                body=_plain,
+                html_body=_html,
+            )
         )
 
     return JobRead.model_validate(new_job)
@@ -218,8 +221,8 @@ async def update_job(
         from src.core.infrastructure.config import settings
 
         admin_url = f"{settings.frontend_base_url}/admin/jobs"
-        plain = f"פרסום משרה עודכן: {job.title} ({company.name})"
-        html = build_job_updated_html(
+        _plain = f"פרסום משרה עודכן: {job.title} ({company.name})"
+        _html = build_job_updated_html(
             job_title=job.title,
             company_name=company.name or "",
             location=job.location,
@@ -227,11 +230,13 @@ async def update_job(
             status=str(job.status),
             admin_url=admin_url,
         )
-        await enqueue_email_task(
-            to=admin_emails,
-            subject="פרסום משרה עודכן – RS Recruiting",
-            body=plain,
-            html_body=html,
+        defer_after_commit(
+            lambda: enqueue_email_task(
+                to=admin_emails,
+                subject="פרסום משרה עודכן – RS Recruiting",
+                body=_plain,
+                html_body=_html,
+            )
         )
 
     return JobRead.model_validate(job)
