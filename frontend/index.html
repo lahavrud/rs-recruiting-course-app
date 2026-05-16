@@ -27,9 +27,9 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" />
     </noscript>
 
-    <!-- LCP preload: the landing-page hero image is the mobile LCP element.
-         Preloading the responsive srcset cuts ~1s off LCP. Keep this in sync
-         with the <picture> in LandingPage.tsx. -->
+    <!-- LCP preload: matches the static <picture class="page-hero-bg"> below.
+         Keeps the responsive srcset hint so the browser can pick the right
+         WebP variant before the <source> element is parsed. -->
     <link
       rel="preload"
       as="image"
@@ -51,41 +51,45 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="he_IL" />
 
-    <!-- LCP splash: rendered before the JS bundle parses so the largest
-         contentful paint happens immediately on HTML parse instead of waiting
-         for React hydration (was 2.56 s element render delay on mobile).
-         createRoot.render() wipes the splash when React mounts. Self-contained
-         inline styles avoid waiting on the Tailwind CSS bundle. Sized to match
-         the LogoBanner wordmark so the SPA's first render doesn't look like a
-         shift. -->
+    <!-- Static hero image: the hero is the mobile LCP element. Rendering its
+         <picture> outside #root lets the browser paint it at HTML-parse time
+         instead of waiting for React to render LandingPage's <picture> after
+         hydration (was the LCP floor — see #489, #497, #500). position:fixed
+         + z-index:-1 keeps it as a permanent page background that React
+         never touches; routes with opaque bg-page/bg-void cover it on
+         subpages where the city image isn't relevant. The previous "RS
+         Recruiting" splash is gone — the image *is* the LCP now. -->
     <style>
-      .rs-splash {
+      html { background: #0D0B09; }
+      body { background: transparent; margin: 0; }
+      .page-hero-bg {
         position: fixed;
         inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #0D0B09;
-      }
-      .rs-splash span {
-        /* Matches `.font-wordmark` in index.css. Playfair Display is loaded
-           async via <link> above; until it arrives the splash renders in
-           Georgia — visually close enough that the React-rendered wordmark
-           doesn't look like a shift when fonts swap in. */
-        font-family: 'Playfair Display', Georgia, serif;
-        font-weight: 300;
-        font-size: clamp(3.5rem, 12vw, 5.5rem);
-        letter-spacing: 0.1em;
-        color: rgba(201, 168, 76, 0.6);
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 60%;
+        z-index: -1;
+        pointer-events: none;
       }
     </style>
   </head>
   <body>
-    <div id="root">
-      <div class="rs-splash" aria-hidden="true">
-        <span>RS Recruiting</span>
-      </div>
-    </div>
+    <picture aria-hidden="true">
+      <source
+        type="image/webp"
+        srcset="/hero-city-768.webp 768w, /hero-city.webp 1920w"
+        sizes="100vw"
+      />
+      <img
+        class="page-hero-bg"
+        src="/hero-city.jpg"
+        alt=""
+        fetchpriority="high"
+        decoding="sync"
+      />
+    </picture>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

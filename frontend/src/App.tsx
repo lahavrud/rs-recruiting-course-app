@@ -59,19 +59,19 @@ function GtmPageView() {
   return null;
 }
 
-/** Placeholder while a lazy route chunk loads. Visually matches the
- *  pre-hydration `<div class="rs-splash">` in index.html so the
- *  splash → Suspense → page sequence reads as one continuous loading
- *  state instead of "splash → spinner → page" flashes on first paint. */
+/** Placeholder while a lazy route chunk loads. Opaque `bg-page` so it
+ *  covers the static `page-hero-bg` city image set in index.html — that
+ *  background is meant for the landing route only, and would otherwise
+ *  show through during nav to /jobs, /about, etc. while the chunk
+ *  downloads. */
 function RouteFallback() {
   return (
-    <div
-      aria-hidden="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-void"
-    >
-      <span className="font-wordmark text-[clamp(3.5rem,12vw,5.5rem)] font-light tracking-widest text-gold/60">
-        RS Recruiting
-      </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-page">
+      <div
+        className="h-9 w-9 animate-spin rounded-full border-2 border-copper/30 border-t-copper"
+        role="status"
+        aria-label="טוען…"
+      />
     </div>
   );
 }

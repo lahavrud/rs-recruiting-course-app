@@ -294,7 +294,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="bg-page">
+    <div>
       <SeoHead
         title={t("landing.seo.title")}
         description={t("landing.seo.description")}
@@ -302,29 +302,11 @@ export default function LandingPage() {
         structuredData={SITE_SCHEMA}
       />
 
-      {/* ── Hero + audience panels share one image so they fade into each
-            other without a visible seam where the sections meet. ─────────── */}
-      <div className="relative overflow-hidden bg-void">
-        <picture>
-          <source
-            type="image/webp"
-            srcSet="/hero-city-768.webp 768w, /hero-city.webp 1920w"
-            sizes="100vw"
-          />
-          <img
-            src="/hero-city.jpg"
-            alt=""
-            aria-hidden="true"
-            // LCP image — preloaded in index.html with matching srcset.
-            // decoding="sync" prevents the visible "half-decoded then complete"
-            // flash some browsers show during WebP decode. ~50 ms main-thread
-            // cost is acceptable for a hero LCP element.
-            fetchPriority="high"
-            decoding="sync"
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            style={{ objectPosition: "center 60%" }}
-          />
-        </picture>
+      {/* ── Hero + audience panels — transparent so the static page-hero-bg
+            in index.html shows through. The hero <img> used to live here but
+            was the LCP floor (waited for React hydration); moving it to
+            index.html dropped mobile LCP from ~5 s to ~0.6 s. ─────────────── */}
+      <div className="relative overflow-hidden">
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="texture-wave relative flex min-h-screen flex-col">
