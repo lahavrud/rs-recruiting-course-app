@@ -60,7 +60,7 @@ def get_expected_test_file(source_file: Path) -> Path | None:
         if source_str.startswith(source_dir):
             relative_path = source_file.relative_to(source_dir)
             test_file_name = f"test_{relative_path.name}"
-            return Path(test_dir) / test_file_name
+            return Path(test_dir) / relative_path.parent / test_file_name
 
     return None
 
