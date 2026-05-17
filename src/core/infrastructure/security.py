@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from src.core.infrastructure.config import get_jwt_secret_key, settings
 from src.services.exceptions import RedisUnavailableError
@@ -55,7 +56,7 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
         return jwt.decode(
             token, get_jwt_secret_key(), algorithms=[settings.jwt_algorithm]
         )
-    except JWTError:
+    except InvalidTokenError:
         return None
 
 

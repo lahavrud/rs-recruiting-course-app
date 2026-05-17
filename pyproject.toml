@@ -12,7 +12,6 @@ dependencies = [
     "asyncpg>=0.30.0",
     "pydantic[email]>=2.12",
     "pydantic-settings>=2.6.1",
-    "python-jose[cryptography]>=3.5.0",
     "bcrypt>=4.0.0,<6",
     "python-multipart>=0.0.6,<1",
     "boto3>=1.35.0,<2",
@@ -24,6 +23,7 @@ dependencies = [
     "aiosmtplib>=3.0.0,<6",
     "httpx>=0.27.2",
     "markdown>=3.10.2",
+    "pyjwt>=2.12.1",
 ]
 
 [dependency-groups]
@@ -64,6 +64,4 @@ asyncio_default_fixture_loop_scope = "function"
 # --durations=20 surfaces the 20 slowest tests in every run. Free diagnostic
 # signal; used to validate future runtime-optimization work in the suite.
 addopts = "--durations=20"
-filterwarnings = [
-    "ignore::DeprecationWarning:jose.*",
-]
+filterwarnings = []

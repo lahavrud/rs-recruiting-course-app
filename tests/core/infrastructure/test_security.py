@@ -2,8 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
-from jose import jwt
+import jwt
 
 from src.core.infrastructure.config import get_jwt_secret_key, settings
 from src.core.infrastructure.security import (
@@ -194,7 +193,7 @@ class TestJWTTokenDecoding:
             )
             # Should not reach here
             assert False, "Should have raised JWTError"
-        except jwt.JWTError:
+        except jwt.exceptions.InvalidTokenError:
             # Expected behavior
             pass
 
@@ -223,7 +222,5 @@ class TestJWTTokenDecoding:
         assert payload is None
 
     def test_decode_access_token_none(self):
-        """Test decoding with None (edge case)."""
-        # This would typically raise TypeError, but let's test the function handles it
-        with pytest.raises((TypeError, AttributeError)):
-            decode_access_token(None)  # type: ignore[arg-type]
+        """Test decoding with None returns None."""
+        assert decode_access_token(None) is None  # type: ignore[arg-type]
