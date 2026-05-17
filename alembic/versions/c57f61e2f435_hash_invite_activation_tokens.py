@@ -75,9 +75,11 @@ def upgrade() -> None:
     )
     op.drop_column("invitetoken", "token")
 
-    # ── job indexes (detected as schema drift by autogenerate) ───────────────
-    op.create_index(op.f("ix_job_created_at"), "job", ["created_at"], unique=False)
-    op.create_index(op.f("ix_job_status"), "job", ["status"], unique=False)
+    # ── job indexes (idempotent — already exist on some environments) ──────────
+    conn.execute(
+        sa.text("CREATE INDEX IF NOT EXISTS ix_job_created_at ON job (created_at)")
+    )
+    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_job_status ON job (status)"))
 
 
 def downgrade() -> None:
