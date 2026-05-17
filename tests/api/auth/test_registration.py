@@ -27,7 +27,7 @@ async def override_get_session():
 
 @pytest.fixture(scope="function")
 async def client():
-    from src.api import registration
+    from src.api.auth import registration
 
     registration.limiter.enabled = False
 
@@ -230,7 +230,7 @@ async def test_register_missing_token_returns_422(client: AsyncClient):
 async def test_register_invalid_token_returns_400(client: AsyncClient):
     """Test that an invalid/expired invite token returns 400."""
     with patch(
-        "src.api.registration.validate_invite_token",
+        "src.api.auth.registration.validate_invite_token",
         new_callable=AsyncMock,
         side_effect=InvalidInviteTokenError(),
     ):
@@ -248,10 +248,10 @@ async def test_register_token_consumed_on_success(client: AsyncClient):
     """Test that the invite token is consumed after successful registration."""
     with (
         patch(
-            "src.api.registration.validate_invite_token", new_callable=AsyncMock
+            "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
         ) as mock_validate,
         patch(
-            "src.api.registration.consume_invite_token", new_callable=AsyncMock
+            "src.api.auth.registration.consume_invite_token", new_callable=AsyncMock
         ) as mock_consume,
     ):
         response = await client.post(

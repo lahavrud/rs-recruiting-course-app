@@ -62,7 +62,7 @@ _EMAIL_TASK_TARGETS = [
     "src.services.auth.password_reset.enqueue_email_task",
     # applications_admin no longer imports enqueue_email_task directly;
     # the router enqueues after commit — patch at the router level instead.
-    "src.api.admin_applications.enqueue_email_task",
+    "src.api.admin.applications.enqueue_email_task",
 ]
 
 
@@ -215,10 +215,10 @@ def mock_invite_tokens():
     """
     with (
         patch(
-            "src.api.registration.validate_invite_token", new_callable=AsyncMock
+            "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
         ) as mock_validate,
-        patch("src.api.registration.consume_invite_token", new_callable=AsyncMock),
-        patch("src.api.invites.validate_invite_token", new_callable=AsyncMock),
+        patch("src.api.auth.registration.consume_invite_token", new_callable=AsyncMock),
+        patch("src.api.auth.invites.validate_invite_token", new_callable=AsyncMock),
         patch(
             "src.services.admin.invites.generate_invite_token",
             new_callable=AsyncMock,

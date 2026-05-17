@@ -348,7 +348,7 @@ export default function JobBoardPage() {
   const uniqueLocations = useMemo(() => {
     const seen = new Set<string>();
     for (const j of jobs) {
-      if (j.location) seen.add(j.location);
+      if (j.location) seen.add(j.location.trim());
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, "he"));
   }, [jobs]);
@@ -409,7 +409,7 @@ export default function JobBoardPage() {
           tagsText,
         ].some((s) => s.toLowerCase().includes(q));
       const matchesLocation =
-        selectedLocations.length === 0 || selectedLocations.includes(j.location);
+        selectedLocations.length === 0 || selectedLocations.includes(j.location.trim());
 
       let matchesSalary = true;
       if (isSalaryActive) {

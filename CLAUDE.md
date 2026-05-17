@@ -15,6 +15,24 @@
 ### Directory layout
 
 ```
+backend/src/
+├── api/
+│   ├── auth/         login.py, registration.py, activation.py, password_reset.py, invites.py
+│   ├── admin/        companies.py, invites.py, jobs.py, applications.py, candidates.py, audit.py
+│   ├── company/      jobs.py, profile.py, resumes.py
+│   ├── public/       jobs.py (board), applications.py (apply flow)
+│   ├── seo/          (prerender package)
+│   └── sentry_tunnel.py
+├── services/
+│   ├── auth/         session.py, registration.py, activation.py, password_reset.py
+│   ├── admin/        companies.py, company_approval.py, company_profiles.py, invites.py,
+│   │                 jobs.py (CRUD), jobs_workflow.py (approve/reject/contact),
+│   │                 applications.py, candidates.py
+│   ├── company/      jobs.py, profile.py, candidates.py
+│   ├── public/       jobs.py, applications.py
+│   ├── utils/        audit.py, contract_pdf.py, legal.py
+│   └── exceptions.py (flat — imported by 15+ files)
+
 frontend/src/
 ├── components/
 │   ├── guards/

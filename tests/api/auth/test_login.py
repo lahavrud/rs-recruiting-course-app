@@ -25,7 +25,7 @@ async def override_get_session():
 
 @pytest.fixture(scope="function")
 async def client():
-    from src.api import auth
+    from src.api.auth import login as auth
 
     auth.limiter.enabled = False
     if hasattr(app.state, "limiter"):

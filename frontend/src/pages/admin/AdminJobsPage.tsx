@@ -154,7 +154,7 @@ export default function AdminJobsPage() {
 
   const uniqueLocations = useMemo(() => {
     const seen = new Set<string>();
-    for (const j of jobs) if (j.location) seen.add(j.location);
+    for (const j of jobs) if (j.location) seen.add(j.location.trim());
     return Array.from(seen).sort((a, b) => a.localeCompare(b, "he"));
   }, [jobs]);
 
@@ -204,7 +204,7 @@ export default function AdminJobsPage() {
         ].some((s) => s.toLowerCase().includes(q));
         if (!matches) return false;
       }
-      if (selectedLocations.length > 0 && !selectedLocations.includes(j.location)) return false;
+      if (selectedLocations.length > 0 && !selectedLocations.includes(j.location.trim())) return false;
       if (companyFilter.length > 0 && !companyFilter.includes(j.company_id)) return false;
       if (featuredOnly && !j.is_featured) return false;
       if (isSalaryActive) {

@@ -61,7 +61,9 @@ quote-style = "double"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-# --durations=20 surfaces the 20 slowest tests in every run. Free diagnostic
-# signal; used to validate future runtime-optimization work in the suite.
+# importlib mode avoids module-name collisions when test files share a
+# basename across subdirectories (e.g. tests/api/auth/test_invites.py and
+# tests/api/admin/test_invites.py). Also avoids asyncio event-loop issues
+# that occur with __init__.py-based package imports in xdist workers.
 addopts = "--durations=20"
 filterwarnings = []

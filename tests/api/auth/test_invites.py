@@ -83,7 +83,7 @@ async def test_get_invite_metadata_invalid_token_returns_error(
 ):
     """Expired or invalid token returns 400."""
     with patch(
-        "src.api.invites.validate_invite_token",
+        "src.api.auth.invites.validate_invite_token",
         new_callable=AsyncMock,
         side_effect=InvalidInviteTokenError(),
     ):

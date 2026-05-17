@@ -28,7 +28,7 @@ async def test_download_resume_not_found(admin_client: AsyncClient, tmp_path: Pa
     mock_settings.storage_provider = "local"
     mock_settings.local_storage_path = str(tmp_path)
 
-    with patch("src.api.resumes.settings", mock_settings):
+    with patch("src.api.company.resumes.settings", mock_settings):
         response = await admin_client.get("/api/resumes/nonexistent.pdf")
 
     assert response.status_code == 404
@@ -51,7 +51,7 @@ async def test_download_resume_success(admin_client: AsyncClient, tmp_path: Path
     mock_settings.storage_provider = "local"
     mock_settings.local_storage_path = str(tmp_path)
 
-    with patch("src.api.resumes.settings", mock_settings):
+    with patch("src.api.company.resumes.settings", mock_settings):
         response = await admin_client.get("/api/resumes/resume.pdf")
 
     assert response.status_code == 200
@@ -79,8 +79,11 @@ async def test_download_resume_s3_proxies(admin_client: AsyncClient):
     mock_storage.download_file = fake_download
 
     with (
-        patch("src.api.resumes.settings", mock_settings),
-        patch("src.api.resumes.get_storage_provider", return_value=mock_storage),
+        patch("src.api.company.resumes.settings", mock_settings),
+        patch(
+            "src.api.company.resumes.get_storage_provider",
+            return_value=mock_storage,
+        ),
     ):
         response = await admin_client.get("/api/resumes/abc123.pdf")
 

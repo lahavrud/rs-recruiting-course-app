@@ -18,7 +18,9 @@ async def test_export_my_company_data_returns_full_payload(
     fake_storage = AsyncMock()
     fake_storage.get_file_url.return_value = "https://example.com/presigned"
 
-    with patch("src.api.companies.get_storage_provider", return_value=fake_storage):
+    with patch(
+        "src.api.company.profile.get_storage_provider", return_value=fake_storage
+    ):
         response = await company_client.get("/api/companies/me/export")
 
     assert response.status_code == 200

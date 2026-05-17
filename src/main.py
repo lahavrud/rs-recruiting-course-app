@@ -7,28 +7,39 @@ import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import (
-    activation,
-    admin_applications,
-    admin_audit,
-    admin_candidates,
-    admin_companies,
-    admin_invites,
-    admin_jobs,
-    admin_jobs_crud,
-    auth,
-    candidates,
-    companies,
-    invites,
-    jobs_read,
-    jobs_write,
-    password_reset,
-    public,
-    registration,
-    resumes,
-    sentry_tunnel,
-    seo,
+from src.api import sentry_tunnel, seo
+from src.api.admin import (
+    applications as admin_applications,
 )
+from src.api.admin import (
+    audit as admin_audit,
+)
+from src.api.admin import (
+    candidates as admin_candidates,
+)
+from src.api.admin import (
+    companies as admin_companies,
+)
+from src.api.admin import (
+    invites as admin_invites,
+)
+from src.api.admin import (
+    jobs as admin_jobs,
+)
+from src.api.auth import (
+    activation,
+    invites,
+    password_reset,
+    registration,
+)
+from src.api.auth import (
+    login as auth,
+)
+from src.api.company import jobs as company_jobs
+from src.api.company import profile as companies
+from src.api.company import resumes
+from src.api.public import applications as candidates
+from src.api.public import jobs as public
 from src.core.infrastructure.config import settings, validate_settings
 from src.core.infrastructure.database import init_db
 from src.core.tasks import close_redis_pool
@@ -93,13 +104,11 @@ app.include_router(invites.router)
 app.include_router(admin_companies.router)
 app.include_router(admin_invites.router)
 app.include_router(admin_jobs.router)
-app.include_router(admin_jobs_crud.router)
 app.include_router(admin_applications.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_candidates.router)
 app.include_router(companies.router)
-app.include_router(jobs_read.router)
-app.include_router(jobs_write.router)
+app.include_router(company_jobs.router)
 app.include_router(public.router)
 app.include_router(candidates.router)
 app.include_router(candidates.jobs_apply_router)

@@ -1,15 +1,22 @@
-"""Job write endpoints (POST, PUT, DELETE operations)."""
+"""Company job endpoints — list, get, create, update, delete."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_company
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import CompanyProfile, User
 from src.schemas import JobCreate, JobRead, JobUpdate
-from src.services.company.jobs import create_job, delete_job, update_job
+from src.services.company.jobs import (
+    create_job,
+    delete_job,
+    get_job,
+    list_company_jobs,
+    update_job,
+)
 from src.services.exceptions import (
     CompanyNotFoundError,
     JobCannotBeDeletedError,
@@ -19,6 +26,40 @@ from src.services.exceptions import (
 )
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+
+@router.get("/", response_model=CursorPage[JobRead])
+async def get_company_jobs(
+    cursor: str | None = None,
+    limit: int = DEFAULT_LIMIT,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> CursorPage[JobRead]:
+    """List the current company's jobs, cursor-paginated."""
+    user, company_profile = current_company
+    return await list_company_jobs(
+        company_profile.id, session, cursor=cursor, limit=limit
+    )
+
+
+@router.get("/{job_id}", response_model=JobRead)
+async def get_job_posting(
+    job_id: int,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> JobRead:
+    """Get a specific job posting owned by the current company."""
+    user, company_profile = current_company
+    try:
+        job = await get_job(job_id, session)
+        if job.company_id != company_profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job not found",
+            )
+        return job
+    except JobNotFoundError as e:
+        raise service_exception_to_http(e) from e
 
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)

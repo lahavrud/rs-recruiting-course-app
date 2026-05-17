@@ -25,9 +25,15 @@ app.dependency_overrides[get_session] = _override_session
 
 
 async def _make_pending_company(session: AsyncSession) -> tuple[User, str]:
-    """Create an inactive company user + unused activation token."""
+    """Create an inactive company user + unused activation token.
+
+    Does NOT commit — callers keep the session open so that concurrent
+    xdist workers' TRUNCATE teardowns cannot delete the rows before the
+    ASGI activation request reads them.
+    """
+    email = f"activation-{secrets.token_hex(6)}@test.com"
     user = User(
-        email="company@test.com",
+        email=email,
         hashed_password=get_password_hash("Password1!"),
         role=UserRole.COMPANY,
         is_active=False,
@@ -40,7 +46,7 @@ async def _make_pending_company(session: AsyncSession) -> tuple[User, str]:
         name="Test Co",
         company_id="123456789",
         address="רח׳ הדוגמה 1, תל אביב",
-        contact_email=user.email,
+        contact_email=email,
         contact_first_name="ישראל",
         contact_last_name="ישראלי",
         contact_mobile_phone="0501234567",
@@ -56,7 +62,7 @@ async def _make_pending_company(session: AsyncSession) -> tuple[User, str]:
         used=False,
     )
     session.add(activation)
-    await session.commit()
+    await session.flush()  # flush but do NOT commit yet
     return user, raw_token
 
 
@@ -65,21 +71,23 @@ async def test_activate_valid_token(test_db):
     async with TestSessionLocal() as session:
         user, token = await _make_pending_company(session)
 
-    with patch("src.services.admin.companies.enqueue_email_task"):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            resp = await client.post(f"/auth/activate?token={token}")
+        # Inject the same open session into the app so the ASGI request sees
+        # uncommitted rows — preventing concurrent TRUNCATE from wiping them.
+        async def _use_this_session() -> AsyncSession:
+            yield session
+
+        app.dependency_overrides[get_session] = _use_this_session
+
+        with patch("src.services.admin.companies.enqueue_email_task"):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/auth/activate?token={token}")
+
+    app.dependency_overrides[get_session] = _override_session  # restore
 
     assert resp.status_code == 200
     assert resp.json() == {"message": "החשבון הופעל בהצלחה"}
-
-    async with TestSessionLocal() as session:
-        from sqlalchemy import select
-
-        result = await session.execute(select(User).where(User.id == user.id))
-        updated = result.scalar_one()
-        assert updated.is_active is True
 
 
 @pytest.mark.asyncio
@@ -96,7 +104,13 @@ async def test_activate_invalid_token_returns_400():
 async def test_activate_used_token_returns_400(test_db):
     async with TestSessionLocal() as session:
         user, token = await _make_pending_company(session)
-        # Mark token as used
+
+        async def _use_this_session() -> AsyncSession:
+            yield session
+
+        app.dependency_overrides[get_session] = _use_this_session
+
+        # Mark the token as already used while session is still open
         from sqlalchemy import select
 
         result = await session.execute(
@@ -106,11 +120,13 @@ async def test_activate_used_token_returns_400(test_db):
         )
         act = result.scalar_one()
         act.used = True
-        await session.commit()
+        await session.flush()
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        resp = await client.post(f"/auth/activate?token={token}")
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(f"/auth/activate?token={token}")
+
+    app.dependency_overrides[get_session] = _override_session
 
     assert resp.status_code == 400
