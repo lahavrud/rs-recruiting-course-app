@@ -42,7 +42,6 @@ repos:
             .*\.lock|
             .*\.min\.js|
             alembic/versions/.*|
-            tests/.*|
             README\.md|
             docs/.*
           )$
