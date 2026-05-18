@@ -1,0 +1,227 @@
+name: Deploy to Production
+
+# Triggers:
+#   1. Automatic: fires when CI Pipeline succeeds on main.
+#   2. Manual:    workflow_dispatch lets you redeploy any previously-built SHA
+#                 (images + S3 artifacts already exist). Omit sha to redeploy
+#                 the current CURRENT_SHA from SSM (i.e. "restart production").
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Git SHA to deploy (must have been deployed before; leave blank to redeploy CURRENT_SHA)"
+        required: false
+
+# Never run two deploys at once. If a new push lands while a deploy is in
+# flight, queue it — don't cancel, because cancelling an in-flight SSM
+# Run-Command would race a second command against the same EC2 instance.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Build jobs (parallel) ─────────────────────────────────────────────────
+  # Skipped on workflow_dispatch (images already exist in ECR).
+
+  build-backend:
+    name: Build & push backend image
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      - id: meta
+        run: echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.ECR_REGISTRY }}/rs-recruitment/api:${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  build-frontend:
+    name: Build & push frontend image
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      - id: meta
+        run: echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: frontend
+          push: true
+          tags: ${{ secrets.ECR_REGISTRY }}/rs-recruitment/frontend:${{ github.event.workflow_run.head_sha }}
+          build-args: |
+            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
+            VITE_RELEASE=${{ github.event.workflow_run.head_sha }}
+            VITE_GTM_ID=GTM-PRRX7D6L
+          secrets: | # pragma: allowlist secret
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ── Deploy job ────────────────────────────────────────────────────────────
+  # Runs after both builds pass (automatic path) or immediately (dispatch path).
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    # On workflow_run: wait for both builds. On workflow_dispatch: no builds to wait for.
+    needs: [build-backend, build-frontend]
+    # needs.[*].result is 'skipped' when the if-condition above was false (dispatch path).
+    if: |
+      always() && (
+        (github.event_name == 'workflow_run' && needs.build-backend.result == 'success' && needs.build-frontend.result == 'success') ||
+        (github.event_name == 'workflow_dispatch')
+      )
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Resolve SHA to deploy
+        id: sha
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_SHA="${{ github.event.inputs.sha }}"
+            if [ -n "${INPUT_SHA}" ]; then
+              echo "sha=${INPUT_SHA}" >> "$GITHUB_OUTPUT"
+              echo "==> Deploying specified SHA: ${INPUT_SHA}"
+            else
+              # No SHA given — deploy whatever is currently running (restart prod)
+              CURRENT=$(aws ssm get-parameter \
+                --name /rs-recruitment/infra/CURRENT_SHA \
+                --query 'Parameter.Value' --output text)
+              echo "sha=${CURRENT}" >> "$GITHUB_OUTPUT"
+              echo "==> Redeploying CURRENT_SHA: ${CURRENT}"
+            fi
+          else
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Upload SHA-pinned artifacts to S3
+        # Only upload on the automatic path — dispatch targets a SHA whose
+        # artifacts were already uploaded by the original deploy.
+        if: github.event_name == 'workflow_run'
+        run: |
+          SHA="${{ steps.sha.outputs.sha }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          S3_BUCKET="rs-recruitment-${ACCOUNT_ID}"
+          aws s3 cp docker-compose.deploy.yml "s3://${S3_BUCKET}/deploy/${SHA}/docker-compose.deploy.yml"
+          aws s3 cp scripts/deploy_ec2.sh     "s3://${S3_BUCKET}/deploy/${SHA}/deploy_ec2.sh"
+
+      - name: Trigger deploy via SSM Run Command
+        id: ssm
+        run: |
+          SHA="${{ steps.sha.outputs.sha }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          S3_BUCKET="rs-recruitment-${ACCOUNT_ID}"
+          DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${SHA}/deploy_ec2.sh /tmp/deploy_${SHA}.sh && IMAGE_TAG=${SHA} bash /tmp/deploy_${SHA}.sh"
+          PARAMS=$(jq -n --arg cmd "$DEPLOY_CMD" '{commands: [$cmd]}')
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 300 \
+            --parameters "$PARAMS" \
+            --query "Command.CommandId" \
+            --output text)
+          echo "COMMAND_ID=${COMMAND_ID}" >> "$GITHUB_OUTPUT"
+          echo "==> SSM command ID: ${COMMAND_ID}"
+
+      # deploy_ec2.sh owns the health-check and automatic rollback. We poll
+      # SSM until the command exits (success = deploy passed its health check;
+      # non-zero = script called `exit 1` after rolling back). The exit code
+      # tells us which outcome happened without re-implementing the logic here.
+      # 54 * 10s = 9 min ceiling — enough for cold ECR pull + migrate + start.
+      - name: Wait for deploy (or rollback) to complete
+        run: |
+          COMMAND_ID="${{ steps.ssm.outputs.COMMAND_ID }}"
+          echo "==> Polling SSM command ${COMMAND_ID}..."
+          for i in $(seq 1 54); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+              --query "Status" --output text 2>/dev/null || echo "Pending")
+            echo "[${i}/54] ${STATUS}"
+            case "${STATUS}" in
+              Success)
+                echo "==> Deploy succeeded"
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardOutputContent" --output text
+                exit 0
+                ;;
+              Failed|TimedOut|Cancelled|Cancelling)
+                echo "==> Deploy failed — deploy_ec2.sh rolled back automatically"
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardOutputContent" --output text
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardErrorContent" --output text
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "==> Timed out waiting for deploy (9 min)"
+          exit 1
