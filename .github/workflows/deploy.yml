@@ -152,6 +152,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Resolve SHA to deploy
         id: sha
         run: |
@@ -171,13 +176,6 @@ jobs:
           else
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          AWS_DEFAULT_REGION: us-east-1
-
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
 
       - name: Upload SHA-pinned artifacts to S3
         # Only upload on the automatic path — dispatch targets a SHA whose
