@@ -68,7 +68,38 @@ function formatDate(iso: string): string {
 
 // ── Resume link — fetches via axios so the JWT travels with it ──────────────
 
-function ResumeLink({ fileKey, label }: { fileKey: string; label: string }) {
+const MIME_TO_EXT: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "doc",
+};
+
+function buildDownloadName(candidateName: string, fileKey: string, mimeType: string): string {
+  const slug = candidateName.trim().replace(/\s+/g, "-");
+  const keyExt = fileKey.includes(".") ? fileKey.split(".").pop() : undefined;
+  const safeKeyExt = keyExt && /^[a-zA-Z0-9]{1,5}$/.test(keyExt) ? keyExt.toLowerCase() : undefined;
+  const ext = MIME_TO_EXT[mimeType] ?? safeKeyExt ?? "bin";
+  return `${slug}-resume.${ext}`;
+}
+
+function triggerDownload(url: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function ResumeLink({
+  fileKey,
+  label,
+  candidateName,
+}: {
+  fileKey: string;
+  label: string;
+  candidateName: string;
+}) {
   const [isLoading, setIsLoading] = useState(false);
   async function open(e: React.MouseEvent) {
     e.stopPropagation();
@@ -76,15 +107,33 @@ function ResumeLink({ fileKey, label }: { fileKey: string; label: string }) {
     setIsLoading(true);
     try {
       const blob = await fetchResumeBlob(fileKey);
+      const mimeType = blob.type || "application/octet-stream";
+      const filename = buildDownloadName(candidateName, fileKey, mimeType);
+      const isPdf = mimeType === "application/pdf" || fileKey.toLowerCase().endsWith(".pdf");
+
+      // iOS ignores <a download> on blob URLs — use Web Share API instead.
+      // Scoped to iOS only: other platforms mishandle navigator.share with files.
+      const isIOS =
+        /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS && typeof navigator.canShare === "function") {
+        const file = new File([blob], filename, { type: mimeType });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            return;
+          } catch (err) {
+            if (err instanceof Error && err.name === "AbortError") return;
+          }
+        }
+      }
+
       const url = URL.createObjectURL(blob);
-      const win = window.open(url, "_blank");
-      if (!win) {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileKey;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      if (isPdf || isIOS) {
+        const win = window.open(url, "_blank");
+        if (!win) triggerDownload(url, filename);
+      } else {
+        triggerDownload(url, filename);
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (err) {
@@ -799,6 +848,7 @@ function ApplicationDetailBody({
           <ResumeLink
             fileKey={c.resume_path.split("/").pop() ?? c.resume_path}
             label={t("admin.applications.details.resume")}
+            candidateName={c.full_name}
           />
         ) : (
           <span className="text-white/40">

@@ -110,7 +110,10 @@ function ResumeLink({
       }
 
       const url = URL.createObjectURL(blob);
-      if (isPdf) {
+      if (isPdf || isIOS) {
+        // PDFs open inline in a new tab (browser PDF viewer / iOS Quick Look).
+        // iOS fallback when Web Share isn't available: open in new tab so Safari
+        // can offer Quick Look + share sheet from there.
         const win = window.open(url, "_blank");
         if (!win) triggerDownload(url, filename);
       } else {
