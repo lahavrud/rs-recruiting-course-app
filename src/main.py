@@ -51,6 +51,7 @@ if settings.sentry_dsn:
             environment=settings.environment,
             release=os.environ.get("SENTRY_RELEASE"),
             traces_sample_rate=0.0,
+            send_default_pii=False,
         )
     except Exception as _sentry_err:
         # A misconfigured DSN must never crash the server.

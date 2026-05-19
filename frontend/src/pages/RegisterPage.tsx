@@ -683,10 +683,12 @@ export default function RegisterPage() {
                 aria-label={t("auth.register.agreementClose")}
               >✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
-              <p className="text-sm leading-7 text-white/55">
-                {t("auth.register.agreementTextService")}
-              </p>
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
+              {t("auth.register.agreementTextService")
+                .split("\n\n")
+                .map((para, i) => (
+                  <p key={i} className="text-sm leading-7 text-white/55">{para}</p>
+                ))}
             </div>
             <div className="shrink-0 border-t border-white/8 px-5 py-3 text-left">
               <button

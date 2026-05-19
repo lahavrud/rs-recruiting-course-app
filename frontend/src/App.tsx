@@ -6,6 +6,7 @@ import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import AdminRoute from "@/components/guards/AdminRoute";
 import CompanyRoute from "@/components/guards/CompanyRoute";
 import AppShell from "@/components/layout/AppShell";
+import CookieConsent from "@/components/ui/CookieConsent";
 import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // Eager — entry funnels Google + direct visits land on most often. Keeping
@@ -80,6 +81,7 @@ export default function App() {
     <BrowserRouter>
       <ScrollToTop />
       <GtmPageView />
+      <CookieConsent />
       <AuthProvider>
         <AppShell>
           <Suspense fallback={<RouteFallback />}>

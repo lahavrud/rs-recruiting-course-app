@@ -611,10 +611,10 @@ export default function ApplicationPage() {
 
 
       {privacyOpen && (
-        <PrivacyModal onClose={() => setPrivacyOpen(false)} />
+        <PrivacyModal onClose={() => { setPrivacyAccepted(true); setPrivacyOpen(false); }} />
       )}
       {termsOpen && (
-        <TermsModal onClose={() => setTermsOpen(false)} />
+        <TermsModal onClose={() => { setTermsAccepted(true); setTermsOpen(false); }} />
       )}
     </div>
     </div>
@@ -1167,7 +1167,7 @@ function PrivacyModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             className="text-white/40 transition hover:text-white/70"
-            aria-label="סגור"
+            aria-label={t("common.close")}
           >
             ✕
           </button>
@@ -1180,6 +1180,15 @@ function PrivacyModal({ onClose }: { onClose: () => void }) {
                 {para}
               </p>
             ))}
+        </div>
+        <div className="shrink-0 border-t border-white/8 px-5 py-3 text-left">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm bg-copper px-5 py-2 text-sm font-medium text-white transition hover:bg-gold"
+          >
+            {t("common.close")}
+          </button>
         </div>
       </div>
     </div>,
@@ -1205,7 +1214,7 @@ function TermsModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             className="text-white/40 transition hover:text-white/70"
-            aria-label="סגור"
+            aria-label={t("common.close")}
           >
             ✕
           </button>
@@ -1218,6 +1227,15 @@ function TermsModal({ onClose }: { onClose: () => void }) {
                 {para}
               </p>
             ))}
+        </div>
+        <div className="shrink-0 border-t border-white/8 px-5 py-3 text-left">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm bg-copper px-5 py-2 text-sm font-medium text-white transition hover:bg-gold"
+          >
+            {t("common.close")}
+          </button>
         </div>
       </div>
     </div>,

@@ -2,7 +2,19 @@
 
 @import "tailwindcss";
 
+@keyframes cookie-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cookie-down {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(1rem); }
+}
+
 @theme {
+  --animate-cookie-up: cookie-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-cookie-down: cookie-down 0.25s ease-in both;
   /* Warm neutral palette */
   --color-canvas: #F7F5F1;
   --color-surface: #FDFCFA;

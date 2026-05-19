@@ -7,9 +7,29 @@ import { defineConfig, type Plugin } from "vite";
 
 /** Injects the Google Tag Manager <head> snippet + <noscript> fallback into
  *  index.html at build time. Conditional on VITE_GTM_ID so dev builds and
- *  feature branches don't pollute the prod GTM container with junk events. */
+ *  feature branches don't pollute the prod GTM container with junk events.
+ *  A GTM Consent Mode v2 block is injected before the GTM snippet so that
+ *  analytics cookies are withheld until the user grants consent. */
 function gtmPlugin(containerId: string): Plugin {
-  const headSnippet = `<!-- Google Tag Manager -->
+  const consentInit = `<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){window.dataLayer.push(arguments);}
+    (function(){
+      var c = null;
+      try { c = JSON.parse(localStorage.getItem('cookie_consent')); } catch (e) {}
+      var granted = c && c.analytics === true;
+      var d = {
+        analytics_storage: granted ? 'granted' : 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      };
+      if (!c) { d.wait_for_update = 2000; }
+      gtag('consent', 'default', d);
+    })();
+  </script>`;
+  const headSnippet = `${consentInit}
+    <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=

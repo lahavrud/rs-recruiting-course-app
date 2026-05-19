@@ -112,7 +112,7 @@ async def test_register_persists_legal_acceptance_metadata(client: AsyncClient):
             )
         ).scalar_one()
         assert cp.privacy_accepted_at is not None
-        assert cp.privacy_policy_version == "1.1"
+        assert cp.privacy_policy_version == "1.2"
         assert cp.terms_accepted_at is not None
         assert cp.terms_version == "1.0"
         assert cp.acceptance_user_agent == "pytest-ua/1.0"

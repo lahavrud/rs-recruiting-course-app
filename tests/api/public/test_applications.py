@@ -55,7 +55,7 @@ async def test_apply_endpoint_success(
         assert candidate is not None
         assert candidate.full_name == "John Doe"
         assert candidate.consent_given_at is not None
-        assert candidate.consent_policy_version == "1.1"
+        assert candidate.consent_policy_version == "1.2"
 
         # Verify Application was created with interview fields
         result = await session.execute(
@@ -464,7 +464,7 @@ async def test_apply_endpoint_writes_consent_audit_event(
         )
         event = result.scalar_one_or_none()
         assert event is not None
-        assert event.detail == "policy_version=1.1"
+        assert event.detail == "policy_version=1.2"
         assert event.actor_user_id is None
 
 
@@ -548,7 +548,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         )
         after_second = result.scalar_one()
         assert after_second.consent_given_at is not None
-        assert after_second.consent_policy_version == "1.1"
+        assert after_second.consent_policy_version == "1.2"
         # Consent timestamp must be refreshed (>= first)
         assert after_second.consent_given_at >= first_consent_at  # type: ignore[operator]
 

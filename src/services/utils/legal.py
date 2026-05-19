@@ -10,5 +10,5 @@ user agreed to. Keep them in sync with the version line at the top of
 each document.
 """
 
-CURRENT_PRIVACY_POLICY_VERSION = "1.1"
+CURRENT_PRIVACY_POLICY_VERSION = "1.2"
 CURRENT_TERMS_OF_SERVICE_VERSION = "1.0"
