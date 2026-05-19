@@ -270,6 +270,14 @@ export default function ApplicationPage() {
     };
   }, [jobId, navigate, t]);
 
+  useEffect(() => {
+    if (!job) return;
+    const dl = (window as unknown as { dataLayer?: unknown[] }).dataLayer;
+    if (Array.isArray(dl)) {
+      dl.push({ event: "apply_start", job_id: job.id, job_title: job.title });
+    }
+  }, [job]);
+
   // ── Resume handling (drag-drop + click) ─────────────────────────────────
 
   function ingestResume(file: File | null) {
@@ -410,6 +418,10 @@ export default function ApplicationPage() {
 
     try {
       await submitApplication(jobId, form, resumeFile);
+      const dl = (window as unknown as { dataLayer?: unknown[] }).dataLayer;
+      if (Array.isArray(dl)) {
+        dl.push({ event: "apply_submit", job_id: jobId, job_title: job?.title });
+      }
       setSuccess(true);
     } catch (err) {
       setSubmitError(describeServerError(err));

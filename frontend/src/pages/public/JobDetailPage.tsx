@@ -190,6 +190,14 @@ export default function JobDetailPage() {
     };
   }, [id, navigate, t]);
 
+  useEffect(() => {
+    if (!job) return;
+    const dl = (window as unknown as { dataLayer?: unknown[] }).dataLayer;
+    if (Array.isArray(dl)) {
+      dl.push({ event: "job_view", job_id: job.id, job_title: job.title });
+    }
+  }, [job]);
+
   if (loading) return <DetailSkeleton />;
 
   if (error || !job) {
