@@ -45,9 +45,11 @@ export async function deleteCandidate(id: number): Promise<void> {
 
 // fetchResumeBlob is in this file because it's exclusively used in the
 // candidates admin flow, even though the endpoint is not admin-namespaced.
-export async function fetchResumeBlob(fileKey: string): Promise<Blob> {
+export async function fetchResumeBlob(fileKey: string, downloadName?: string): Promise<Blob> {
+  const params = downloadName ? { download_name: downloadName } : {};
   const res = await api.get<Blob>(`/api/resumes/${fileKey}`, {
     responseType: "blob",
+    params,
   });
   return res.data;
 }

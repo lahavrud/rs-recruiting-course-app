@@ -86,8 +86,14 @@ function ResumeLink({
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const blob = await fetchResumeBlob(fileKey);
+      // Build the filename before fetching so we can pass it to the backend.
+      // iOS Safari ignores <a download> on blob URLs and uses Content-Disposition
+      // instead — sending the name as a query param fixes it server-side.
+      const earlyExt = fileKey.includes(".") ? fileKey.split(".").pop() : "bin";
+      const earlyName = buildDownloadName(candidateName, fileKey, `x/${earlyExt}`);
+      const blob = await fetchResumeBlob(fileKey, earlyName);
       const url = URL.createObjectURL(blob);
+      // Refine with the confirmed MIME type from the response.
       const filename = buildDownloadName(candidateName, fileKey, blob.type);
       const isPdf = blob.type === "application/pdf" || fileKey.toLowerCase().endsWith(".pdf");
       if (isPdf) {

@@ -2,8 +2,9 @@
 
 import re
 from pathlib import Path
+from urllib.parse import quote as _pct_encode
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 
 from src.core.infrastructure.config import settings
@@ -30,9 +31,21 @@ def _content_type(file_key: str) -> str:
     return _MIME_BY_EXT.get(ext, "application/octet-stream")
 
 
+def _disposition_header(content_type: str, filename: str) -> str:
+    """Build a Content-Disposition header that handles non-ASCII filenames.
+
+    Uses RFC 6266 / 5987 filename* encoding so Hebrew (and any Unicode)
+    characters survive the HTTP header intact on all browsers including iOS.
+    """
+    disposition = "inline" if content_type == "application/pdf" else "attachment"
+    encoded = _pct_encode(filename, encoding="utf-8", safe="-._~")
+    return f"{disposition}; filename*=UTF-8''{encoded}"
+
+
 @router.get("/{file_key}")
 async def download_resume(
     file_key: str,
+    download_name: str | None = Query(default=None),
     _: User = Depends(get_current_admin),
 ) -> Response:
     """Download a candidate resume.
@@ -40,6 +53,11 @@ async def download_resume(
     Acts as a secure proxy: fetches the file from local storage or S3
     and streams the raw bytes directly. Avoids cross-origin S3 redirects.
     Requires admin authentication.
+
+    `download_name` — optional display filename from the frontend (e.g.
+    "יוחנן-כהן-resume.docx"). Embedded in Content-Disposition so iOS Safari,
+    which ignores the HTML download attribute on blob URLs, still saves the
+    file with the correct name.
     """
     if not _SAFE_KEY.match(file_key):
         raise HTTPException(
@@ -48,18 +66,13 @@ async def download_resume(
         )
 
     storage = get_storage_provider()
-
-    # Storage layout: every uploaded resume lives under the `resumes/`
-    # subdirectory (local) or under the `resumes/` key prefix (S3) — see
-    # LocalStorageProvider.upload_file and applications._validate_and_upload_resume.
-    # The frontend strips that prefix when calling this route (the path-param
-    # regex doesn't allow slashes), so we re-add it here.
     storage_key = f"resumes/{file_key}"
+    content_type = _content_type(file_key)
+    filename = download_name or file_key
 
     if settings.storage_provider == "local":
         storage_root = Path(settings.local_storage_path).resolve()
         file_path = (storage_root / storage_key).resolve()
-        # Ensure resolved path stays inside the storage directory
         try:
             file_path.relative_to(storage_root)
         except ValueError:
@@ -72,12 +85,12 @@ async def download_resume(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File not found",
             )
-        media_type = _content_type(file_key)
-        disposition = "inline" if media_type == "application/pdf" else "attachment"
         return FileResponse(
             path=file_path,
-            filename=file_key,
-            headers={"Content-Disposition": f'{disposition}; filename="{file_key}"'},
+            filename=filename,
+            headers={
+                "Content-Disposition": _disposition_header(content_type, filename)
+            },
         )
 
     try:
@@ -87,10 +100,8 @@ async def download_resume(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found",
         ) from e
-    content_type = _content_type(file_key)
-    disposition = "inline" if content_type == "application/pdf" else "attachment"
     return Response(
         content=file_bytes,
         media_type=content_type,
-        headers={"Content-Disposition": f'{disposition}; filename="{file_key}"'},
+        headers={"Content-Disposition": _disposition_header(content_type, filename)},
     )
