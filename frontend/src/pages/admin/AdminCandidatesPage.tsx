@@ -87,26 +87,28 @@ function ResumeLink({
     setIsLoading(true);
     try {
       const blob = await fetchResumeBlob(fileKey);
-      const filename = buildDownloadName(candidateName, fileKey, blob.type);
       const mimeType = blob.type || "application/octet-stream";
+      const filename = buildDownloadName(candidateName, fileKey, mimeType);
       const isPdf = mimeType === "application/pdf" || fileKey.toLowerCase().endsWith(".pdf");
 
-      // Web Share API: the only reliable way to name a file on iOS.
-      // iOS ignores the HTML `download` attribute on blob URLs entirely —
-      // blob: URLs carry no HTTP headers, so Content-Disposition is also useless.
-      // Web Share hands a named File object directly to the OS share sheet.
-      const file = new File([blob], filename, { type: mimeType });
-      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file] });
-          return;
-        } catch (err) {
-          if (err instanceof Error && err.name === "AbortError") return;
-          // Share failed — fall through to blob URL approach
+      // iOS ignores <a download> on blob URLs — use Web Share API instead.
+      // Scoped to iOS only: other platforms (including Chrome on Linux) mishandle
+      // navigator.share with files and download the blob UUID instead of the filename.
+      const isIOS =
+        /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS && typeof navigator.canShare === "function") {
+        const file = new File([blob], filename, { type: mimeType });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            return;
+          } catch (err) {
+            if (err instanceof Error && err.name === "AbortError") return;
+          }
         }
       }
 
-      // Desktop fallback (Chrome, Firefox, Safari desktop)
       const url = URL.createObjectURL(blob);
       if (isPdf) {
         const win = window.open(url, "_blank");
