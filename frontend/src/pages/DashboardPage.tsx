@@ -36,10 +36,17 @@ export default function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = user?.role === UserRole.ADMIN;
+  const isCandidate = user?.role === UserRole.CANDIDATE;
 
   const greeting = t(getGreetingKey());
   const name = nameFromEmail(user?.email);
   const today = formatToday();
+
+  const heroSubtitleKey = isAdmin
+    ? "dashboard.heroSubtitle.admin"
+    : isCandidate
+      ? "dashboard.heroSubtitle.candidate"
+      : "dashboard.heroSubtitle.company";
 
   return (
     <div>
@@ -52,11 +59,7 @@ export default function DashboardPage() {
           {greeting}
           {name && <span className="text-copper/85">{`, ${name}`}</span>}
         </h1>
-        <p className="mt-2 text-sm text-white/45">
-          {isAdmin
-            ? t("dashboard.heroSubtitle.admin")
-            : t("dashboard.heroSubtitle.company")}
-        </p>
+        <p className="mt-2 text-sm text-white/45">{t(heroSubtitleKey)}</p>
       </header>
 
       {isAdmin ? (
@@ -71,6 +74,8 @@ export default function DashboardPage() {
             <QuickActions />
           </section>
         </div>
+      ) : isCandidate ? (
+        <CandidateLinks />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <Link
@@ -161,6 +166,44 @@ function QuickActions() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Candidate landing cards — mirrors the candidate sidebar links. */
+function CandidateLinks() {
+  const { t } = useTranslation();
+  const links = [
+    {
+      to: "/jobs",
+      label: t("dashboard.candidateLinks.browseJobs"),
+      desc: t("dashboard.candidateLinks.browseJobsDesc"),
+    },
+    {
+      to: "/candidate/applications",
+      label: t("dashboard.candidateLinks.myApplications"),
+      desc: t("dashboard.candidateLinks.myApplicationsDesc"),
+    },
+    {
+      to: "/candidate/profile",
+      label: t("dashboard.candidateLinks.myProfile"),
+      desc: t("dashboard.candidateLinks.myProfileDesc"),
+    },
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {links.map((l) => (
+        <Link
+          key={l.to}
+          to={l.to}
+          className="group rounded-xl border border-white/8 bg-card p-5 transition duration-200 hover:border-copper/30 hover:bg-card-raised"
+        >
+          <p className="font-medium text-white/85 transition group-hover:text-white/95">
+            {l.label}
+          </p>
+          <p className="mt-1 text-sm text-white/45">{l.desc}</p>
+        </Link>
+      ))}
     </div>
   );
 }

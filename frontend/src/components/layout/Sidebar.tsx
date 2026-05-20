@@ -31,7 +31,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { labelKey: "nav.myJobs", to: "/company/jobs" },
   ];
 
-  const navItems = user?.role === UserRole.ADMIN ? adminNav : companyNav;
+  const candidateNav: NavItem[] = [
+    { labelKey: "nav.dashboard", to: "/dashboard" },
+    { labelKey: "nav.browseJobs", to: "/jobs" },
+    { labelKey: "nav.myApplications", to: "/candidate/applications" },
+    { labelKey: "nav.myProfile", to: "/candidate/profile" },
+  ];
+
+  const navItems =
+    user?.role === UserRole.ADMIN
+      ? adminNav
+      : user?.role === UserRole.CANDIDATE
+        ? candidateNav
+        : companyNav;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

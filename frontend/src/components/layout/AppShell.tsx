@@ -199,6 +199,20 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
   );
 }
 
+// Path checks for the "always public shell" set (landing, jobs board,
+// articles, about, contact, /activate). These pages never make sense in
+// the authenticated chrome — a candidate browsing /jobs should see the
+// same layout an anonymous visitor sees, not their dashboard sidebar.
+const PUBLIC_SHELL_PREFIXES = ["/jobs", "/articles"];
+const PUBLIC_SHELL_EXACT = new Set(["/", "/about", "/contact", "/activate"]);
+
+function isPublicShellPath(pathname: string): boolean {
+  if (PUBLIC_SHELL_EXACT.has(pathname)) return true;
+  return PUBLIC_SHELL_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 function ShellContent({ children }: Props) {
   const { isAuthenticated } = useAuth();
@@ -216,7 +230,12 @@ function ShellContent({ children }: Props) {
     return <>{children}</>;
   }
 
-  if (isAuthenticated) {
+  // Public-content pages render in the public shell regardless of auth
+  // state. PublicHeader switches its CTA based on `isAuthenticated`, so a
+  // logged-in candidate still sees the "Dashboard" affordance there.
+  const publicShell = isPublicShellPath(pathname);
+
+  if (isAuthenticated && !publicShell) {
     return (
       <div className="flex h-screen flex-col">
         <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
