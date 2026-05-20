@@ -274,7 +274,7 @@ async def test_purge_task_emits_metric_in_production():
     assert result == 7
     cw_client.put_metric_data.assert_awaited_once()
     call_kwargs = cw_client.put_metric_data.await_args.kwargs
-    assert call_kwargs["Namespace"] == "RsRecruitment/Retention"
+    assert call_kwargs["Namespace"] == "RsRecruiting/Retention"
     [datum] = call_kwargs["MetricData"]
     assert datum["MetricName"] == "PurgedCandidatesCount"
     assert datum["Value"] == 7.0

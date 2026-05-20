@@ -135,7 +135,7 @@ flowchart LR
 | Principal | Type | What it does |
 |---|---|---|
 | `lahav-admin` | User | Console + CLI admin (MFA on) |
-| `rs-recruitment-app-role` | EC2 instance profile | EC2-side: ECR pull, SSM read on `/rs-recruitment/*`, S3 `GetObject`/`PutObject`/`DeleteObject`/`DeleteObjectVersion`/`ListBucket`/`ListBucketVersions` on the app bucket, CW Logs write, namespace-scoped `cloudwatch:PutMetricData` for `RsRecruitment/Retention` |
+| `rs-recruitment-app-role` | EC2 instance profile | EC2-side: ECR pull, SSM read on `/rs-recruitment/*`, S3 `GetObject`/`PutObject`/`DeleteObject`/`DeleteObjectVersion`/`ListBucket`/`ListBucketVersions` on the app bucket, CW Logs write, namespace-scoped `cloudwatch:PutMetricData` for `RsRecruiting/Retention` |
 | `github-actions-rs-recruitment` | GHA OIDC | CI: ECR push, S3 write to deploy prefix, SSM SendCommand + PutParameter on CURRENT_SHA |
 | `github-role` | Older GHA role | Legacy — verify if still referenced; candidate for cleanup |
 | `AWSDataLifecycleManagerDefaultRole` | Service | DLM weekly EC2 snapshot policy |
@@ -161,7 +161,7 @@ Default EBS encryption: ON (account-wide).
 | Log group `/rs-recruitment/redis` | 14d retention |
 | Log group `/rs-recruitment/worker` | **400d retention** (compliance audit trail for `retention.purge candidate_id=`) |
 | Log group `/aws/rds/instance/rs-recruitment-prod-db/postgresql` | RDS log export · **30d retention** |
-| Metric filter `nginx-5xx-errors` | `/rs-recruitment/nginx` · nginx combined log field pattern `status=5*` · emits `RsRecruitment/Nginx / Http5xxCount` (Sum, `defaultValue=0`) |
+| Metric filter `nginx-5xx-errors` | `/rs-recruitment/nginx` · nginx combined log field pattern `status=5*` · emits `RsRecruiting/Nginx / Http5xxCount` (Sum, `defaultValue=0`) |
 | Alarm `nginx-5xx-rate-high` | `Http5xxCount` Sum > 5 in 5 min → ops-alerts (and OK action → ops-alerts) |
 | Alarm `ec2-cpu-high-rs-server` | EC2 CPU >80% for 30min → ops-alerts |
 | Alarm `rds-connections-high` | RDS connections high → ops-alerts |
@@ -189,7 +189,7 @@ Default EBS encryption: ON (account-wide).
 ### Custom metrics namespace
 | Namespace | Metric | Source |
 |---|---|---|
-| `RsRecruitment/Retention` | `PurgedCandidatesCount` | Worker — Arq cron, see `tasks.py::_emit_purge_count_metric` |
+| `RsRecruiting/Retention` | `PurgedCandidatesCount` | Worker — Arq cron, see `tasks.py::_emit_purge_count_metric` |
 
 ---
 
@@ -197,8 +197,13 @@ Default EBS encryption: ON (account-wide).
 
 Newest first. Each entry: date, what, why, links. When updating, append; don't rewrite history.
 
+### 2026-05-20 — Rename CW metric namespaces RsRecruitment → RsRecruiting
+**Decision:** Renamed both custom CloudWatch metric namespaces to match the correct brand name: `RsRecruitment/Retention` → `RsRecruiting/Retention` and `RsRecruitment/Nginx` → `RsRecruiting/Nginx`. Updated IAM inline policy `CloudWatchPutRetentionMetric` condition on `rs-recruitment-app-role` to allow `RsRecruiting/Retention`. Updated `retention-purge-stale` and `nginx-5xx-rate-high` alarms, `rs-recruiting-ops` dashboard, `nginx-5xx-errors` metric filter, `tasks.py` `METRIC_NAMESPACE` constant.
+**Why:** All other brand-visible naming uses "RS Recruiting"; the old namespace string was a copy-paste of the repo slug rather than the brand name.
+**Trade:** Brief window between alarm update and next worker cron run (~0–26h) where `retention-purge-stale` may fire once, then self-recover on the first nightly emit to the new namespace.
+
 ### 2026-05-20 — 5xx alarm, RDS log retention, ops dashboard (PRs #587 #595 #596)
-**Decision:** (1) Added CloudWatch metric filter `nginx-5xx-errors` on `/rs-recruitment/nginx` using the nginx combined-log field-extraction pattern (`status=5*`), emitting `RsRecruitment/Nginx / Http5xxCount`. Created alarm `nginx-5xx-rate-high` at Sum > 5 per 5-min window → `ops-alerts`. (2) Set 30d retention on the RDS log group `/aws/rds/instance/rs-recruitment-prod-db/postgresql` (was indefinite). (3) Created dashboard `rs-recruiting-ops` with 5 metric panels and 4 saved Logs Insights queries.
+**Decision:** (1) Added CloudWatch metric filter `nginx-5xx-errors` on `/rs-recruitment/nginx` using the nginx combined-log field-extraction pattern (`status=5*`), emitting `RsRecruiting/Nginx / Http5xxCount`. Created alarm `nginx-5xx-rate-high` at Sum > 5 per 5-min window → `ops-alerts`. (2) Set 30d retention on the RDS log group `/aws/rds/instance/rs-recruitment-prod-db/postgresql` (was indefinite). (3) Created dashboard `rs-recruiting-ops` with 5 metric panels and 4 saved Logs Insights queries.
 **Why:** A 500 storm on any business endpoint would not have fired any existing alarm (Route53 health check only pings `/health`). RDS log group was the only log group without a retention policy, creating unbounded cost risk. Dashboard reduces mean-time-to-orient when `ops-alerts` fires.
 **Trade:** Alarm threshold of 5 per 5 min is intentionally generous for a low-traffic job board — avoids noise from transient deploys. Lockout-rate dashboard panel deferred pending #588.
 

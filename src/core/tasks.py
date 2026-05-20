@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # CloudWatch namespace for our application metrics. Single namespace keeps
 # the alarm/dashboard surface uniform and the IAM policy tight.
-METRIC_NAMESPACE = "RsRecruitment/Retention"
+METRIC_NAMESPACE = "RsRecruiting/Retention"
 
 
 def _mask_email(to: str | List[str]) -> str:
