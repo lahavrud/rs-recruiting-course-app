@@ -324,7 +324,7 @@ export default function LandingPage() {
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="texture-wave relative flex min-h-screen flex-col">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-void/80 via-page/60 to-void/55" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-void/90 via-page/75 to-void/70" />
 
         {/* Centered content */}
         <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center px-6 pb-16 text-center sm:pb-24">
