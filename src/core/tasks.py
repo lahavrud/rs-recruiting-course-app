@@ -20,6 +20,37 @@ logger = logging.getLogger(__name__)
 # the alarm/dashboard surface uniform and the IAM policy tight.
 METRIC_NAMESPACE = "RsRecruitment/Retention"
 
+
+def _mask_email(to: str | List[str]) -> str:
+    """Return a loggable, non-PII representation of one or more email addresses.
+
+    Shows the first two characters of the local part so log correlation is
+    still possible without storing full addresses in CloudWatch.
+    e.g. "alice@example.com" → "al***@example.com"
+    """
+    if isinstance(to, list):
+        return ", ".join(_mask_email(e) for e in to)
+    parts = to.split("@", 1)
+    if len(parts) != 2:
+        return "***"
+    local, domain = parts
+    return f"{local[:2]}***@{domain}"
+
+
+def _mask_redis_url(url: str) -> str:
+    """Strip credentials from a Redis URL before logging.
+
+    Example: redis://user:s3cr3t@host/0 → redis://***@host/0  # pragma: allowlist secret
+    """
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    if "@" in rest:
+        _, hostpart = rest.rsplit("@", 1)
+        return f"{scheme}://***@{hostpart}"
+    return url
+
+
 # Global Redis pool (initialized on worker startup)
 _redis_pool: Optional[ArqRedis] = None
 
@@ -34,7 +65,7 @@ async def send_email_task(
     from_email: Optional[str] = None,
 ) -> bool:
     """Async task to send an email, processed by Arq workers with auto-retry."""
-    logger.info(f"Sending email to {to} with subject: {subject}")
+    logger.info("sending_email", extra={"to": _mask_email(to), "subject": subject})
 
     try:
         provider = get_email_provider()
@@ -48,14 +79,16 @@ async def send_email_task(
         )
 
         if success:
-            logger.info(f"Email sent successfully to {to}")
+            logger.info("email_sent", extra={"to": _mask_email(to)})
         else:
-            logger.warning(f"Failed to send email to {to}")
-            raise Exception(f"Email provider returned False for {to}")
+            logger.warning("email_send_failed", extra={"to": _mask_email(to)})
+            raise Exception(f"Email provider returned False for {_mask_email(to)}")
 
         return success
     except Exception as e:
-        logger.error(f"Error sending email to {to}: {e}", exc_info=True)
+        logger.error(
+            "email_error", extra={"to": _mask_email(to), "error": str(e)}, exc_info=True
+        )
         raise
 
 
@@ -138,11 +171,14 @@ async def get_redis_pool() -> ArqRedis:
         try:
             redis_settings = RedisSettings.from_dsn(settings.redis_url)
             _redis_pool = await create_pool(redis_settings)
-            logger.info(f"Created Redis connection pool: {settings.redis_url}")
+            logger.info(
+                "redis_pool_created",
+                extra={"url": _mask_redis_url(settings.redis_url)},
+            )
         except Exception as e:
             logger.error(
-                f"Failed to connect to Redis at {settings.redis_url}: {e}. "
-                "Make sure Redis is running and REDIS_URL is configured correctly."
+                "redis_pool_failed",
+                extra={"url": _mask_redis_url(settings.redis_url), "error": str(e)},
             )
             raise
 
@@ -184,5 +220,5 @@ async def enqueue_email_task(
         attachments=attachments,
         from_email=from_email,
     )
-    logger.info(f"Enqueued email task {job.job_id} for {to}")
+    logger.info("email_enqueued", extra={"job_id": job.job_id, "to": _mask_email(to)})
     return job.job_id
