@@ -16,13 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash
 from src.enums import UserRole
-from src.models import ActivationToken, User
+from src.models import ActivationToken, AuditLog, User
 from src.services.auth.candidate_registration import (
     _CANDIDATE_ACTIVATION_TTL_HOURS,
     register_candidate,
     resend_candidate_activation,
 )
-from src.services.exceptions import EmailAlreadyExistsError
 
 
 @pytest.fixture
@@ -51,7 +50,7 @@ def _patch_email():
 @pytest.mark.asyncio
 async def test_register_candidate_mints_2h_token(session: AsyncSession, _patch_email):
     """Token TTL is exactly the documented 2-hour candidate window."""
-    user = await register_candidate(
+    await register_candidate(
         "ttl-check@test.com",
         "SecurePass1!",  # pragma: allowlist secret
         "TTL Check",
@@ -61,6 +60,11 @@ async def test_register_candidate_mints_2h_token(session: AsyncSession, _patch_e
     )
     await session.commit()
 
+    user = (
+        await session.execute(
+            select(User).where(User.email == "ttl-check@test.com")  # type: ignore[arg-type]
+        )
+    ).scalar_one()
     token = (
         await session.execute(
             select(ActivationToken).where(
@@ -76,9 +80,13 @@ async def test_register_candidate_mints_2h_token(session: AsyncSession, _patch_e
 
 
 @pytest.mark.asyncio
-async def test_register_candidate_rejects_active_email(
+async def test_register_candidate_silent_on_active_email(
     session: AsyncSession, _patch_email
 ):
+    """Active-email collision returns silently — no token, no email, no audit.
+
+    Was raising EmailAlreadyExistsError, which leaked existence via the 409.
+    """
     session.add(
         User(
             email="active@test.com",
@@ -89,22 +97,38 @@ async def test_register_candidate_rejects_active_email(
     )
     await session.commit()
 
-    with pytest.raises(EmailAlreadyExistsError):
-        await register_candidate(
-            "active@test.com",
-            "AnotherPass1!",  # pragma: allowlist secret
-            "Hijack Attempt",
-            privacy_accepted=True,
-            terms_accepted=True,
-            session=session,
+    result = await register_candidate(
+        "active@test.com",
+        "AnotherPass1!",  # pragma: allowlist secret
+        "Hijack Attempt",
+        privacy_accepted=True,
+        terms_accepted=True,
+        session=session,
+    )
+    assert result is None
+
+    tokens = (await session.execute(select(ActivationToken))).scalars().all()
+    audits = (
+        (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "candidate_register_requested"  # type: ignore[arg-type]
+                )
+            )
         )
+        .scalars()
+        .all()
+    )
+    assert tokens == []
+    assert audits == []
 
 
 @pytest.mark.asyncio
-async def test_register_candidate_rejects_pending_non_candidate(
+async def test_register_candidate_silent_on_pending_non_candidate(
     session: AsyncSession, _patch_email
 ):
-    """Pending company user with the same email must not be hijacked."""
+    """Pending company user with the same email must not be hijacked AND
+    must not reveal its existence via the response."""
     session.add(
         User(
             email="pending-company@test.com",
@@ -115,15 +139,24 @@ async def test_register_candidate_rejects_pending_non_candidate(
     )
     await session.commit()
 
-    with pytest.raises(EmailAlreadyExistsError):
-        await register_candidate(
-            "pending-company@test.com",
-            "Other1!",  # pragma: allowlist secret
-            "Other",
-            privacy_accepted=True,
-            terms_accepted=True,
-            session=session,
+    result = await register_candidate(
+        "pending-company@test.com",
+        "Other1!",  # pragma: allowlist secret
+        "Other",
+        privacy_accepted=True,
+        terms_accepted=True,
+        session=session,
+    )
+    assert result is None
+
+    # The company user row is untouched.
+    existing = (
+        await session.execute(
+            select(User).where(User.email == "pending-company@test.com")  # type: ignore[arg-type]
         )
+    ).scalar_one()
+    assert existing.role == UserRole.COMPANY
+    assert existing.is_active is False
 
 
 @pytest.mark.asyncio

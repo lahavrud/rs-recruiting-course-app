@@ -37,7 +37,6 @@ from src.core.infrastructure.transactions import defer_after_commit
 from src.core.tasks import enqueue_email_task
 from src.enums import UserRole
 from src.models import ActivationToken, User
-from src.services.exceptions import EmailAlreadyExistsError
 from src.services.utils.audit import record_audit_event
 from src.services.utils.legal import CURRENT_PRIVACY_POLICY_VERSION
 from src.templates.email import build_candidate_activation_html
@@ -164,21 +163,24 @@ async def register_candidate(
     session: AsyncSession,
     ip_address: str | None = None,
     user_agent: str | None = None,
-) -> User:
+) -> None:
     """Create or recycle a pending candidate user + send activation email.
 
-    Behavior:
-    * Email matches an `is_active=True` user → ``EmailAlreadyExistsError`` (409).
-    * Email matches an `is_active=False` user (any role) → if it's a candidate
-      we treat it as a re-registration: update password, kill stale tokens,
-      mint fresh. Other roles (e.g. an unactivated company) also get a 409
-      because we don't want candidate registration to take over their slot.
-    * No matching user → create one with ``is_active=False`` and mint the
-      first token.
+    Silent in every collision case so the response shape can't be used to
+    enumerate which emails already have accounts:
+
+    * No matching user → create ``is_active=False`` row + mint a token +
+      email it + write the audit row.
+    * Email matches an ``is_active=False`` candidate → recycle: update
+      password, drop stale tokens, mint fresh, email it, audit it.
+    * Email matches an ``is_active=True`` user, OR an inactive non-candidate
+      (e.g. a pending company) → no-op. We deliberately mint nothing, send
+      nothing, and write no audit row — an audit row would let an
+      authenticated admin enumerate accounts via the audit feed, undoing
+      the externally-visible guarantee.
 
     Caller is responsible for the outer transaction (the router wraps this
-    in ``transactional(session)`` so token-mint + password-update + audit
-    commit together).
+    in ``transactional(session)``).
     """
     if not privacy_accepted or not terms_accepted:
         # Defense-in-depth — the router also enforces this on the API surface.
@@ -191,13 +193,18 @@ async def register_candidate(
     )
     existing = result.scalar_one_or_none()
 
-    if existing is not None and existing.is_active:
-        raise EmailAlreadyExistsError(normalized_email)
-
-    if existing is not None and existing.role != UserRole.CANDIDATE:
-        # Pending company / admin registration — don't let candidate flow
-        # hijack the slot.
-        raise EmailAlreadyExistsError(normalized_email)
+    # Collision cases that previously raised EmailAlreadyExistsError. Now
+    # we return silently so the HTTP response is indistinguishable from a
+    # fresh registration. Crucially: no token mint, no email, no audit
+    # row (an audit row would leak via the admin audit feed).
+    if existing is not None and (
+        existing.is_active or existing.role != UserRole.CANDIDATE
+    ):
+        logger.info(
+            "candidate_register_silent_collision",
+            extra={"email_prefix": normalized_email.split("@", 1)[0][:2] + "***"},
+        )
+        return
 
     if existing is None:
         user = User(
@@ -236,8 +243,6 @@ async def register_candidate(
     )
 
     _send_activation_email_deferred(normalized_email, raw_token)
-
-    return user
 
 
 async def resend_candidate_activation(

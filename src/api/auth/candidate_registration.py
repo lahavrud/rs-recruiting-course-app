@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import client_ip
-from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.transactions import transactional
 from src.schemas import CandidateRegisterRequest, ResendActivationRequest
@@ -13,7 +12,6 @@ from src.services.auth.candidate_registration import (
     register_candidate,
     resend_candidate_activation,
 )
-from src.services.exceptions import EmailAlreadyExistsError
 
 limiter = get_limiter()
 router = APIRouter(prefix="/auth/candidate", tags=["auth"])
@@ -28,9 +26,12 @@ async def register(
 ) -> dict:
     """Register a new candidate user.
 
-    Returns 201 with a generic "check your email" hint. No tokens are
-    issued in the response — the candidate must follow the activation
-    link emailed to them within 2 hours.
+    Always returns 201 with the same generic "check your email" hint —
+    even when the email is already claimed by an active account or a
+    pending non-candidate (e.g. an unactivated company). The service
+    silently no-ops in those collision cases so the response shape can't
+    be used to enumerate which emails already have accounts; rate
+    limiting (slowapi 3/hour per IP) blunts the brute-force angle.
     """
     if not body.privacy_accepted:
         raise HTTPException(
@@ -43,20 +44,17 @@ async def register(
             detail="יש לאשר את תנאי השימוש",
         )
 
-    try:
-        async with transactional(session):
-            await register_candidate(
-                body.email,
-                body.password,
-                body.full_name,
-                privacy_accepted=body.privacy_accepted,
-                terms_accepted=body.terms_accepted,
-                session=session,
-                ip_address=client_ip(request),
-                user_agent=request.headers.get("user-agent"),
-            )
-    except EmailAlreadyExistsError as e:
-        raise service_exception_to_http(e) from e
+    async with transactional(session):
+        await register_candidate(
+            body.email,
+            body.password,
+            body.full_name,
+            privacy_accepted=body.privacy_accepted,
+            terms_accepted=body.terms_accepted,
+            session=session,
+            ip_address=client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
 
     return {"message": "אנא בדקו את תיבת הדואר שלכם להפעלת החשבון"}
 
