@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPublicJob, submitApplication } from "@/services/jobs";
+import { getMe as getCandidateMe } from "@/services/candidate";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 import type { CandidateApplicationForm, JobPublicRead } from "@/types/api";
 import { UserRole } from "@/types/api";
@@ -109,6 +110,14 @@ export default function ApplicationPage() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  // Sprint 11 PR B: logged-in candidates can apply with their existing
+  // profile-resume snapshot (no re-upload). When this is set and the user
+  // hasn't picked a new file, we submit without a `resume` part and the
+  // backend reuses `CandidateProfile.resume_path`.
+  const [savedResumeFilename, setSavedResumeFilename] = useState<string | null>(
+    null,
+  );
+  const [profilePrefilled, setProfilePrefilled] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -199,7 +208,9 @@ export default function ApplicationPage() {
     }
 
     if (target === 2) {
-      if (!resumeFile) {
+      // A new upload OR the saved-profile-resume affordance both satisfy
+      // the "every live application has a resume" backend rule.
+      if (!resumeFile && !savedResumeFilename) {
         setResumeError(t("publicJobs.application.resumeErrors.required"));
         return false;
       }
@@ -291,6 +302,39 @@ export default function ApplicationPage() {
       cancelled = true;
     };
   }, [jobId, navigate, t]);
+
+  // Logged-in candidate: prefill identity + autofill fields from
+  // /api/candidate/me so they don't retype data they already gave us. If
+  // the profile already has a resume_path, expose the "use saved resume"
+  // affordance — submitting without a new file lets the backend reuse the
+  // existing snapshot (PR B / backend resume_required fallback).
+  useEffect(() => {
+    if (!isLoggedInCandidate) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await getCandidateMe();
+        if (cancelled) return;
+        setForm((prev) => ({
+          ...prev,
+          full_name: me.full_name || prev.full_name,
+          email: me.email,
+          phone: me.phone ?? prev.phone,
+          linkedin_url: me.linkedin_url ?? prev.linkedin_url,
+        }));
+        if (me.resume_path) {
+          setSavedResumeFilename(me.resume_path.split("/").pop() ?? "resume");
+        }
+        setProfilePrefilled(true);
+      } catch {
+        // Non-fatal — the form still works without prefill. The candidate
+        // can type their data manually.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedInCandidate]);
 
   useEffect(() => {
     if (!job) return;
@@ -632,6 +676,17 @@ export default function ApplicationPage() {
       <Stepper step={step} maxStep={maxStep} onJump={jumpTo} />
 
       <form id="apply-form" onSubmit={handleFormSubmit} className="mt-8 space-y-6" noValidate>
+        {isLoggedInCandidate && profilePrefilled && (
+          <div className="flex items-center gap-2 rounded-lg border border-copper/20 bg-copper/5 px-3 py-2 text-xs text-white/70">
+            <span className="rounded-sm bg-copper/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-copper">
+              {t("publicJobs.application.prefilledTag")}
+            </span>
+            <span className="truncate">
+              {t("publicJobs.application.prefilledHint", { email: user!.email })}
+            </span>
+          </div>
+        )}
+
         {submitError && (
           <div className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
             {submitError}
@@ -656,9 +711,11 @@ export default function ApplicationPage() {
             <ResumeStep
               file={resumeFile}
               error={resumeError}
+              savedResumeFilename={savedResumeFilename}
               onFile={ingestResume}
               onPick={handleResumeChange}
               onClear={clearResume}
+              onClearSaved={() => setSavedResumeFilename(null)}
             />
           )}
           {step === 3 && (
@@ -932,15 +989,19 @@ function IdentityStep({
 function ResumeStep({
   file,
   error,
+  savedResumeFilename,
   onFile,
   onPick,
   onClear,
+  onClearSaved,
 }: {
   file: File | null;
   error: string | null;
+  savedResumeFilename: string | null;
   onFile: (f: File | null) => void;
   onPick: (e: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
+  onClearSaved: () => void;
 }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -960,9 +1021,51 @@ function ResumeStep({
     onFile(dropped);
   }
 
+  // Logged-in candidate w/ a profile resume on file and no new pick yet —
+  // show the "use saved resume" card so submitting w/o an upload reuses
+  // it server-side (no extra storage cost, no re-upload).
+  const showSavedResume = !file && savedResumeFilename;
+
   return (
     <div>
-      {file ? (
+      {showSavedResume ? (
+        <div className="flex items-center gap-3 rounded-xl border border-copper/30 bg-card-raised p-4">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-copper/15 text-copper">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="size-5"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6"
+              />
+            </svg>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-white/85">
+              {savedResumeFilename}
+            </p>
+            <p className="mt-0.5 text-xs text-white/40">
+              {t("publicJobs.application.resumeSavedHint")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onClearSaved();
+              inputRef.current?.click();
+            }}
+            className="shrink-0 rounded-sm border border-white/15 px-3 py-1.5 text-xs text-white/65 transition hover:border-copper/50 hover:text-copper"
+          >
+            {t("publicJobs.application.resumeReplace")}
+          </button>
+        </div>
+      ) : file ? (
         <div className="flex items-center gap-3 rounded-xl border border-copper/30 bg-card-raised p-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-copper/15 text-copper">
             <svg

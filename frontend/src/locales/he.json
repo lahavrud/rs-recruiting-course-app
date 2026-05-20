@@ -697,6 +697,9 @@
       "resumeDropPrompt": "גררו את הקובץ לכאן",
       "resumeDropAlt": "או לחצו לבחירה מהמחשב",
       "resumeReplace": "החלפת קובץ",
+      "resumeSavedHint": "קורות החיים מהפרופיל שלכם — הגישו ככה, או החליפו לקובץ חדש.",
+      "prefilledTag": "מולא מהפרופיל",
+      "prefilledHint": "השלמנו פרטים מהחשבון שלכם ({{email}}). ניתן לערוך לפני הגשה.",
       "fileSizeBytes": "{{kb}} KB",
       "charCount": "{{count}} / {{max}}",
       "validation": {

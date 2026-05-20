@@ -35,14 +35,18 @@ async def update_candidate_profile(
     """Update an existing candidate profile with new information.
 
     Update strategy:
-    - Always update: full_name (may have changed)
-    - Update if None: linkedin_url, resume_path
-    - Never overwrite: email, phone, created_at
+    - Always update: full_name (may have changed), phone (kept in sync with
+      whatever the candidate submitted on the apply form so the next
+      autofill is accurate).
+    - Update if None on profile: linkedin_url, resume_path (don't blow away
+      a richer profile value with a sparser apply-form submission).
+    - Never overwrite: email, created_at.
     """
     if session is None:
         raise ValueError("Database session is required")
 
     candidate.full_name = candidate_data.full_name
+    candidate.phone = candidate_data.phone
 
     if candidate.linkedin_url is None and candidate_data.linkedin_url is not None:
         candidate.linkedin_url = candidate_data.linkedin_url

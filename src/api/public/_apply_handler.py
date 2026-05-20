@@ -12,13 +12,14 @@ domain exceptions only.
 """
 
 from fastapi import HTTPException, Request, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.transactions import transactional
 from src.enums import UserRole
-from src.models import User
+from src.models import CandidateProfile, User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.schemas.auth import _validate_password_complexity
 from src.services.exceptions import (
@@ -103,6 +104,27 @@ async def apply_to_job(
         resume_file = await resume.read()
         resume_filename = resume.filename
 
+    # Every live application requires a resume. Logged-in candidates that
+    # didn't upload a new file fall back to the snapshot already on their
+    # profile (no re-upload). Anonymous applicants who omit the field
+    # are rejected with a structured 422.
+    fallback_resume_path: str | None = None
+    if resume_file is None and current_user is not None:
+        existing_profile = (
+            await session.execute(
+                select(CandidateProfile).where(
+                    CandidateProfile.user_id == current_user.id  # type: ignore[arg-type]
+                )
+            )
+        ).scalar_one_or_none()
+        if existing_profile and existing_profile.resume_path:
+            fallback_resume_path = existing_profile.resume_path
+    if resume_file is None and fallback_resume_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="resume_required",
+        )
+
     candidate_data = CandidateProfileCreate(
         full_name=full_name,
         email=email,
@@ -117,6 +139,7 @@ async def apply_to_job(
                 job_id=job_id,
                 resume_file=resume_file,
                 resume_filename=resume_filename,
+                fallback_resume_path=fallback_resume_path,
                 session=session,
                 consent_ip=client_ip(request),
                 consent_ua=request.headers.get("user-agent"),

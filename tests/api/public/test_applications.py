@@ -10,6 +10,12 @@ from src.enums import ApplicationStatus
 from src.models import Application, AuditLog, CandidateProfile, Job
 from tests.conftest import TestSessionLocal
 
+# Default resume payload for every apply-endpoint test that doesn't care
+# about the resume specifically. The "live application requires a resume"
+# invariant is enforced at the API layer, so every successful apply
+# request must include either an upload or a candidate-profile fallback.
+FAKE_RESUME = {"resume": ("resume.pdf", b"%PDF-1.4\x00" * 4, "application/pdf")}
+
 
 @pytest.mark.asyncio
 @patch("src.services.public._application_helpers.enqueue_email_task")
@@ -35,7 +41,11 @@ async def test_apply_endpoint_success(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -135,7 +145,11 @@ async def test_apply_endpoint_validation_error(
         # Missing full_name and email
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 422  # Validation error
 
@@ -229,7 +243,11 @@ async def test_apply_endpoint_creates_application(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -280,7 +298,11 @@ async def test_apply_endpoint_job_not_found(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 404
     assert "Job with ID 999 not found" in response.json()["detail"]
@@ -306,7 +328,11 @@ async def test_apply_endpoint_public_access(
     }
 
     # Should work without authentication
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -365,7 +391,11 @@ async def test_apply_endpoint_reuses_existing_profile(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    response1 = await public_client.post("/api/candidates/apply", data=form_data1)
+    response1 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data1,
+        files=FAKE_RESUME,
+    )
     assert response1.status_code == 201
     data1 = response1.json()
     candidate_id = data1["id"]
@@ -379,7 +409,11 @@ async def test_apply_endpoint_reuses_existing_profile(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    response2 = await public_client.post("/api/candidates/apply", data=form_data2)
+    response2 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data2,
+        files=FAKE_RESUME,
+    )
     assert response2.status_code == 201  # Should succeed, not error
     data2 = response2.json()
 
@@ -407,11 +441,19 @@ async def test_apply_endpoint_duplicate_application_conflict(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    response1 = await public_client.post("/api/candidates/apply", data=form_data)
+    response1 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert response1.status_code == 201
 
     # Try to apply again to same job with same email
-    response2 = await public_client.post("/api/candidates/apply", data=form_data)
+    response2 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     # Verify: HTTP 409 Conflict — Sprint 11 / #606 returns structured detail.
     # The existing NEW application makes this an "editable" conflict and the
@@ -442,7 +484,11 @@ async def test_apply_endpoint_requires_privacy_consent(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "privacy_consent_required"
@@ -467,7 +513,11 @@ async def test_apply_endpoint_writes_consent_audit_event(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert response.status_code == 201
     candidate_id = response.json()["id"]
 
@@ -533,7 +583,11 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    resp1 = await public_client.post("/api/candidates/apply", data=form_data1)
+    resp1 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data1,
+        files=FAKE_RESUME,
+    )
     assert resp1.status_code == 201
     candidate_id = resp1.json()["id"]
 
@@ -554,7 +608,11 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    resp2 = await public_client.post("/api/candidates/apply", data=form_data2)
+    resp2 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data2,
+        files=FAKE_RESUME,
+    )
     assert resp2.status_code == 201
 
     async with TestSessionLocal() as session:
@@ -599,7 +657,11 @@ async def test_apply_endpoint_requires_terms_consent(
         "terms_accepted": "false",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "terms_consent_required"
@@ -624,7 +686,11 @@ async def test_apply_endpoint_persists_tos_acceptance(
         "terms_accepted": "true",
     }
 
-    response = await public_client.post("/api/candidates/apply", data=form_data)
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert response.status_code == 201
     candidate_id = response.json()["id"]
 
@@ -678,7 +744,11 @@ async def test_apply_with_password_creates_pending_candidate_user(
         "password": "ClaimPass1!",  # pragma: allowlist secret
         "password_confirm": "ClaimPass1!",  # pragma: allowlist secret
     }
-    resp = await public_client.post("/api/candidates/apply", data=form_data)
+    resp = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert resp.status_code == 201
 
     async with TestSessionLocal() as session:
@@ -732,7 +802,11 @@ async def test_apply_password_mismatch_rejected(
         "password": "FirstPass1!",  # pragma: allowlist secret
         "password_confirm": "OtherPass1!",  # pragma: allowlist secret
     }
-    resp = await public_client.post("/api/candidates/apply", data=form_data)
+    resp = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "passwords_do_not_match"
 
@@ -774,7 +848,11 @@ async def test_apply_email_belongs_to_active_candidate_user_returns_409(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    resp = await public_client.post("/api/candidates/apply", data=form_data)
+    resp = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert resp.status_code == 409
     assert resp.json()["detail"]["error_code"] == "email_already_registered"
 
@@ -799,7 +877,11 @@ async def test_apply_returns_already_applied_locked_for_non_new_status(
         "privacy_accepted": "true",
         "terms_accepted": "true",
     }
-    r1 = await public_client.post("/api/candidates/apply", data=form_data)
+    r1 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert r1.status_code == 201
 
     # Move the application past NEW (simulates admin engagement).
@@ -814,8 +896,39 @@ async def test_apply_returns_already_applied_locked_for_non_new_status(
         app_row.status = ApplicationStatus.APPROVED_BY_ADMIN
         await session.commit()
 
-    r2 = await public_client.post("/api/candidates/apply", data=form_data)
+    r2 = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
     assert r2.status_code == 409
     detail = r2.json()["detail"]
     assert detail["error_code"] == "already_applied_locked"
     assert "application_id" not in detail
+
+
+@pytest.mark.asyncio
+@patch("src.services.public._application_helpers.enqueue_email_task")
+async def test_apply_without_resume_returns_422(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Anonymous apply with no resume → 422 with structured detail.
+
+    The "live application requires a resume" invariant is enforced at the
+    API layer (PR B). Anonymous applicants have no profile to fall back
+    on, so the only signal is the uploaded file.
+    """
+    mock_enqueue_email.return_value = "test-job-id"
+    form_data = {
+        "job_id": published_job.id,
+        "full_name": "No Resume",
+        "email": "noresume@example.com",
+        "phone": "050-000-0099",
+        "privacy_accepted": "true",
+        "terms_accepted": "true",
+    }
+    resp = await public_client.post("/api/candidates/apply", data=form_data)
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "resume_required"

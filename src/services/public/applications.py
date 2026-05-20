@@ -37,6 +37,7 @@ async def create_candidate_profile(
     job_id: int,
     resume_file: bytes | None = None,
     resume_filename: str | None = None,
+    fallback_resume_path: str | None = None,
     session: AsyncSession | None = None,
     consent_ip: str | None = None,
     consent_ua: str | None = None,
@@ -100,6 +101,12 @@ async def create_candidate_profile(
             )
         except Exception as e:
             raise ValueError(f"Failed to upload resume file: {e}") from e
+    elif fallback_resume_path is not None:
+        # No new upload — reuse the candidate's existing profile resume
+        # snapshot. The file is already in storage, no upload needed.
+        # The Application row gets this path as its own snapshot so future
+        # profile-resume replacements don't retroactively change history.
+        resume_path = fallback_resume_path
 
     candidate = await upsert_candidate_and_application(
         session,
