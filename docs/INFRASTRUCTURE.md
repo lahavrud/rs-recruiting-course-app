@@ -162,6 +162,7 @@ Default EBS encryption: ON (account-wide).
 | Log group `/rs-recruitment/worker` | **400d retention** (compliance audit trail for `retention.purge candidate_id=`) |
 | Log group `/aws/rds/instance/rs-recruitment-prod-db/postgresql` | RDS log export · **30d retention** |
 | Metric filter `nginx-5xx-errors` | `/rs-recruitment/nginx` · nginx combined log field pattern `status=5*` · emits `RsRecruiting/Nginx / Http5xxCount` (Sum, `defaultValue=0`) |
+| Metric filter `auth-login-failures` | `/rs-recruitment/api` · JSON fields `message IN [login_failed, login_account_locked, login_lockout_hit]` · emits `RsRecruiting/Auth / LoginFailureCount` (Sum, `defaultValue=0`) |
 | Alarm `nginx-5xx-rate-high` | `Http5xxCount` Sum > 5 in 5 min → ops-alerts (and OK action → ops-alerts) |
 | Alarm `ec2-cpu-high-rs-server` | EC2 CPU >80% for 30min → ops-alerts |
 | Alarm `rds-connections-high` | RDS connections high → ops-alerts |
@@ -170,8 +171,8 @@ Default EBS encryption: ON (account-wide).
 | Alarm `rs-recruiting-uptime` | Route53 health check failure → ops-alerts |
 | Alarm `retention-purge-stale` | No `PurgedCandidatesCount` datapoint in 26h → ops-alerts (see `RETENTION_PURGE.md`) |
 | Alarm `SecurityAlarm-CloudTrailChanges` | CloudTrail configuration changes → ops-alerts |
-| Dashboard `rs-recruiting-ops` | 5 panels: `Http5xxCount`, `PurgedCandidatesCount`, EC2 CPU, RDS CPU, RDS free storage. Lockout-rate panel pending #588. Created via `aws cloudwatch put-dashboard`. |
-| Logs Insights saved queries | "Last 50 errors" (`/rs-recruitment/api`), "Requests to a path" (`/rs-recruitment/nginx`), "Login failures last hour" (`/rs-recruitment/api` · partial until #588), "Audit events by actor" (`/rs-recruitment/worker`) |
+| Dashboard `rs-recruiting-ops` | 6 panels: `Http5xxCount`, `PurgedCandidatesCount`, EC2 CPU, RDS CPU, RDS free storage, `LoginFailureCount`. Created via `aws cloudwatch put-dashboard`. |
+| Logs Insights saved queries | "Last 50 errors" (`/rs-recruitment/api` · `levelname = "ERROR"`), "Requests to a path" (`/rs-recruitment/nginx`), "Login failures last hour" (`/rs-recruitment/api`), "Audit events by actor" (`/rs-recruitment/worker`) |
 | SNS `ops-alerts` | Email → `<OPS_EMAIL>` (confirmed). Consumers: 5 ops alarms + EventBridge rule `guardduty-findings`. Topic policy explicitly allows `events.amazonaws.com` to publish. |
 | CloudTrail `rs-recruitment-trail` | Multi-region, log file validation, → `rs-recruitment-cloudtrail-<ACCOUNT_ID>` |
 | GuardDuty detector `<GUARDDUTY_DETECTOR_ID>` | ENABLED, 15-minute finding frequency, 30-day free trial active until ~2026-06-08; primary input is CloudTrail (above) |
