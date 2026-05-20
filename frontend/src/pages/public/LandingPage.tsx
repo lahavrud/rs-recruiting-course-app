@@ -306,17 +306,20 @@ export default function LandingPage() {
       {/* ── Hero + audience panels share one image so they fade into each
             other without a visible seam where the sections meet. ─────────── */}
       <div className="relative overflow-hidden bg-void">
-        <img
-          src="/hero-city.jpg"
-          alt=""
-          aria-hidden="true"
-          onLoad={() => setHeroLoaded(true)}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out"
-          style={{
-            objectPosition: "center 60%",
-            opacity: heroLoaded ? 1 : 0,
-          }}
-        />
+        <picture>
+          <source type="image/webp" srcSet="/hero-city.webp" />
+          <img
+            src="/hero-city.jpg"
+            alt=""
+            aria-hidden="true"
+            onLoad={() => setHeroLoaded(true)}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out"
+            style={{
+              objectPosition: "center 60%",
+              opacity: heroLoaded ? 1 : 0,
+            }}
+          />
+        </picture>
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="texture-wave relative flex min-h-screen flex-col">
@@ -543,18 +546,21 @@ export default function LandingPage() {
                 Clip starts at inset(0 0 0 100%) — fully hidden from right edge.
                 Animates to inset(0 0 0 0%) — fully revealed, right to left.    */}
             <div className="overflow-hidden rounded-xl">
-              <img
-                src="/landing-about.jpg"
-                alt=""
-                aria-hidden="true"
-                onLoad={() => setAboutImgLoaded(true)}
-                className="aspect-[4/5] w-full object-cover object-center"
-                style={
-                  aboutTextVisible && aboutImgLoaded
-                    ? { animation: "clip-wipe-reveal 1.1s cubic-bezier(0.76, 0, 0.24, 1) 0.08s both" }
-                    : { clipPath: "inset(0 0 0 100% round 0.75rem)" }
-                }
-              />
+              <picture>
+                <source type="image/webp" srcSet="/landing-about.webp" />
+                <img
+                  src="/landing-about.jpg"
+                  alt=""
+                  aria-hidden="true"
+                  onLoad={() => setAboutImgLoaded(true)}
+                  className="aspect-[4/5] w-full object-cover object-center"
+                  style={
+                    aboutTextVisible && aboutImgLoaded
+                      ? { animation: "clip-wipe-reveal 1.1s cubic-bezier(0.76, 0, 0.24, 1) 0.08s both" }
+                      : { clipPath: "inset(0 0 0 100% round 0.75rem)" }
+                  }
+                />
+              </picture>
             </div>
           </div>
 

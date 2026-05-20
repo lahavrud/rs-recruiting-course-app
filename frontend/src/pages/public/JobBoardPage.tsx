@@ -306,7 +306,7 @@ export default function JobBoardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const heroBgLoaded = useImageLoaded("/property-exterior.jpg");
+  const heroBgLoaded = useImageLoaded("/property-exterior.webp");
 
   const fetcher = useCallback((cursor: string | null) => getPublicJobs(cursor), []);
   const {
@@ -521,7 +521,7 @@ export default function JobBoardPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url(/property-exterior.jpg)",
+            backgroundImage: "image-set(url('/property-exterior.webp') type('image/webp'), url('/property-exterior.jpg') type('image/jpeg'))",
             backgroundSize: "cover",
             backgroundPosition: "center 40%",
             opacity: heroBgLoaded ? 1 : 0,

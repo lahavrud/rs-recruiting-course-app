@@ -126,9 +126,9 @@ export default function AboutPage() {
   // Hero / story / process backgrounds are CSS `background-image: url(...)`
   // which has no native load event — preload them so the `focus-in` animation
   // doesn't run over an empty rect on slow networks.
-  const heroBgLoaded = useImageLoaded("/hero-buildings.jpg");
-  const storyBgLoaded = useImageLoaded("/property-exterior.jpg");
-  const processBgLoaded = useImageLoaded("/team-meeting.jpg");
+  const heroBgLoaded = useImageLoaded("/hero-buildings.webp");
+  const storyBgLoaded = useImageLoaded("/property-exterior.webp");
+  const processBgLoaded = useImageLoaded("/team-meeting.webp");
 
   const quoteWords = t("about.philosophy.quote").split(" ");
 
@@ -166,7 +166,7 @@ export default function AboutPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url(/hero-buildings.jpg)",
+            backgroundImage: "image-set(url('/hero-buildings.webp') type('image/webp'), url('/hero-buildings.jpg') type('image/jpeg'))",
             backgroundSize: "cover",
             backgroundPosition: "center",
             opacity: heroBgLoaded ? undefined : 0,
@@ -243,7 +243,7 @@ export default function AboutPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url(/property-exterior.jpg)",
+            backgroundImage: "image-set(url('/property-exterior.webp') type('image/webp'), url('/property-exterior.jpg') type('image/jpeg'))",
             backgroundSize: "cover",
             backgroundPosition: "center",
             animation:
@@ -384,7 +384,7 @@ export default function AboutPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url(/team-meeting.jpg)",
+            backgroundImage: "image-set(url('/team-meeting.webp') type('image/webp'), url('/team-meeting.jpg') type('image/jpeg'))",
             backgroundSize: "cover",
             backgroundPosition: "center 45%",
             animation:
