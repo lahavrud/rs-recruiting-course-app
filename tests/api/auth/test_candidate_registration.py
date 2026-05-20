@@ -132,16 +132,9 @@ async def test_register_creates_pending_user_and_token(test_db, _patch_enqueue_e
 
 
 @pytest.mark.asyncio
-async def test_register_silent_when_active_email_already_registered(
-    test_db, _patch_enqueue_email
-):
-    """No 409 — that would let an attacker enumerate live accounts.
-
-    Asserts the active-collision case returns the same 201 shape as a fresh
-    registration AND that the service didn't mint a token, send an email,
-    or write an audit row (the audit row would re-introduce enumeration via
-    the admin audit feed).
-    """
+async def test_register_rejects_active_email_with_409(test_db, _patch_enqueue_email):
+    """Active-account collision returns 409 so the UI can prompt the user
+    to log in instead of silently swallowing the attempt."""
     email = _unique_email()
     async with TestSessionLocal() as session:
         session.add(
@@ -168,54 +161,18 @@ async def test_register_silent_when_active_email_already_registered(
             },
         )
 
-    assert resp.status_code == 201
-    assert resp.json() == {"message": "אנא בדקו את תיבת הדואר שלכם להפעלת החשבון"}
+    assert resp.status_code == 409
     _patch_enqueue_email.assert_not_called()
-
-    async with TestSessionLocal() as session:
-        existing = (
-            await session.execute(
-                select(User).where(User.email == email)  # type: ignore[arg-type]
-            )
-        ).scalar_one()
-        tokens = (
-            (
-                await session.execute(
-                    select(ActivationToken).where(
-                        ActivationToken.user_id == existing.id  # type: ignore[arg-type]
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        assert tokens == [], "no activation token must be minted on silent collision"
-        audits = (
-            (
-                await session.execute(
-                    select(AuditLog).where(
-                        AuditLog.actor_user_id == existing.id,  # type: ignore[arg-type]
-                        AuditLog.action == "candidate_register_requested",  # type: ignore[arg-type]
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        assert audits == [], (
-            "no audit row — would re-introduce enumeration via the audit feed"
-        )
 
 
 @pytest.mark.asyncio
-async def test_register_silent_when_email_belongs_to_pending_company(
+async def test_register_rejects_pending_company_email_with_409(
     test_db, _patch_enqueue_email
 ):
-    """Same silent-201 treatment for a pending non-candidate user.
-
-    A candidate registration must not hijack an inactive company's email
-    slot, but the response shape can't reveal that the slot is taken.
-    """
+    """An email registered for a pending company cannot be hijacked by
+    the candidate flow. Surface that to the UI as a 409, same as the
+    active-account branch — the user needs to know they can't register
+    that address."""
     email = _unique_email()
     async with TestSessionLocal() as session:
         session.add(
@@ -242,12 +199,10 @@ async def test_register_silent_when_email_belongs_to_pending_company(
             },
         )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 409
     _patch_enqueue_email.assert_not_called()
 
     async with TestSessionLocal() as session:
-        # The User row stayed COMPANY/inactive — candidate flow didn't
-        # take it over.
         existing = (
             await session.execute(
                 select(User).where(User.email == email)  # type: ignore[arg-type]

@@ -116,11 +116,16 @@ async def _link_or_create_candidate_profile(
     profile = result.scalar_one_or_none()
 
     policy_version = activation.consent_policy_version or CURRENT_PRIVACY_POLICY_VERSION
+    # Prefer the name snapshotted on the activation token (set at
+    # registration time, Sprint 11 / candidate-activation-followups).
+    # Fall back to the local-part of the email for tokens minted before
+    # the column existed.
+    full_name = activation.full_name or user.email.split("@", 1)[0]
 
     if profile is None:
         profile = CandidateProfile(
             user_id=user.id,
-            full_name=user.email.split("@", 1)[0],
+            full_name=full_name,
             email=user.email,
             phone="",
             consent_given_at=now,

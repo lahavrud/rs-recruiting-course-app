@@ -235,7 +235,23 @@ def build_candidate_activation_html(activation_url: str, ttl_hours: int) -> str:
 
 
 def build_candidate_welcome_html(jobs_url: str, profile_url: str) -> str:
-    """HTML post-activation email — quick overview of candidate self-service (#605)."""
+    """HTML post-activation email — quick overview of candidate self-service (#605).
+
+    ``jobs_url`` and ``profile_url`` are full URLs built from
+    ``settings.frontend_base_url`` and typically resolve through
+    ``/login?redirect=...`` so the user lands on a sign-in screen
+    (their session isn't authenticated when they click the email).
+    Both are rendered as inline anchors so the raw URL never leaks
+    into the visible body — important because the dev value reads
+    ``http://localhost:3000`` and the prod value is the production
+    domain.
+    """
+    profile_link = (
+        f'<a href="{profile_url}" '
+        f'style="color:{_COPPER};text-decoration:underline;">'
+        f"לעריכת הפרופיל ולניהול ההגשות"
+        f"</a>"
+    )
     body = (
         _h("ברוכים הבאים ל-RS Recruiting")
         + _p("חשבונכם פעיל. הנה לאן כדאי להמשיך:")
@@ -244,10 +260,7 @@ def build_candidate_welcome_html(jobs_url: str, profile_url: str) -> str:
         + _p("• מעקב אחר ההגשות הקיימות שלכם וניהול שלהן מהאזור האישי.")
         + _cta(jobs_url, "למשרות פתוחות")
         + _rule()
-        + _p(
-            f"לעריכת הפרופיל ולניהול ההגשות: {profile_url}",
-            muted=True,
-        )
+        + _p(profile_link, muted=True)
     )
     return _wrap("ברוכים הבאים — RS Recruiting", body)
 

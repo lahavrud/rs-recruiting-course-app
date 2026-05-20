@@ -54,8 +54,15 @@ async def activate(
             # handled by the existing approval-email flow.
             if user.role == UserRole.CANDIDATE:
                 candidate_email = user.email
-                jobs_url = f"{settings.frontend_base_url}/jobs"
-                profile_url = f"{settings.frontend_base_url}/candidate/profile"
+                # The candidate's session isn't authenticated when they
+                # open the welcome email; route every CTA through
+                # /login?redirect=... so the next click lands on a sign-in
+                # screen and forwards to the intended destination after
+                # the credential flow.
+                jobs_url = f"{settings.frontend_base_url}/login?redirect=/jobs"
+                profile_url = (
+                    f"{settings.frontend_base_url}/login?redirect=/candidate/profile"
+                )
 
                 async def _send_welcome() -> None:
                     html = build_candidate_welcome_html(

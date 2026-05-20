@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash
 from src.enums import UserRole
-from src.models import ActivationToken, AuditLog, User
+from src.models import ActivationToken, User
 from src.services.auth.candidate_registration import (
     _CANDIDATE_ACTIVATION_TTL_HOURS,
     register_candidate,
     resend_candidate_activation,
 )
+from src.services.exceptions import EmailAlreadyExistsError
 
 
 @pytest.fixture
@@ -77,16 +78,57 @@ async def test_register_candidate_mints_2h_token(session: AsyncSession, _patch_e
     jitter_seconds = abs(delta.total_seconds() - expected_seconds)
     # Allow one minute of jitter between mint and assertion.
     assert jitter_seconds < 60
+    # Sprint 11 / candidate-activation-followups: the supplied name is
+    # snapshotted on the token so activation can prefill CandidateProfile.
+    assert token.full_name == "TTL Check"
 
 
 @pytest.mark.asyncio
-async def test_register_candidate_silent_on_active_email(
+async def test_resend_carries_full_name_from_prior_token(
+    session: AsyncSession, _patch_email, _mock_redis
+):
+    """A resend after the original token was lost must reuse the same name."""
+    from src.services.auth.candidate_registration import (
+        resend_candidate_activation,
+    )
+
+    await register_candidate(
+        "resend-name@test.com",
+        "SecurePass1!",  # pragma: allowlist secret
+        "Resend Name",
+        privacy_accepted=True,
+        terms_accepted=True,
+        session=session,
+    )
+    await session.commit()
+
+    await resend_candidate_activation(
+        "resend-name@test.com",
+        session=session,
+    )
+    await session.commit()
+
+    tokens = (
+        (
+            await session.execute(
+                select(ActivationToken)
+                .join(User, User.id == ActivationToken.user_id)  # type: ignore[arg-type]
+                .where(User.email == "resend-name@test.com")  # type: ignore[arg-type]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(tokens) == 1, "resend must keep exactly one live token"
+    assert tokens[0].full_name == "Resend Name"
+
+
+@pytest.mark.asyncio
+async def test_register_candidate_rejects_active_email(
     session: AsyncSession, _patch_email
 ):
-    """Active-email collision returns silently — no token, no email, no audit.
-
-    Was raising EmailAlreadyExistsError, which leaked existence via the 409.
-    """
+    """Active-email collision raises EmailAlreadyExistsError so the router
+    can surface 409 to the UI."""
     session.add(
         User(
             email="active@test.com",
@@ -97,38 +139,22 @@ async def test_register_candidate_silent_on_active_email(
     )
     await session.commit()
 
-    result = await register_candidate(
-        "active@test.com",
-        "AnotherPass1!",  # pragma: allowlist secret
-        "Hijack Attempt",
-        privacy_accepted=True,
-        terms_accepted=True,
-        session=session,
-    )
-    assert result is None
-
-    tokens = (await session.execute(select(ActivationToken))).scalars().all()
-    audits = (
-        (
-            await session.execute(
-                select(AuditLog).where(
-                    AuditLog.action == "candidate_register_requested"  # type: ignore[arg-type]
-                )
-            )
+    with pytest.raises(EmailAlreadyExistsError):
+        await register_candidate(
+            "active@test.com",
+            "AnotherPass1!",  # pragma: allowlist secret
+            "Hijack Attempt",
+            privacy_accepted=True,
+            terms_accepted=True,
+            session=session,
         )
-        .scalars()
-        .all()
-    )
-    assert tokens == []
-    assert audits == []
 
 
 @pytest.mark.asyncio
-async def test_register_candidate_silent_on_pending_non_candidate(
+async def test_register_candidate_rejects_pending_non_candidate(
     session: AsyncSession, _patch_email
 ):
-    """Pending company user with the same email must not be hijacked AND
-    must not reveal its existence via the response."""
+    """Pending company user with the same email must not be hijacked."""
     session.add(
         User(
             email="pending-company@test.com",
@@ -139,24 +165,15 @@ async def test_register_candidate_silent_on_pending_non_candidate(
     )
     await session.commit()
 
-    result = await register_candidate(
-        "pending-company@test.com",
-        "Other1!",  # pragma: allowlist secret
-        "Other",
-        privacy_accepted=True,
-        terms_accepted=True,
-        session=session,
-    )
-    assert result is None
-
-    # The company user row is untouched.
-    existing = (
-        await session.execute(
-            select(User).where(User.email == "pending-company@test.com")  # type: ignore[arg-type]
+    with pytest.raises(EmailAlreadyExistsError):
+        await register_candidate(
+            "pending-company@test.com",
+            "Other1!",  # pragma: allowlist secret
+            "Other",
+            privacy_accepted=True,
+            terms_accepted=True,
+            session=session,
         )
-    ).scalar_one()
-    assert existing.role == UserRole.COMPANY
-    assert existing.is_active is False
 
 
 @pytest.mark.asyncio

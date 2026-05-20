@@ -37,6 +37,7 @@ from src.core.infrastructure.transactions import defer_after_commit
 from src.core.tasks import enqueue_email_task
 from src.enums import UserRole
 from src.models import ActivationToken, User
+from src.services.exceptions import EmailAlreadyExistsError
 from src.services.utils.audit import record_audit_event
 from src.services.utils.legal import CURRENT_PRIVACY_POLICY_VERSION
 from src.templates.email import build_candidate_activation_html
@@ -91,6 +92,7 @@ def _mint_activation_token(
     user_id: int,
     *,
     policy_version: str,
+    full_name: str | None = None,
 ) -> tuple[str, ActivationToken]:
     """Generate a raw token + matching ActivationToken row (caller commits)."""
     raw_token = secrets.token_urlsafe(32)
@@ -102,8 +104,31 @@ def _mint_activation_token(
         user_id=user_id,
         expires_at=expires_at,
         consent_policy_version=policy_version,
+        full_name=full_name,
     )
     return raw_token, activation
+
+
+async def _latest_unused_full_name(user_id: int, session: AsyncSession) -> str | None:
+    """Return ``full_name`` from this user's most recent unused token, if any.
+
+    Used by the resend-activation path so the fresh token inherits the name
+    the candidate originally supplied at registration. Returns None when no
+    unused token exists or the value was never set (legacy rows minted
+    before the column existed).
+    """
+    row = (
+        await session.execute(
+            select(ActivationToken.full_name)
+            .where(
+                ActivationToken.user_id == user_id,  # type: ignore[arg-type]
+                ActivationToken.used == False,  # noqa: E712
+            )
+            .order_by(ActivationToken.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    return row[0] if row is not None else None
 
 
 async def _delete_stale_tokens(user_id: int, session: AsyncSession) -> None:
@@ -166,18 +191,20 @@ async def register_candidate(
 ) -> None:
     """Create or recycle a pending candidate user + send activation email.
 
-    Silent in every collision case so the response shape can't be used to
-    enumerate which emails already have accounts:
-
-    * No matching user → create ``is_active=False`` row + mint a token +
-      email it + write the audit row.
+    Behavior:
+    * No matching user → create ``is_active=False`` row + mint a token,
+      stash full_name on the token, email it, write the audit row.
     * Email matches an ``is_active=False`` candidate → recycle: update
       password, drop stale tokens, mint fresh, email it, audit it.
-    * Email matches an ``is_active=True`` user, OR an inactive non-candidate
-      (e.g. a pending company) → no-op. We deliberately mint nothing, send
-      nothing, and write no audit row — an audit row would let an
-      authenticated admin enumerate accounts via the audit feed, undoing
-      the externally-visible guarantee.
+    * Email matches an ``is_active=True`` user → raise
+      ``EmailAlreadyExistsError`` (router maps to 409). This explicit
+      signal is the user-facing UX choice — we prefer to tell the user
+      "this email is already registered, please log in" rather than
+      silently swallow the attempt. Enumeration is partially mitigated
+      by slowapi's 3/hour per-IP rate limit on the route.
+    * Email matches an inactive non-candidate (e.g. a pending company)
+      → ``EmailAlreadyExistsError`` for the same UX reason; we still
+      refuse to hijack the slot for the candidate flow.
 
     Caller is responsible for the outer transaction (the router wraps this
     in ``transactional(session)``).
@@ -193,18 +220,12 @@ async def register_candidate(
     )
     existing = result.scalar_one_or_none()
 
-    # Collision cases that previously raised EmailAlreadyExistsError. Now
-    # we return silently so the HTTP response is indistinguishable from a
-    # fresh registration. Crucially: no token mint, no email, no audit
-    # row (an audit row would leak via the admin audit feed).
-    if existing is not None and (
-        existing.is_active or existing.role != UserRole.CANDIDATE
-    ):
-        logger.info(
-            "candidate_register_silent_collision",
-            extra={"email_prefix": normalized_email.split("@", 1)[0][:2] + "***"},
-        )
-        return
+    if existing is not None and existing.is_active:
+        raise EmailAlreadyExistsError(normalized_email)
+
+    if existing is not None and existing.role != UserRole.CANDIDATE:
+        # Pending company / admin slot — don't let candidate flow hijack it.
+        raise EmailAlreadyExistsError(normalized_email)
 
     if existing is None:
         user = User(
@@ -222,14 +243,16 @@ async def register_candidate(
 
     assert user.id is not None
     raw_token, activation = _mint_activation_token(
-        user.id, policy_version=CURRENT_PRIVACY_POLICY_VERSION
+        user.id,
+        policy_version=CURRENT_PRIVACY_POLICY_VERSION,
+        full_name=full_name,
     )
     session.add(activation)
     await session.flush()
 
-    # Stash full_name on the audit detail so it's recoverable if the
+    # Also stash full_name on the audit detail so it's recoverable if the
     # registration is abandoned and the User is later cleaned up by cron;
-    # the canonical write to CandidateProfile.full_name happens at activation.
+    # the canonical read at activation pulls from ActivationToken.full_name.
     await record_audit_event(
         session,
         actor_user_id=user.id,
@@ -275,9 +298,15 @@ async def resend_candidate_activation(
         return
 
     assert user.id is not None
+    # Carry the original full_name from the prior unused token into the
+    # fresh one so activation can still prefill CandidateProfile.full_name
+    # without asking the candidate to retype their name on a resend.
+    prior_full_name = await _latest_unused_full_name(user.id, session)
     await _delete_stale_tokens(user.id, session)
     raw_token, activation = _mint_activation_token(
-        user.id, policy_version=CURRENT_PRIVACY_POLICY_VERSION
+        user.id,
+        policy_version=CURRENT_PRIVACY_POLICY_VERSION,
+        full_name=prior_full_name,
     )
     session.add(activation)
     await session.flush()

@@ -85,6 +85,13 @@ class ActivationToken(SQLModel, table=True):
     )
     used: bool = Field(default=False)
     consent_policy_version: str | None = Field(default=None, max_length=20)
+    # Snapshotted at registration time for the candidate flow so the
+    # CandidateProfile created at activation can prefill the name without
+    # asking the user to type it again. NULL for company tokens (companies
+    # carry their name on CompanyProfile, written at registration). Legacy
+    # candidate tokens minted before this column existed are also NULL —
+    # the activation service falls back to the email-prefix in that case.
+    full_name: str | None = Field(default=None, max_length=100)
 
 
 class RefreshToken(SQLModel, table=True):

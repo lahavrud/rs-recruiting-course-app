@@ -132,7 +132,9 @@ async def test_activate_used_token_returns_400(test_db):
     assert resp.status_code == 400
 
 
-async def _make_pending_candidate(session: AsyncSession) -> tuple[User, str]:
+async def _make_pending_candidate(
+    session: AsyncSession, *, full_name: str | None = None
+) -> tuple[User, str]:
     """Inactive candidate user + unused activation token, session-flushed only."""
     email = f"candidate-act-{secrets.token_hex(6)}@test.com"
     user = User(
@@ -150,6 +152,7 @@ async def _make_pending_candidate(session: AsyncSession) -> tuple[User, str]:
         user_id=user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=2),
         used=False,
+        full_name=full_name,
     )
     session.add(activation)
     await session.flush()
@@ -236,3 +239,83 @@ async def test_activate_candidate_links_existing_profile_and_writes_consent(test
         assert lead.consent_given_at is not None
 
     app.dependency_overrides[get_session] = _override_session
+
+
+@pytest.mark.asyncio
+async def test_activate_candidate_prefills_profile_full_name_from_token(test_db):
+    """``CandidateProfile.full_name`` reads the snapshot off ActivationToken.
+
+    Prior behavior used ``email.split("@")[0]`` as a placeholder, which the
+    user then had to retype on the profile page. The follow-up snapshots
+    the registered name onto the token at registration time and reads it
+    here.
+    """
+    async with TestSessionLocal() as session:
+        user, token = await _make_pending_candidate(session, full_name="Real Person")
+
+        async def _use_this_session() -> AsyncSession:
+            yield session
+
+        app.dependency_overrides[get_session] = _use_this_session
+
+        with patch(
+            "src.api.auth.activation.enqueue_email_task",
+            new_callable=AsyncMock,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/auth/activate?token={token}")
+
+        from sqlmodel import select as _select
+
+        profile = (
+            await session.execute(
+                _select(CandidateProfile).where(  # type: ignore[arg-type]
+                    CandidateProfile.user_id == user.id
+                )
+            )
+        ).scalar_one()
+
+    app.dependency_overrides[get_session] = _override_session
+
+    assert resp.status_code == 200
+    assert profile.full_name == "Real Person"
+
+
+@pytest.mark.asyncio
+async def test_activate_candidate_falls_back_to_email_prefix_when_no_name(
+    test_db,
+):
+    """Legacy tokens minted before ``full_name`` existed still activate cleanly."""
+    async with TestSessionLocal() as session:
+        user, token = await _make_pending_candidate(session, full_name=None)
+
+        async def _use_this_session() -> AsyncSession:
+            yield session
+
+        app.dependency_overrides[get_session] = _use_this_session
+
+        with patch(
+            "src.api.auth.activation.enqueue_email_task",
+            new_callable=AsyncMock,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/auth/activate?token={token}")
+
+        from sqlmodel import select as _select
+
+        profile = (
+            await session.execute(
+                _select(CandidateProfile).where(  # type: ignore[arg-type]
+                    CandidateProfile.user_id == user.id
+                )
+            )
+        ).scalar_one()
+
+    app.dependency_overrides[get_session] = _override_session
+
+    assert resp.status_code == 200
+    assert profile.full_name == user.email.split("@", 1)[0]
