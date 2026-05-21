@@ -39,6 +39,8 @@ async def create_candidate_profile(
     resume_file: bytes | None = None,
     resume_filename: str | None = None,
     fallback_resume_path: str | None = None,
+    fallback_resume_filename: str | None = None,
+    fallback_resume_hash: str | None = None,
     session: AsyncSession | None = None,
     consent_ip: str | None = None,
     consent_ua: str | None = None,
@@ -107,9 +109,10 @@ async def create_candidate_profile(
         )
 
     resume_path: str | None = None
+    resume_hash: str | None = None
     if resume_file is not None and resume_filename is not None:
         try:
-            resume_path = await validate_and_upload_resume(
+            resume_path, resume_hash = await validate_and_upload_resume(
                 resume_file, resume_filename, get_storage_provider()
             )
         except Exception as e:
@@ -120,6 +123,8 @@ async def create_candidate_profile(
         # The Application row gets this path as its own snapshot so future
         # profile-resume replacements don't retroactively change history.
         resume_path = fallback_resume_path
+        resume_filename = fallback_resume_filename
+        resume_hash = fallback_resume_hash
 
     candidate = await upsert_candidate_and_application(
         session,
@@ -137,6 +142,8 @@ async def create_candidate_profile(
         # device's) values.
         skip_consent_write=candidate_user is not None,
         candidate_user=candidate_user,
+        resume_filename=resume_filename,
+        resume_hash=resume_hash,
     )
 
     # Logged-in candidate → ensure the profile is linked to their User row

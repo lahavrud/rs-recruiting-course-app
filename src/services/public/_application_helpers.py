@@ -13,6 +13,7 @@ Carved out of ``applications.py`` to keep the main module under the
   notification fan-out, normally invoked via ``defer_after_commit``.
 """
 
+import hashlib
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -57,11 +58,11 @@ async def validate_and_upload_resume(
     resume_file: bytes,
     resume_filename: str,
     storage: StorageProvider,
-) -> str:
+) -> tuple[str, str]:
     """Validate resume file (type, size, magic bytes) and upload it.
 
-    Returns the storage file key. Raises ``ValueError`` on any validation
-    failure so callers can map the error consistently.
+    Returns ``(storage_key, sha256_hex)``. Raises ``ValueError`` on any
+    validation failure so callers can map the error consistently.
     """
     ext = resume_filename.lower().rsplit(".", 1)[-1] if "." in resume_filename else ""
     if f".{ext}" not in _ALLOWED_EXTENSIONS:
@@ -74,11 +75,12 @@ async def validate_and_upload_resume(
         raise ValueError("Resume file content does not match the declared file type")
 
     content_type = _MIME_BY_EXT.get(ext, "application/octet-stream")
-    return await storage.upload_file(
+    storage_key = await storage.upload_file(
         file_content=resume_file,
         file_name=f"resumes/{resume_filename}",
         content_type=content_type,
     )
+    return storage_key, hashlib.sha256(resume_file).hexdigest()
 
 
 async def check_no_blocking_application(
@@ -116,6 +118,8 @@ async def upsert_candidate_and_application(
     growth_area: str | None = None,
     skip_consent_write: bool = False,
     candidate_user: User | None = None,
+    resume_filename: str | None = None,
+    resume_hash: str | None = None,
 ) -> CandidateProfile:
     """Find-or-create the candidate profile and create the Application row.
 
@@ -145,6 +149,8 @@ async def upsert_candidate_and_application(
             candidate=existing,
             candidate_data=candidate_data,
             resume_path=resume_path,
+            resume_filename=resume_filename,
+            resume_hash=resume_hash,
             session=session,
         )
         if not skip_consent_write:
@@ -161,6 +167,8 @@ async def upsert_candidate_and_application(
             email=candidate_data.email,
             phone=candidate_data.phone,
             resume_path=resume_path,
+            resume_filename=resume_filename,
+            resume_hash=resume_hash,
             linkedin_url=candidate_data.linkedin_url,
             consent_given_at=None if skip_consent_write else now,
             consent_policy_version=(
@@ -188,6 +196,8 @@ async def upsert_candidate_and_application(
             strength=strength,
             growth_area=growth_area,
             resume_path=resume_path,
+            resume_filename=resume_filename,
+            resume_hash=resume_hash,
         )
     )
     return candidate

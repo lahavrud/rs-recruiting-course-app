@@ -391,6 +391,7 @@ class CandidateProfile(SQLModel, table=True):
     # the basename-of-storage-key UI fallback. Per-Application snapshots
     # of the filename are tracked separately in issue #666.
     resume_filename: str | None = Field(default=None, max_length=255)
+    resume_hash: str | None = Field(default=None, max_length=64)
     linkedin_url: str | None = None
 
     # Privacy consent — captured at application time
@@ -513,6 +514,8 @@ class Application(SQLModel, table=True):
     strength: str | None = Field(default=None, sa_column=Column(Text))
     growth_area: str | None = Field(default=None, sa_column=Column(Text))
     resume_path: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    resume_filename: str | None = Field(default=None, max_length=255)
+    resume_hash: str | None = Field(default=None, max_length=64)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

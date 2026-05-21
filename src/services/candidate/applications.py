@@ -126,7 +126,7 @@ async def get_my_application(
     resume: CandidateApplicationResumeMeta | None = None
     if app.resume_path:
         resume = CandidateApplicationResumeMeta(
-            filename=app.resume_path.rsplit("/", 1)[-1],
+            filename=app.resume_filename or app.resume_path.rsplit("/", 1)[-1],
             snapshot_present=True,
         )
 

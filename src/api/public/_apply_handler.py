@@ -111,6 +111,8 @@ async def apply_to_job(
     # profile (no re-upload). Anonymous applicants who omit the field
     # are rejected with a structured 422.
     fallback_resume_path: str | None = None
+    fallback_resume_filename: str | None = None
+    fallback_resume_hash: str | None = None
     if resume_file is None and current_user is not None:
         existing_profile = (
             await session.execute(
@@ -121,6 +123,8 @@ async def apply_to_job(
         ).scalar_one_or_none()
         if existing_profile and existing_profile.resume_path:
             fallback_resume_path = existing_profile.resume_path
+            fallback_resume_filename = existing_profile.resume_filename
+            fallback_resume_hash = existing_profile.resume_hash
     if resume_file is None and fallback_resume_path is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -142,6 +146,8 @@ async def apply_to_job(
                 resume_file=resume_file,
                 resume_filename=resume_filename,
                 fallback_resume_path=fallback_resume_path,
+                fallback_resume_filename=fallback_resume_filename,
+                fallback_resume_hash=fallback_resume_hash,
                 session=session,
                 consent_ip=client_ip(request),
                 consent_ua=request.headers.get("user-agent"),

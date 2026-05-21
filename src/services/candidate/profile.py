@@ -9,6 +9,7 @@ candidate edits live in ``src/services/admin/candidates.py``.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 
@@ -152,6 +153,7 @@ async def replace_resume(
     # upload but the displayed label stays sane. They can rename it
     # later via PATCH (basename only — extension is locked).
     profile.resume_filename = _truncate_display_filename(filename)
+    profile.resume_hash = hashlib.sha256(content).hexdigest()
 
     if old_key and old_key != new_key:
         try:
@@ -173,6 +175,7 @@ async def remove_resume(profile: CandidateProfile, storage: StorageProvider) -> 
     old_key = profile.resume_path
     profile.resume_path = None
     profile.resume_filename = None
+    profile.resume_hash = None
     if old_key:
         try:
             await storage.delete_file(old_key)

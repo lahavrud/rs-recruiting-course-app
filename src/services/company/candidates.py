@@ -30,6 +30,8 @@ async def update_candidate_profile(
     candidate: CandidateProfile,
     candidate_data: CandidateProfileCreate,
     resume_path: str | None = None,
+    resume_filename: str | None = None,
+    resume_hash: str | None = None,
     session: AsyncSession | None = None,
 ) -> CandidateProfile:
     """Update an existing candidate profile with new information.
@@ -40,6 +42,8 @@ async def update_candidate_profile(
       autofill is accurate).
     - Update if None on profile: linkedin_url, resume_path (don't blow away
       a richer profile value with a sparser apply-form submission).
+      resume_filename and resume_hash are always updated as a unit with
+      resume_path so they stay in sync.
     - Never overwrite: email, created_at.
     """
     if session is None:
@@ -52,5 +56,7 @@ async def update_candidate_profile(
         candidate.linkedin_url = candidate_data.linkedin_url
     if candidate.resume_path is None and resume_path is not None:
         candidate.resume_path = resume_path
+        candidate.resume_filename = resume_filename
+        candidate.resume_hash = resume_hash
 
     return candidate
