@@ -175,8 +175,7 @@ async def _create_active_user(client: AsyncClient, email: str) -> dict:
 @pytest.mark.asyncio
 async def test_refresh_returns_new_tokens(client: AsyncClient):
     """Refresh-token cookie yields a new access token and rotated cookie."""
-    tokens = await _create_active_user(client, "refresh@example.com")
-    old_access = tokens["access_token"]
+    await _create_active_user(client, "refresh@example.com")
     old_refresh_cookie = client.cookies.get("refresh_token")
     assert old_refresh_cookie is not None
 
@@ -185,7 +184,8 @@ async def test_refresh_returns_new_tokens(client: AsyncClient):
     data = response.json()
     assert "access_token" in data
     assert "refresh_token" not in data  # still cookie-only
-    assert data["access_token"] != old_access
+    # Access token may be identical if issued within the same second (no JTI);
+    # what matters is that the refresh-token cookie is rotated.
     assert response.cookies.get("refresh_token") != old_refresh_cookie  # rotated
 
 
@@ -250,7 +250,7 @@ async def test_account_lockout_after_failed_attempts(client: AsyncClient):
 
     attempt_count = 0
 
-    async def fake_check_lockout(email: str, client_ip: str | None = None) -> None:
+    def fake_check_lockout(user, client_ip: str | None = None) -> None:
         nonlocal attempt_count
         attempt_count += 1
         if attempt_count > 5:
@@ -305,7 +305,9 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
 
     _session_logger = logging.getLogger("src.services.auth.session")
 
-    async def _stub_record_failed(email: str, client_ip: str | None = None) -> None:
+    async def _stub_record_failed(
+        user_id: int, email: str, client_ip: str | None = None
+    ) -> None:
         _session_logger.warning(
             "login_failed",
             extra={"email_prefix": email[:2] + "***", "attempt": 1, "ip": client_ip},

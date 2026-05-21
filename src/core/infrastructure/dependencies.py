@@ -11,13 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import get_session
-from src.core.infrastructure.security import (
-    decode_access_token,
-    is_access_token_blacklisted,
-)
+from src.core.infrastructure.security import decode_access_token
 from src.enums import UserRole
 from src.models import CandidateProfile, CompanyProfile, User
-from src.services.exceptions import RedisUnavailableError
 
 security = HTTPBearer()
 
@@ -33,7 +29,7 @@ async def get_token_payload(
 ) -> dict[str, Any]:
     """Decode and validate an access token, returning the payload.
 
-    Raises 401 if the token is invalid or blacklisted.
+    Raises 401 if the token is invalid or expired.
     """
     token = credentials.credentials
     payload = decode_access_token(token)
@@ -43,21 +39,6 @@ async def get_token_payload(
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    jti = payload.get("jti")
-    try:
-        if jti and await is_access_token_blacklisted(jti):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except RedisUnavailableError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
-
     return payload
 
 
@@ -133,15 +114,6 @@ async def get_current_user_optional(
 
     payload = decode_access_token(credentials.credentials)
     if payload is None:
-        return None
-
-    jti = payload.get("jti")
-    try:
-        if jti and await is_access_token_blacklisted(jti):
-            return None
-    except RedisUnavailableError:
-        return None
-    except Exception:
         return None
 
     user_id_raw = payload.get("sub")

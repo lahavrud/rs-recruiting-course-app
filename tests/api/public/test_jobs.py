@@ -247,21 +247,10 @@ async def test_get_public_job_my_application_for_candidate_with_new_app(
         )
         app_id = app.id
 
-    from unittest.mock import AsyncMock, patch
-
-    # autouse `mock_auth_redis` patches `security.is_access_token_blacklisted`
-    # but `dependencies.py` imports it at module top — the local binding is
-    # still the original function. Patch the dependencies-module binding so
-    # the bearer-token flow doesn't reject valid tokens as blacklisted.
-    with patch(
-        "src.core.infrastructure.dependencies.is_access_token_blacklisted",
-        new_callable=AsyncMock,
-        return_value=False,
-    ):
-        resp = await public_client.get(
-            f"/api/public/jobs/{published_job.id}",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    resp = await public_client.get(
+        f"/api/public/jobs/{published_job.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     my = resp.json()["my_application"]
     assert my is not None
@@ -311,21 +300,10 @@ async def test_get_public_job_my_application_for_candidate_with_locked_app(
             }
         )
 
-    from unittest.mock import AsyncMock, patch
-
-    # autouse `mock_auth_redis` patches `security.is_access_token_blacklisted`
-    # but `dependencies.py` imports it at module top — the local binding is
-    # still the original function. Patch the dependencies-module binding so
-    # the bearer-token flow doesn't reject valid tokens as blacklisted.
-    with patch(
-        "src.core.infrastructure.dependencies.is_access_token_blacklisted",
-        new_callable=AsyncMock,
-        return_value=False,
-    ):
-        resp = await public_client.get(
-            f"/api/public/jobs/{published_job.id}",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    resp = await public_client.get(
+        f"/api/public/jobs/{published_job.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     my = resp.json()["my_application"]
     assert my is not None
@@ -374,20 +352,9 @@ async def test_get_public_job_my_application_withdrawn_is_hidden(
             }
         )
 
-    from unittest.mock import AsyncMock, patch
-
-    # autouse `mock_auth_redis` patches `security.is_access_token_blacklisted`
-    # but `dependencies.py` imports it at module top — the local binding is
-    # still the original function. Patch the dependencies-module binding so
-    # the bearer-token flow doesn't reject valid tokens as blacklisted.
-    with patch(
-        "src.core.infrastructure.dependencies.is_access_token_blacklisted",
-        new_callable=AsyncMock,
-        return_value=False,
-    ):
-        resp = await public_client.get(
-            f"/api/public/jobs/{published_job.id}",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    resp = await public_client.get(
+        f"/api/public/jobs/{published_job.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     assert resp.json()["my_application"] is None

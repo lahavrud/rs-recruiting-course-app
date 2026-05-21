@@ -16,7 +16,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
@@ -35,37 +35,27 @@ from src.templates.email import build_password_reset_html
 logger = logging.getLogger(__name__)
 
 _RESET_TOKEN_TTL = timedelta(hours=1)
-_EMAIL_RATE_LIMIT_PREFIX = "password_reset:email:"
-_EMAIL_RATE_LIMIT_WINDOW_SECONDS = 60 * 60  # 1 hour
+_EMAIL_RATE_LIMIT_WINDOW = timedelta(hours=1)
 _EMAIL_RATE_LIMIT_MAX = 3
 
 
-async def _per_email_rate_limit_ok(email: str) -> bool:
-    """Allow at most _EMAIL_RATE_LIMIT_MAX reset requests per email per hour.
+async def _per_email_rate_limit_ok(user_id: int, session: AsyncSession) -> bool:
+    """Allow at most _EMAIL_RATE_LIMIT_MAX reset requests per user per hour.
 
-    Fails open if Redis is unavailable — losing the limit briefly is better
-    than locking everyone out of password recovery during a Redis outage.
+    Counts existing PasswordResetToken rows in the last hour. A small window
+    exists for parallel requests both reading count < MAX, but the per-IP
+    slowapi limit covers the real abuse case at this volume.
     """
-    from src.core.tasks import get_redis_pool
-
-    key = f"{_EMAIL_RATE_LIMIT_PREFIX}{email.lower()}"
-    try:
-        redis = await get_redis_pool()
-        # INCR + EXPIRE(NX) issued as one pipelined transaction so a request
-        # that increments the counter cannot leave the key without a TTL.
-        # A prior implementation set EXPIRE only on count==1, which left the
-        # key permanent if the EXPIRE round-trip dropped — observed in the
-        # wild as count=13, ttl=-1.
-        async with redis.pipeline(transaction=True) as pipe:
-            pipe.incr(key)
-            pipe.expire(key, _EMAIL_RATE_LIMIT_WINDOW_SECONDS, nx=True)
-            count, _ = await pipe.execute()
-        return count <= _EMAIL_RATE_LIMIT_MAX
-    except Exception:
-        logger.error(
-            "redis_unavailable", extra={"surface": "password_reset_rate_limit"}
+    window_start = datetime.now(timezone.utc) - _EMAIL_RATE_LIMIT_WINDOW
+    result = await session.execute(
+        select(func.count())
+        .select_from(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user_id,  # type: ignore[arg-type]
+            PasswordResetToken.created_at > window_start,
         )
-        return True
+    )
+    return result.scalar_one() < _EMAIL_RATE_LIMIT_MAX
 
 
 async def request_password_reset(email: str, session: AsyncSession) -> None:
@@ -84,7 +74,7 @@ async def request_password_reset(email: str, session: AsyncSession) -> None:
     if user is None or user.id is None:
         return
 
-    if not await _per_email_rate_limit_ok(cleaned):
+    if not await _per_email_rate_limit_ok(user.id, session):
         # Silent skip — surface only via logs.  Returning here keeps the
         # endpoint response identical to the unknown-email branch and stops
         # an attacker from flooding the user's inbox.
@@ -198,5 +188,6 @@ async def reset_password(
         target_id=user.id,
     )
 
-    defer_after_commit(lambda: _clear_failed_attempts(user.email))
+    user_id = user.id
+    defer_after_commit(lambda: _clear_failed_attempts(user_id))
     return user

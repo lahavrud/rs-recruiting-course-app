@@ -1,57 +1,37 @@
-"""Unit tests for Redis-backed invite token management."""
+"""Tests for DB-backed invite token management."""
 
-from unittest.mock import AsyncMock, patch
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.invite_tokens import (
     TOKEN_TTL_SECONDS,
-    _key,
-    consume_invite_token,
     generate_invite_token,
     validate_invite_token,
 )
 from src.core.infrastructure.security import hash_token
+from src.enums import InviteTokenStatus
+from src.models import InviteToken
 from src.services.exceptions import InvalidInviteTokenError
-
-
-@pytest.fixture()
-def mock_redis():
-    """Patch get_redis_pool at its definition site (src.core.tasks)."""
-    redis = AsyncMock()
-    with patch(
-        "src.core.tasks.get_redis_pool",
-        new_callable=AsyncMock,
-        return_value=redis,
-    ):
-        yield redis
-
-
-class TestKeyHelper:
-    def test_key_prefixes_token(self):
-        assert _key("abc123") == "invite_token:abc123"
-
-    def test_key_different_tokens_produce_different_keys(self):
-        assert _key("aaa") != _key("bbb")
 
 
 class TestGenerateInviteToken:
     @pytest.mark.asyncio
-    async def test_returns_raw_token_hash_and_expiry(self, mock_redis):
+    async def test_returns_raw_token_hash_and_expiry(self):
         raw, token_hash, expires_at = await generate_invite_token()
         assert isinstance(raw, str) and len(raw) > 0
         assert token_hash == hash_token(raw)
         assert expires_at is not None
 
     @pytest.mark.asyncio
-    async def test_stores_hash_in_redis_with_ttl(self, mock_redis):
-        raw, token_hash, _ = await generate_invite_token()
-        mock_redis.set.assert_called_once_with(
-            _key(token_hash), "1", ex=TOKEN_TTL_SECONDS
-        )
+    async def test_expiry_is_two_hours_from_now(self):
+        _, _, expires_at = await generate_invite_token()
+        delta = expires_at - datetime.now(timezone.utc)
+        assert abs(delta.total_seconds() - TOKEN_TTL_SECONDS) < 5
 
     @pytest.mark.asyncio
-    async def test_each_call_generates_unique_raw_token(self, mock_redis):
+    async def test_each_call_generates_unique_raw_token(self):
         raw_a, _, _ = await generate_invite_token()
         raw_b, _, _ = await generate_invite_token()
         assert raw_a != raw_b
@@ -59,36 +39,55 @@ class TestGenerateInviteToken:
 
 class TestValidateInviteToken:
     @pytest.mark.asyncio
-    async def test_does_not_raise_when_token_exists(self, mock_redis):
-        mock_redis.get.return_value = b"1"
-        await validate_invite_token("valid-token")  # should not raise
-
-    @pytest.mark.asyncio
-    async def test_raises_when_token_missing(self, mock_redis):
-        mock_redis.get.return_value = None
+    async def test_raises_when_token_missing(self, session: AsyncSession):
         with pytest.raises(InvalidInviteTokenError):
-            await validate_invite_token("nonexistent-token")
+            await validate_invite_token("nonexistent-token", session)
 
     @pytest.mark.asyncio
-    async def test_looks_up_hash_of_submitted_token(self, mock_redis):
-        mock_redis.get.return_value = b"1"
-        await validate_invite_token("my-token")
-        mock_redis.get.assert_called_once_with(_key(hash_token("my-token")))
+    async def test_raises_when_token_expired(self, session: AsyncSession, admin_user):
+        raw, token_hash, _ = await generate_invite_token()
+        record = InviteToken(
+            token_hash=token_hash,
+            email="test@example.com",
+            status=InviteTokenStatus.PENDING,
+            created_by_admin_id=admin_user.id,
+            expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+        )
+        session.add(record)
+        await session.flush()
 
+        with pytest.raises(InvalidInviteTokenError):
+            await validate_invite_token(raw, session)
 
-class TestConsumeInviteToken:
     @pytest.mark.asyncio
-    async def test_deletes_hash_from_redis(self, mock_redis):
-        await consume_invite_token("used-token")
-        mock_redis.delete.assert_called_once_with(_key(hash_token("used-token")))
+    async def test_raises_when_token_revoked(self, session: AsyncSession, admin_user):
+        raw, token_hash, expires_at = await generate_invite_token()
+        record = InviteToken(
+            token_hash=token_hash,
+            email="test@example.com",
+            status=InviteTokenStatus.REVOKED,
+            created_by_admin_id=admin_user.id,
+            expires_at=expires_at,
+        )
+        session.add(record)
+        await session.flush()
+
+        with pytest.raises(InvalidInviteTokenError):
+            await validate_invite_token(raw, session)
 
     @pytest.mark.asyncio
-    async def test_swallows_exceptions_silently(self):
-        broken_redis = AsyncMock()
-        broken_redis.delete.side_effect = Exception("Redis connection lost")
-        with patch(
-            "src.core.tasks.get_redis_pool",
-            new_callable=AsyncMock,
-            return_value=broken_redis,
-        ):
-            await consume_invite_token("some-token")  # must not raise
+    async def test_does_not_raise_for_valid_pending_token(
+        self, session: AsyncSession, admin_user
+    ):
+        raw, token_hash, expires_at = await generate_invite_token()
+        record = InviteToken(
+            token_hash=token_hash,
+            email="test@example.com",
+            status=InviteTokenStatus.PENDING,
+            created_by_admin_id=admin_user.id,
+            expires_at=expires_at,
+        )
+        session.add(record)
+        await session.flush()
+
+        await validate_invite_token(raw, session)  # should not raise

@@ -244,16 +244,11 @@ async def test_register_invalid_token_returns_400(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_register_token_consumed_on_success(client: AsyncClient):
-    """Test that the invite token is consumed after successful registration."""
-    with (
-        patch(
-            "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
-        ) as mock_validate,
-        patch(
-            "src.api.auth.registration.consume_invite_token", new_callable=AsyncMock
-        ) as mock_consume,
-    ):
+async def test_register_token_validated_on_success(client: AsyncClient):
+    """Test that the invite token is validated during registration."""
+    with patch(
+        "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
+    ) as mock_validate:
         response = await client.post(
             "/auth/register",
             params={"token": "one-time-token"},
@@ -261,8 +256,7 @@ async def test_register_token_consumed_on_success(client: AsyncClient):
             files={"logo": FAKE_LOGO_FILE},
         )
     assert response.status_code == 201
-    mock_validate.assert_awaited_once_with("one-time-token")
-    mock_consume.assert_awaited_once_with("one-time-token")
+    mock_validate.assert_awaited_once()
 
 
 @pytest.mark.asyncio

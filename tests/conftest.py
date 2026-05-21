@@ -91,32 +91,15 @@ def _fast_bcrypt_for_tests():
 
 @pytest.fixture(autouse=True)
 def _mock_redis_pool():
-    """Patch `get_redis_pool` so every caller sees an AsyncMock, not a real
-    Redis connection.
+    """Patch `get_redis_pool` so Arq task-queue callers see an AsyncMock.
 
-    CI has no Redis. Without this, every `await get_redis_pool()` in
-    src/ — invite_tokens.{generate,validate,consume,revoke},
-    password_reset._per_email_rate_limit_ok, security.is_access_token_blacklisted
-    + blacklist, auth._check_lockout / _record_failed_attempt /
-    _clear_failed_attempts, health_check.ping, enqueue_email_task — opens
-    a TCP connection that hangs for the asyncpg/redis default timeout
-    (~5–15 s) before raising. That dominated CI: tests that incidentally
-    touched any of these paths cost 5–15 s each.
-
-    The existing per-target mocks (mock_enqueue_email, mock_auth_redis,
-    mock_invite_tokens, etc.) catch SOME callers but not all — and they
-    only patch at the import site, missing functions called via the
-    underlying module. A single patch on `src.core.tasks.get_redis_pool`
-    catches everyone.
-
-    Tests that want to assert against the real Redis client (e.g.,
-    `tests/core/infrastructure/test_invite_tokens.py`) still install
-    their own per-test patch, which takes precedence.
+    Auth paths no longer use Redis (PR fix/auth-off-redis). The remaining
+    callers are the Arq task queue (enqueue_email_task, build_data_export_task)
+    which are separately mocked via mock_enqueue_email. This fixture stays
+    to guard against any direct get_redis_pool() call in non-auth paths
+    (e.g. data_export.py) until PR 2 (SQS migration) removes it entirely.
     """
     mock_redis = AsyncMock()
-    mock_redis.get.return_value = b"1"  # default: keys exist
-    mock_redis.ttl.return_value = -2  # default: no lockout
-    mock_redis.incr.return_value = 1
     with patch(
         "src.core.tasks.get_redis_pool",
         new_callable=AsyncMock,
@@ -183,15 +166,14 @@ def mock_password_reset_rate_limit():
 
 
 @pytest.fixture(autouse=True)
-def mock_auth_redis():
-    """Patch Redis-backed auth helpers for all tests (no Redis in CI).
+def _mock_lockout_db_writes():
+    """Prevent _record_failed_attempt and _clear_failed_attempts from writing
+    to the test DB via independent sessions, which bypass test-transaction rollback.
 
-    Mocks:
-    - lockout check / record / clear (no-ops — any login succeeds)
-    - access token blacklist check (always returns False — no token is revoked)
+    Tests that specifically test lockout or failed-attempt accounting should
+    override these mocks locally.
     """
     with (
-        patch("src.services.auth.session._check_lockout", new_callable=AsyncMock),
         patch(
             "src.services.auth.session._record_failed_attempt",
             new_callable=AsyncMock,
@@ -200,27 +182,21 @@ def mock_auth_redis():
             "src.services.auth.session._clear_failed_attempts",
             new_callable=AsyncMock,
         ),
-        patch(
-            "src.core.infrastructure.security.is_access_token_blacklisted",
-            new_callable=AsyncMock,
-            return_value=False,
-        ),
     ):
         yield
 
 
 @pytest.fixture(autouse=True)
 def mock_invite_tokens():
-    """Patch invite token functions for all tests to prevent Redis connections.
+    """Patch invite token functions for all tests.
 
-    validate_invite_token is a no-op (any token is valid) and consume_invite_token
-    is a no-op. Tests that want to test rejection pass the mock in via the fixture.
+    validate_invite_token is a no-op (any token is valid). Tests that want
+    to test rejection configure the mock via the returned fixture value.
     """
     with (
         patch(
             "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
         ) as mock_validate,
-        patch("src.api.auth.registration.consume_invite_token", new_callable=AsyncMock),
         patch("src.api.auth.invites.validate_invite_token", new_callable=AsyncMock),
         patch(
             "src.services.admin.invites.generate_invite_token",

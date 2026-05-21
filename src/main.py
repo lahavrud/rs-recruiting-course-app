@@ -52,7 +52,6 @@ from src.core.infrastructure.config import settings, validate_settings
 from src.core.infrastructure.database import init_db
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.middleware import RequestIdFilter, RequestMiddleware
-from src.core.tasks import close_redis_pool
 
 if settings.sentry_dsn:
     try:
@@ -77,11 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager for startup/shutdown events."""
     validate_settings()
     await init_db()
-    # Note: Redis pool is initialized lazily when first task is enqueued
-    # This allows the app to start even if Redis is temporarily unavailable
     yield
-    # Cleanup Redis connection pool on shutdown
-    await close_redis_pool()
 
 
 def _configure_logging() -> None:
@@ -174,18 +169,7 @@ app.include_router(seo.router)
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    from src.core.tasks import get_redis_pool
-
-    redis_status = "ok"
-    try:
-        redis = await get_redis_pool()
-        await redis.ping()
-    except Exception:
-        redis_status = "unavailable"
-
-    overall = "ok" if redis_status == "ok" else "degraded"
     return {
-        "status": overall,
+        "status": "ok",
         "environment": settings.environment,
-        "redis": redis_status,
     }

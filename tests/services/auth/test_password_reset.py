@@ -97,7 +97,7 @@ async def test_per_email_rate_limit_skips_token_after_max_known_requests(
     user = await _make_user(session, email="victim@example.com")
     calls = {"n": 0}
 
-    async def fake_limit(_email: str) -> bool:
+    async def fake_limit(_user_id: int, _session: AsyncSession) -> bool:
         calls["n"] += 1
         return calls["n"] <= _EMAIL_RATE_LIMIT_MAX
 
@@ -199,7 +199,7 @@ async def test_reset_password_clears_lockout_state(session: AsyncSession):
         async with transactional(session):
             await reset_password(raw_token, "FreshPass1!", session)
 
-    mock_clear.assert_called_once_with(user.email)
+    mock_clear.assert_called_once_with(user.id)
 
 
 @pytest.mark.asyncio

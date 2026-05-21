@@ -168,6 +168,6 @@ class TestSettingsInitialization:
             os.environ.pop("JWT_SECRET_KEY", None)
             settings = Settings()
             assert settings.jwt_algorithm == "HS256"
-            assert settings.jwt_access_token_expire_minutes == 30
+            assert settings.jwt_access_token_expire_minutes == 10
             assert settings.database_echo is False
             assert settings.testing is False

@@ -1,6 +1,6 @@
 """Tests for authentication dependencies."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -95,13 +95,7 @@ async def test_get_current_user_valid_token(session: AsyncSession, active_user: 
         }
     )
     payload = _make_payload(valid_token)
-
-    with patch(
-        "src.core.infrastructure.dependencies.is_access_token_blacklisted",
-        new_callable=AsyncMock,
-        return_value=False,
-    ):
-        user = await get_current_user(payload=payload, session=session)
+    user = await get_current_user(payload=payload, session=session)
 
     assert user.id == active_user.id
     assert user.email == active_user.email
@@ -148,26 +142,6 @@ async def test_get_token_payload_invalid_token():
         await get_token_payload(credentials=credentials)
 
     assert exc_info.value.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_get_token_payload_blacklisted_token():
-    """Test that get_token_payload raises 401 for a blacklisted token."""
-    token = create_access_token(
-        data={"sub": "1", "email": "test@example.com", "role": "COMPANY"}
-    )
-    credentials = MockCredentials(token)
-
-    with patch(
-        "src.core.infrastructure.dependencies.is_access_token_blacklisted",
-        new_callable=AsyncMock,
-        return_value=True,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await get_token_payload(credentials=credentials)
-
-    assert exc_info.value.status_code == 401
-    assert "revoked" in exc_info.value.detail.lower()
 
 
 @pytest.fixture

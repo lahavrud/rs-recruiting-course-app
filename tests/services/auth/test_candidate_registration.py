@@ -26,20 +26,6 @@ from src.services.exceptions import EmailAlreadyExistsError
 
 
 @pytest.fixture
-def _mock_redis():
-    """Redis-backed per-email throttle stub — counts within the window."""
-    redis = AsyncMock()
-    redis.incr = AsyncMock(return_value=1)
-    redis.expire = AsyncMock(return_value=True)
-    with patch(
-        "src.core.tasks.get_redis_pool",
-        new_callable=AsyncMock,
-        return_value=redis,
-    ):
-        yield redis
-
-
-@pytest.fixture
 def _patch_email():
     with patch(
         "src.services.auth.candidate_registration.enqueue_email_task",
@@ -85,7 +71,7 @@ async def test_register_candidate_mints_2h_token(session: AsyncSession, _patch_e
 
 @pytest.mark.asyncio
 async def test_resend_carries_full_name_from_prior_token(
-    session: AsyncSession, _patch_email, _mock_redis
+    session: AsyncSession, _patch_email
 ):
     """A resend after the original token was lost must reuse the same name."""
     from src.services.auth.candidate_registration import (
@@ -190,9 +176,7 @@ async def test_register_candidate_requires_consent(session: AsyncSession, _patch
 
 
 @pytest.mark.asyncio
-async def test_resend_silent_when_user_unknown(
-    session: AsyncSession, _patch_email, _mock_redis
-):
+async def test_resend_silent_when_user_unknown(session: AsyncSession, _patch_email):
     """No user matching the email → service returns None, enqueues nothing."""
     await resend_candidate_activation("unknown@test.com", session=session)
     await session.commit()
@@ -203,7 +187,7 @@ async def test_resend_silent_when_user_unknown(
 async def test_resend_blocked_when_per_email_limit_exceeded(
     session: AsyncSession, _patch_email
 ):
-    """When Redis reports the email has hit its quota, no token is minted."""
+    """When the DB counter shows the quota is hit, no new token is minted."""
     user = User(
         email="throttled@test.com",
         hashed_password=get_password_hash("X1!"),  # pragma: allowlist secret
@@ -211,17 +195,22 @@ async def test_resend_blocked_when_per_email_limit_exceeded(
         is_active=False,
     )
     session.add(user)
+    await session.flush()
+
+    # Seed one token that counts toward the hourly window (limit = 1 allowed).
+    existing_token = ActivationToken(
+        token_hash="existing-hash",
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ),  # expired but still counts in window
+        used=False,
+    )
+    existing_token.expires_at = datetime.now(timezone.utc)
+    session.add(existing_token)
     await session.commit()
 
-    blocked_redis = AsyncMock()
-    blocked_redis.incr = AsyncMock(return_value=2)  # already over the 1/hour cap
-    blocked_redis.expire = AsyncMock(return_value=True)
-    with patch(
-        "src.core.tasks.get_redis_pool",
-        new_callable=AsyncMock,
-        return_value=blocked_redis,
-    ):
-        await resend_candidate_activation("throttled@test.com", session=session)
+    await resend_candidate_activation("throttled@test.com", session=session)
     await session.commit()
 
     tokens = (
@@ -235,5 +224,6 @@ async def test_resend_blocked_when_per_email_limit_exceeded(
         .scalars()
         .all()
     )
-    assert tokens == []
+    # Only the seed token remains — no new one was minted
+    assert len(tokens) == 1
     _patch_email.assert_not_called()

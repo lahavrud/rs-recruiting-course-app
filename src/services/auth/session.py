@@ -6,13 +6,12 @@ under the service-layer line cap.
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import (
-    blacklist_access_token,
     create_access_token,
     create_refresh_token,
     hash_token,
@@ -31,17 +30,7 @@ from src.services.utils.audit import record_audit_event
 logger = logging.getLogger(__name__)
 
 _MAX_FAILED_ATTEMPTS = 5
-_LOCKOUT_SECONDS = 15 * 60  # 15 minutes
-_ATTEMPTS_PREFIX = "login:attempts:"
-_LOCKOUT_PREFIX = "login:locked:"
-
-
-def _attempts_key(email: str) -> str:
-    return f"{_ATTEMPTS_PREFIX}{email}"
-
-
-def _lockout_key(email: str) -> str:
-    return f"{_LOCKOUT_PREFIX}{email}"
+_LOCKOUT_DURATION = timedelta(minutes=15)
 
 
 def _email_prefix(email: str) -> str:
@@ -50,39 +39,60 @@ def _email_prefix(email: str) -> str:
     return f"{local[:2]}***"
 
 
-async def _check_lockout(email: str, client_ip: str | None = None) -> None:
-    from src.core.tasks import get_redis_pool
+def _check_lockout(user: User, client_ip: str | None = None) -> None:
+    """Raise AccountLockedError if the user is currently locked out."""
+    if user.locked_until is None:
+        return
+    now = datetime.now(timezone.utc)
+    locked_until = user.locked_until
+    if locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    if locked_until > now:
+        ttl = (locked_until - now).total_seconds()
+        logger.warning(
+            "login_lockout_hit",
+            extra={
+                "email_prefix": _email_prefix(user.email),
+                "ttl_s": int(ttl),
+                "ip": client_ip,
+            },
+        )
+        raise AccountLockedError(minutes_remaining=math.ceil(ttl / 60))
 
-    try:
-        redis = await get_redis_pool()
-        ttl = await redis.ttl(_lockout_key(email))
-        if ttl > 0:
-            logger.warning(
-                "login_lockout_hit",
-                extra={
-                    "email_prefix": _email_prefix(email),
-                    "ttl_s": ttl,
-                    "ip": client_ip,
-                },
-            )
-            raise AccountLockedError(minutes_remaining=math.ceil(ttl / 60))
-    except AccountLockedError:
-        raise
-    except Exception:
-        logger.error("redis_unavailable", extra={"surface": "lockout_check"})
 
+async def _record_failed_attempt(
+    user_id: int, email: str, client_ip: str | None = None
+) -> None:
+    """Atomically increment failed_login_attempts; lock the account at threshold.
 
-async def _record_failed_attempt(email: str, client_ip: str | None = None) -> None:
-    from src.core.tasks import get_redis_pool
+    Uses its own DB session so the write persists even when the calling
+    request raises InvalidCredentialsError and its session rolls back.
+    The UPDATE is a single atomic SQL statement — no read-modify-write race.
+    """
+    from src.core.infrastructure.database import async_session as _session_factory
 
-    try:
-        redis = await get_redis_pool()
-        key = _attempts_key(email)
-        count = await redis.incr(key)
-        await redis.expire(key, _LOCKOUT_SECONDS)
+    async with _session_factory() as session:
+        await session.execute(
+            update(User)
+            .where(User.id == user_id)  # type: ignore[arg-type]
+            .values(failed_login_attempts=User.failed_login_attempts + 1)
+        )
+        await session.flush()
+
+        result = await session.execute(
+            select(User.failed_login_attempts).where(User.id == user_id)  # type: ignore[arg-type]
+        )
+        count = result.scalar_one()
+
         if count >= _MAX_FAILED_ATTEMPTS:
-            await redis.set(_lockout_key(email), "1", ex=_LOCKOUT_SECONDS)
-            await redis.delete(key)
+            await session.execute(
+                update(User)
+                .where(User.id == user_id)  # type: ignore[arg-type]
+                .values(
+                    failed_login_attempts=0,
+                    locked_until=datetime.now(timezone.utc) + _LOCKOUT_DURATION,
+                )
+            )
             logger.warning(
                 "login_account_locked",
                 extra={"email_prefix": _email_prefix(email), "ip": client_ip},
@@ -96,19 +106,21 @@ async def _record_failed_attempt(email: str, client_ip: str | None = None) -> No
                     "ip": client_ip,
                 },
             )
-    except Exception:
-        logger.error("redis_unavailable", extra={"surface": "record_failed_attempt"})
+
+        await session.commit()
 
 
-async def _clear_failed_attempts(email: str) -> None:
-    from src.core.tasks import get_redis_pool
+async def _clear_failed_attempts(user_id: int) -> None:
+    """Reset lockout state on successful login or password reset."""
+    from src.core.infrastructure.database import async_session as _session_factory
 
-    try:
-        redis = await get_redis_pool()
-        await redis.delete(_attempts_key(email))
-        await redis.delete(_lockout_key(email))
-    except Exception:
-        logger.error("redis_unavailable", extra={"surface": "clear_failed_attempts"})
+    async with _session_factory() as session:
+        await session.execute(
+            update(User)
+            .where(User.id == user_id)  # type: ignore[arg-type]
+            .values(failed_login_attempts=0, locked_until=None)
+        )
+        await session.commit()
 
 
 async def authenticate_user(
@@ -131,10 +143,11 @@ async def authenticate_user(
         logger.warning("login_email_not_found", extra={"ip": client_ip})
         raise InvalidCredentialsError("Incorrect email or password")
 
-    await _check_lockout(email, client_ip)
+    _check_lockout(user, client_ip)
 
     if not verify_password(password, user.hashed_password):
-        await _record_failed_attempt(email, client_ip)
+        assert user.id is not None
+        await _record_failed_attempt(user.id, email, client_ip)
         raise InvalidCredentialsError("Incorrect email or password")
 
     if not user.is_active:
@@ -150,7 +163,8 @@ async def authenticate_user(
             raise PendingActivationError("account_pending_activation")
         raise PendingApprovalError("account_pending_approval")
 
-    await _clear_failed_attempts(email)
+    assert user.id is not None
+    await _clear_failed_attempts(user.id)
     return user
 
 
@@ -220,19 +234,14 @@ async def refresh_user_tokens(
 
 
 async def logout_user(
-    jti: str,
-    exp: int,
     raw_refresh_token: str | None,
     session: AsyncSession,
 ) -> None:
-    """End the session: blacklist the access token JTI and delete the
-    refresh-token row.
+    """End the session: delete the refresh-token row.
 
-    Delete instead of mark-revoked (issue #641) — same security
-    guarantee, no accumulation of dead rows.
+    The 10-minute access token TTL (shortened from 30 min as part of the
+    Redis removal) is the accepted tolerance window after logout.
     """
-    await blacklist_access_token(jti, exp)
-
     if raw_refresh_token:
         token_hash = hash_token(raw_refresh_token)
         result = await session.execute(

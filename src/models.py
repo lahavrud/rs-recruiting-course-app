@@ -203,6 +203,14 @@ class User(SQLModel, table=True):
     hashed_password: str
     role: UserRole
     is_active: bool = Field(default=False, description="False until Admin approves")
+    failed_login_attempts: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    locked_until: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

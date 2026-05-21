@@ -22,7 +22,7 @@ async def get_invite_metadata(
 ) -> InviteMetadataPublic:
     """Return public pre-fill data for a valid invite token."""
     try:
-        await validate_invite_token(token)
+        await validate_invite_token(token, session)
     except InvalidInviteTokenError as e:
         raise service_exception_to_http(e) from e
     result = await session.execute(

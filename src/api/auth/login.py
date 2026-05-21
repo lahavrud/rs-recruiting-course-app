@@ -25,7 +25,6 @@ from src.services.exceptions import (
     InvalidCredentialsError,
     PendingActivationError,
     PendingApprovalError,
-    RedisUnavailableError,
 )
 from src.services.utils.audit import record_audit_event
 
@@ -156,17 +155,8 @@ async def logout(
     payload: dict = Depends(get_token_payload),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    """Revoke the current session (blacklist JTI, revoke refresh token cookie)."""
-    jti = payload.get("jti")
-    exp = payload.get("exp")
-    if jti and exp:
-        raw_refresh = request.cookies.get(_REFRESH_COOKIE)
-        try:
-            async with transactional(session):
-                await logout_user(jti, int(exp), raw_refresh, session)
-        except RedisUnavailableError:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Service temporarily unavailable",
-            )
+    """Revoke the current session: delete the refresh-token row."""
+    raw_refresh = request.cookies.get(_REFRESH_COOKIE)
+    async with transactional(session):
+        await logout_user(raw_refresh, session)
     _clear_refresh_cookie(response)

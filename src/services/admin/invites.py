@@ -6,10 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
-from src.core.infrastructure.invite_tokens import (
-    generate_invite_token,
-    revoke_invite_token,
-)
+from src.core.infrastructure.invite_tokens import generate_invite_token
 from src.core.infrastructure.pagination import (
     CursorPage,
     apply_cursor,
@@ -140,7 +137,7 @@ async def list_invites(
 
 
 async def revoke_invite(token_id: int, session: AsyncSession) -> None:
-    """Revoke a pending invite: delete from Redis and mark as revoked in DB."""
+    """Revoke a pending invite: mark as revoked in DB."""
     result = await session.execute(
         select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]
     )
@@ -152,13 +149,12 @@ async def revoke_invite(token_id: int, session: AsyncSession) -> None:
             f"Invite {token_id} cannot be revoked (status: {record.status})"
         )
 
-    await revoke_invite_token(record.token_hash)
     record.status = InviteTokenStatus.REVOKED
     await session.flush()
 
 
 async def delete_invite(token_id: int, session: AsyncSession) -> None:
-    """Hard-delete an invite row. Also invalidates the live Redis signal.
+    """Hard-delete an invite row.
 
     Distinct from `revoke_invite`: revoke preserves the row with status=REVOKED
     so the audit trail survives, while delete removes the record entirely.
@@ -169,7 +165,6 @@ async def delete_invite(token_id: int, session: AsyncSession) -> None:
     record = result.scalar_one_or_none()
     if record is None:
         raise InviteNotFoundError(f"Invite token with ID {token_id} not found")
-    await revoke_invite_token(record.token_hash)
     await session.delete(record)
     await session.flush()
 
@@ -187,7 +182,6 @@ async def resend_invite(token_id: int, session: AsyncSession) -> None:
             f"Invite {token_id} has already been used and cannot be resent"
         )
 
-    await revoke_invite_token(record.token_hash)
     new_raw, new_hash, new_expires_at = await generate_invite_token()
     record.token_hash = new_hash
     record.expires_at = new_expires_at

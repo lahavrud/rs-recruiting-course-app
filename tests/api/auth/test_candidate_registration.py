@@ -34,24 +34,6 @@ def _install_session_override():
 
 
 @pytest.fixture
-def _mock_resend_redis():
-    """Patch the per-email Redis throttle so it never blocks tests.
-
-    The real implementation falls open on Redis errors, but the tests
-    run xdist parallel and we don't want them to share a hot Redis key.
-    """
-    async_mock_redis = AsyncMock()
-    async_mock_redis.incr = AsyncMock(return_value=1)
-    async_mock_redis.expire = AsyncMock(return_value=True)
-    with patch(
-        "src.core.tasks.get_redis_pool",
-        new_callable=AsyncMock,
-        return_value=async_mock_redis,
-    ):
-        yield async_mock_redis
-
-
-@pytest.fixture
 def _patch_enqueue_email():
     with patch(
         "src.services.auth.candidate_registration.enqueue_email_task",
@@ -331,7 +313,7 @@ async def test_register_audits_request(test_db, _patch_enqueue_email):
 
 @pytest.mark.asyncio
 async def test_resend_for_pending_candidate_mints_fresh_token(
-    test_db, _patch_enqueue_email, _mock_resend_redis
+    test_db, _patch_enqueue_email
 ):
     email = _unique_email()
     async with TestSessionLocal() as session:
@@ -343,11 +325,15 @@ async def test_resend_for_pending_candidate_mints_fresh_token(
         )
         session.add(user)
         await session.flush()
+        from datetime import timedelta
+
         session.add(
             ActivationToken(
                 token_hash="old-resend-hash",
                 user_id=user.id,
                 expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+                # Outside the 1-hour rate-limit window so the resend is not blocked
+                created_at=datetime.now(timezone.utc) - timedelta(hours=2),
             )
         )
         await session.commit()
@@ -378,9 +364,7 @@ async def test_resend_for_pending_candidate_mints_fresh_token(
 
 
 @pytest.mark.asyncio
-async def test_resend_for_active_user_is_silent(
-    test_db, _patch_enqueue_email, _mock_resend_redis
-):
+async def test_resend_for_active_user_is_silent(test_db, _patch_enqueue_email):
     email = _unique_email()
     async with TestSessionLocal() as session:
         session.add(
@@ -404,9 +388,7 @@ async def test_resend_for_active_user_is_silent(
 
 
 @pytest.mark.asyncio
-async def test_resend_for_unknown_email_is_silent(
-    test_db, _patch_enqueue_email, _mock_resend_redis
-):
+async def test_resend_for_unknown_email_is_silent(test_db, _patch_enqueue_email):
     async with await _client() as client:
         resp = await client.post(
             "/auth/candidate/resend-activation",
@@ -418,32 +400,32 @@ async def test_resend_for_unknown_email_is_silent(
 
 @pytest.mark.asyncio
 async def test_resend_throttles_per_email(test_db, _patch_enqueue_email):
-    """When Redis says we've already sent in the window, the resend is a no-op."""
+    """When the DB counter shows the user hit the window quota, resend is a no-op."""
     email = _unique_email()
     async with TestSessionLocal() as session:
+        user = User(
+            email=email,
+            hashed_password=get_password_hash("X1!"),
+            role=UserRole.CANDIDATE,
+            is_active=False,
+        )
+        session.add(user)
+        await session.flush()
+        # Seed one token in the last-hour window — hits the 1/hour cap
         session.add(
-            User(
-                email=email,
-                hashed_password=get_password_hash("X1!"),
-                role=UserRole.CANDIDATE,
-                is_active=False,
+            ActivationToken(
+                token_hash=f"throttle-seed-{email}",
+                user_id=user.id,
+                expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
             )
         )
         await session.commit()
 
-    blocked_redis = AsyncMock()
-    blocked_redis.incr = AsyncMock(return_value=2)  # over the 1/hour limit
-    blocked_redis.expire = AsyncMock(return_value=True)
-    with patch(
-        "src.core.tasks.get_redis_pool",
-        new_callable=AsyncMock,
-        return_value=blocked_redis,
-    ):
-        async with await _client() as client:
-            resp = await client.post(
-                "/auth/candidate/resend-activation",
-                json={"email": email},
-            )
+    async with await _client() as client:
+        resp = await client.post(
+            "/auth/candidate/resend-activation",
+            json={"email": email},
+        )
 
     assert resp.status_code == 202
     _patch_enqueue_email.assert_not_called()

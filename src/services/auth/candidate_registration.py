@@ -25,7 +25,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
@@ -47,41 +47,28 @@ logger = logging.getLogger(__name__)
 # Sprint 11 spec: candidates get a shorter window than companies (48h).
 _CANDIDATE_ACTIVATION_TTL_HOURS = 2
 
-# Per-email resend throttle. slowapi handles per-IP (5/hour) — this Redis
+# Per-email resend throttle. slowapi handles per-IP (5/hour) — this DB
 # counter prevents an attacker on multiple IPs from inbox-flooding a victim.
 _RESEND_PER_EMAIL_LIMIT = 1
-_RESEND_PER_EMAIL_WINDOW_SECONDS = 60 * 60  # 1 hour
-_RESEND_PREFIX = "candidate:resend:"
+_RESEND_WINDOW = timedelta(hours=1)
 
 
-def _resend_key(email: str) -> str:
-    return f"{_RESEND_PREFIX}{email}"
+async def _check_resend_rate_limit(user_id: int, session: AsyncSession) -> bool:
+    """Return True if the user is under the per-email resend quota (1/hour).
 
-
-async def _check_resend_rate_limit(email: str) -> bool:
-    """Return True if the email is under its per-email resend quota.
-
-    Mirrors the Redis-counter pattern from session._record_failed_attempt:
-    INCR a TTL-bounded key, allow only `_RESEND_PER_EMAIL_LIMIT` hits per
-    window. Redis-unavailable fails *open* (allows the resend) so a Redis
-    outage doesn't break a legitimate candidate's recovery flow; per-IP
-    slowapi limit still applies.
+    Counts ActivationToken rows minted in the last hour. A small parallel-
+    request window exists but is covered by the per-IP slowapi limit.
     """
-    from src.core.tasks import get_redis_pool
-
-    try:
-        redis = await get_redis_pool()
-        key = _resend_key(email)
-        count = await redis.incr(key)
-        if count == 1:
-            await redis.expire(key, _RESEND_PER_EMAIL_WINDOW_SECONDS)
-        return count <= _RESEND_PER_EMAIL_LIMIT
-    except Exception:
-        logger.error(
-            "redis_unavailable",
-            extra={"surface": "candidate_resend_rate_limit"},
+    window_start = datetime.now(timezone.utc) - _RESEND_WINDOW
+    result = await session.execute(
+        select(func.count())
+        .select_from(ActivationToken)
+        .where(
+            ActivationToken.user_id == user_id,  # type: ignore[arg-type]
+            ActivationToken.created_at > window_start,
         )
-        return True
+    )
+    return result.scalar_one() < _RESEND_PER_EMAIL_LIMIT
 
 
 def _build_activation_url(raw_token: str) -> str:
@@ -278,16 +265,9 @@ async def resend_candidate_activation(
 
     Silent in all branches — caller maps to 202 regardless. Mints a fresh
     token only when a candidate user exists with `is_active=False`.
-    Per-email rate-limited via Redis (caller handles per-IP via slowapi).
+    Per-email rate-limited via DB count (caller handles per-IP via slowapi).
     """
     normalized_email = email.lower().strip()
-
-    if not await _check_resend_rate_limit(normalized_email):
-        logger.warning(
-            "candidate_resend_rate_limited",
-            extra={"email_prefix": normalized_email.split("@", 1)[0][:2] + "***"},
-        )
-        return
 
     result = await session.execute(
         select(User).where(User.email == normalized_email)  # type: ignore[arg-type]
@@ -298,6 +278,13 @@ async def resend_candidate_activation(
         return
 
     assert user.id is not None
+    if not await _check_resend_rate_limit(user.id, session):
+        logger.warning(
+            "candidate_resend_rate_limited",
+            extra={"email_prefix": normalized_email.split("@", 1)[0][:2] + "***"},
+        )
+        return
+
     # Carry the original full_name from the prior unused token into the
     # fresh one so activation can still prefill CandidateProfile.full_name
     # without asking the candidate to retype their name on a resend.
