@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>{{ subject }}</title>
+  <style>
+    .eo  { background: {{ c_outer }}; }
+    .ec  { background: {{ c_card }};  border: 1px solid {{ c_border_card }}; border-radius: 6px;
+           border-top: 3px solid {{ c_copper }}; }
+    .eh  { background: {{ c_header }}; border-bottom: 1px solid {{ c_border }}; }
+    .eb  { background: {{ c_card }}; }
+    .ef  { background: {{ c_footer_bg }}; border-top: 1px solid {{ c_border }}; }
+    .thi { color: {{ c_text }}; }
+    .tmi { color: {{ c_muted }}; }
+    .tlo { color: {{ c_low }}; }
+    .tlo a { color: {{ c_low }}; }
+    .hr  { border-top: 1px solid {{ c_border }}; }
+  </style>
+</head>
+<body bgcolor="{{ c_outer }}"
+      style="margin:0;padding:0;background:{{ c_outer }};
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+             direction:rtl;">
+
+  {# Preheader — hidden preview text shown by email clients next to subject #}
+  <span style="display:none;max-height:0;overflow:hidden;font-size:1px;mso-hide:all;">{{ preheader }}</span>
+  <span style="display:none;max-height:0;overflow:hidden;font-size:1px;mso-hide:all;">&zwnj;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&zwnj;</span>
+
+  <table class="eo" bgcolor="{{ c_outer }}" width="100%"
+         cellpadding="0" cellspacing="0" role="presentation"
+         style="background:{{ c_outer }};padding:40px 16px;">
+    <tr>
+      <td align="center">
+
+        <table class="ec" bgcolor="{{ c_card }}" width="580"
+               cellpadding="0" cellspacing="0" role="presentation"
+               style="background:{{ c_card }};border-radius:6px;
+                      border:1px solid {{ c_border_card }};border-top:3px solid {{ c_copper }};
+                      max-width:580px;width:100%;overflow:hidden;">
+
+          {# ── Header ── dir=ltr keeps logo on physical left in RTL document #}
+          <tr>
+            <td class="eh" bgcolor="{{ c_header }}" dir="ltr"
+                style="background:{{ c_header }};padding:20px 32px;
+                       border-bottom:1px solid {{ c_border }};">
+              <table cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  {% if logo_src %}
+                  <td style="vertical-align:middle;padding-right:12px;">
+                    <img src="{{ logo_src }}" alt="RS Recruiting"
+                         width="40" height="40"
+                         style="display:block;width:40px;height:40px;
+                                border:0;outline:0;text-decoration:none;">
+                  </td>
+                  {% endif %}
+                  <td style="vertical-align:middle;">
+                    <span style="font-size:11px;font-weight:700;letter-spacing:4px;
+                                 text-transform:uppercase;color:{{ c_copper }};
+                                 font-family:Arial,sans-serif;">RS RECRUITING</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {# ── Body ─────────────────────────────────────────────────────────── #}
+          <tr>
+            <td class="eb" bgcolor="{{ c_card }}"
+                style="background:{{ c_card }};padding:36px 36px 28px;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+
+          {# ── Footer ───────────────────────────────────────────────────────── #}
+          <tr>
+            <td class="ef" bgcolor="{{ c_footer_bg }}"
+                style="background:{{ c_footer_bg }};padding:0;border-top:1px solid {{ c_border }};">
+
+              <table cellpadding="0" cellspacing="0" role="presentation" width="100%">
+
+                {# Nav links #}
+                <tr>
+                  <td align="center" style="padding:20px 32px 12px;">
+                    <a href="{{ footer_jobs_url }}"
+                       style="font-size:11px;color:{{ c_footer_link }};text-decoration:none;
+                              font-family:Arial,sans-serif;">
+                      משרות פתוחות
+                    </a>
+                    <span style="font-size:11px;color:{{ c_sep }};
+                                 font-family:Arial,sans-serif;">&nbsp;&middot;&nbsp;</span>
+                    <a href="{{ footer_about_url }}"
+                       style="font-size:11px;color:{{ c_footer_link }};text-decoration:none;
+                              font-family:Arial,sans-serif;">
+                      אודות
+                    </a>
+                    <span style="font-size:11px;color:{{ c_sep }};
+                                 font-family:Arial,sans-serif;">&nbsp;&middot;&nbsp;</span>
+                    <a href="mailto:{{ footer_support_email }}"
+                       style="font-size:11px;color:{{ c_footer_link }};text-decoration:none;
+                              font-family:Arial,sans-serif;">
+                      תמיכה
+                    </a>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:0 32px;">
+                    <div class="hr" style="border:0;border-top:1px solid {{ c_border }};"></div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="padding:12px 32px 20px;">
+                    <p class="tlo"
+                       style="margin:0 0 2px;font-size:11px;line-height:1.6;
+                              color:{{ c_footer_link }};font-family:Arial,sans-serif;">
+                      RS Recruiting &middot; נתניה, ישראל
+                    </p>
+                    <p class="tlo"
+                       style="margin:0;font-size:10px;line-height:1.6;
+                              color:{{ c_footer_legal }};font-family:Arial,sans-serif;">
+                      &copy; {{ footer_year }} RS Recruiting
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

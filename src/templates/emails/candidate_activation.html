@@ -1,0 +1,42 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<h2 class="thi"
+    style="margin:0 0 20px;font-size:22px;font-weight:300;line-height:1.3;
+           color:{{ c_text }};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  עוד צעד אחד — הפעילו את החשבון
+</h2>
+
+<p class="thi"
+   style="margin:0 0 14px;font-size:14px;line-height:1.7;color:{{ c_text }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  תודה שנרשמתם ל-RS Recruiting. לאחר ההפעלה תוכלו לעקוב אחרי כל ההגשות שלכם, לנהל את הפרופיל ולהגיש מועמדות למשרות חדשות.
+</p>
+
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin:28px 0;">
+  <tr>
+    <td align="center">
+      <a href="{{ activation_url }}" target="_blank"
+         style="display:inline-block;background:{{ c_copper }};color:{{ c_copper_text }};
+                text-decoration:none;font-family:Arial,sans-serif;
+                font-size:13px;font-weight:700;letter-spacing:1px;
+                padding:16px 36px;border-radius:4px;">
+        הפעלת החשבון
+      </a>
+    </td>
+  </tr>
+</table>
+
+<div class="hr" style="border:0;border-top:1px solid {{ c_border }};margin:28px 0;"></div>
+
+<p class="tmi"
+   style="margin:0 0 8px;font-size:12px;line-height:1.6;color:{{ c_muted }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  הקישור תקף ל-{{ ttl_hours }} שעות. אם פג תוקפו, ניתן לבקש קישור חדש מדף ההתחברות.
+</p>
+<p class="tmi"
+   style="margin:0;font-size:12px;line-height:1.6;color:{{ c_muted }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  אם לא יזמתם הרשמה — פשוט התעלמו מהמייל הזה. לא בוצעה אף פעולה בחשבונכם.
+</p>
+{% endblock %}

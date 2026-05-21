@@ -1,0 +1,23 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<h2 class="thi"
+    style="margin:0 0 20px;font-size:22px;font-weight:300;line-height:1.3;
+           color:{{ c_text }};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  עדכון בנוגע לבקשת ההרשמה
+</h2>
+
+<p class="thi"
+   style="margin:0 0 14px;font-size:14px;line-height:1.7;color:{{ c_text }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  בקשת ההרשמה של
+  <span style="color:{{ c_copper }};font-weight:500;">{{ company_name }}</span>
+  לא אושרה בשלב זה.
+</p>
+
+<p class="tmi"
+   style="margin:0;font-size:14px;line-height:1.7;color:{{ c_muted }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  אם אתם סבורים שמדובר בטעות, אנא צרו קשר עם צוות RS Recruiting ונשמח לבחון את הבקשה מחדש.
+</p>
+{% endblock %}

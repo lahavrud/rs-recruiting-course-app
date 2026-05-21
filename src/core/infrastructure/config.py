@@ -119,6 +119,8 @@ class Settings(BaseSettings):
     frontend_base_url: str = "http://localhost:3000"
     # public PNG URL for email logo; empty = use inline SVG (dev)
     logo_public_url: str = ""
+    # Support email shown in email footer
+    support_email: str = "support@rs-recruiting.com"
 
     # RS assets in S3 (contract template + agency signature)
     rs_contract_template_s3_key: str = "assets/rs-contract.pdf"
