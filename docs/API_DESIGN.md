@@ -19,6 +19,16 @@ System health check endpoint.
 * **Response:** `200 OK`
 * **Response Body:** `{"status": "ok", "environment": "development|production"}`
 
+### `POST /api/analytics/collect`
+Server-side GA4 Measurement Protocol tunnel. Proxies analytics events to Google without exposing the API secret to the client. No-op in development (returns `204` immediately if `GA4_API_SECRET` is unset).
+* **Auth Required:** No
+* **Response:** `204 No Content`
+
+### `POST /api/sentry-tunnel`
+Relay Sentry error envelopes to `sentry.io`, bypassing ad-blockers. Returns `404` if `SENTRY_DSN` is unset.
+* **Auth Required:** No
+* **Response:** `200 OK` | `400 Bad Request` (malformed envelope) | `404` (Sentry not configured)
+
 ---
 
 ## Authentication Endpoints
@@ -138,6 +148,24 @@ branches to prevent email enumeration.
 least one unused activation token. The frontend uses this string to surface
 the "resend activation" affordance.
 
+### `POST /auth/forgot-password`
+Request a password reset email. Always returns the same response — never reveals whether the email exists (enumeration protection). Per-IP `5/hour` + per-email Redis limit.
+* **Auth Required:** No
+* **Request Body:** `{ "email": "string" }`
+* **Response:** `200 OK` (always, regardless of whether email matched)
+
+### `GET /auth/reset-password/validate`
+Preflight check — confirms a token is still usable without consuming it. Used by the frontend to show the invalid-token page immediately on load rather than after the user fills in a new password.
+* **Auth Required:** No
+* **Query Params:** `token` (string)
+* **Response:** `200 { "valid": true }` | `400 invalid_token` | `400 token_expired` | `400 token_already_used`
+
+### `POST /auth/reset-password`
+Consume a reset token and set a new password. The token is single-use.
+* **Auth Required:** No
+* **Request Body:** `{ "token": "string", "new_password": "string" }`
+* **Response:** `200 OK` | `400 invalid_token / token_expired / token_already_used` | `422 password_complexity`
+
 ### `GET /api/invite/{token}`
 Public metadata for an invite token (used by the activation page to show context before password entry).
 * **Auth Required:** No
@@ -209,19 +237,21 @@ Send the agency-contact email to the company associated with a pending job.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/admin/candidates` | List all candidate profiles |
+| `GET` | `/api/admin/audit-log` | Cursor-paginated audit trail (filters: `target_type`, `actor_user_id`, `from`, `to`) |
 | `GET` | `/api/admin/applications` | List all applications |
 | `GET` | `/api/admin/applications/{application_id}` | Application detail |
-| `PUT` | `/api/admin/applications/{application_id}/status` | Update application status |
-| `DELETE` | `/api/admin/applications/{application_id}` | Delete an application |
+| `PUT` | `/api/admin/applications/{application_id}/status` | Update application status (triggers candidate email) |
+| `PUT` | `/api/admin/applications/{application_id}/notes` | Update `admin_notes` only — does not change status or send email |
+| `DELETE` | `/api/admin/applications/{application_id}` | Delete an application (candidate profile preserved) |
 
-> Schemas for the above (request bodies, response shapes, error codes) are defined in `src/schemas.py` and surfaced via the OpenAPI schema. The polish-pass plan (local) tracks the per-entity full-CRUD endpoints still to add.
+> Schemas (request bodies, response shapes, error codes) are in `src/schemas.py` and surfaced via the OpenAPI schema at `/docs`.
 
 ---
 
 ## Resumes
 
 ### `GET /api/resumes/{file_key}`
-Download a resume file. Authorization is enforced server-side: only the candidate's owning admin (or the candidate themselves, when accounts ship) may fetch.
+Download a resume file (admin-side route). Authorization is enforced server-side: admin session required. Candidates download their own application resumes via `GET /api/candidate/me/applications/{id}/resume` instead.
 * **Auth Required:** Yes
 * **Response:** `200 OK` (binary) | `403 Forbidden` | `404 Not Found`
 

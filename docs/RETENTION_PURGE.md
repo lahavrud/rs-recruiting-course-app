@@ -58,7 +58,7 @@ This is the auditor evidence trail. Lives wherever the worker container's stdout
 
 | Field | Value |
 |---|---|
-| Namespace | `RsRecruitment/Retention` |
+| Namespace | `RsRecruiting/Retention` |
 | Metric | `PurgedCandidatesCount` |
 | Unit | `Count` |
 | Cadence | Once per cron run (nightly) |
@@ -101,7 +101,7 @@ The endpoint must confirm by clicking the AWS link before they start receiving n
 ```bash
 # 1. Was a datapoint emitted in the last 24h?
 aws cloudwatch get-metric-statistics \
-  --namespace RsRecruitment/Retention \
+  --namespace RsRecruiting/Retention \
   --metric-name PurgedCandidatesCount \
   --statistics Sum \
   --start-time $(date -u -d '1 day ago' +%FT%TZ) \
@@ -146,7 +146,7 @@ retention-purge-stale fires
 
 ## IAM
 
-The EC2 role has `cloudwatch:PutMetricData` scoped to the `RsRecruitment/Retention` namespace via an IAM condition:
+The EC2 role has `cloudwatch:PutMetricData` scoped to the `RsRecruiting/Retention` namespace via an IAM condition:
 
 ```json
 {
@@ -154,7 +154,7 @@ The EC2 role has `cloudwatch:PutMetricData` scoped to the `RsRecruitment/Retenti
   "Action": "cloudwatch:PutMetricData",
   "Resource": "*",
   "Condition": {
-    "StringEquals": { "cloudwatch:namespace": "RsRecruitment/Retention" }
+    "StringEquals": { "cloudwatch:namespace": "RsRecruiting/Retention" }
   }
 }
 ```

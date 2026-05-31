@@ -17,7 +17,8 @@
 ```
 backend/src/
 ├── api/
-│   ├── auth/         login.py, registration.py, activation.py, password_reset.py, invites.py
+│   ├── auth/         login.py, registration.py, candidate_registration.py, activation.py,
+│   │                 password_reset.py, password_change.py, invites.py
 │   ├── admin/        companies.py, invites.py, jobs.py, applications.py, candidates.py, audit.py
 │   ├── company/      jobs.py, profile.py, resumes.py
 │   ├── public/       jobs.py (board), applications.py (apply flow)

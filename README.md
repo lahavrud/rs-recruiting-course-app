@@ -76,7 +76,7 @@ erDiagram
         int id
         string email
         string hashed_password
-        enum role "ADMIN, COMPANY"
+        enum role "ADMIN, COMPANY, CANDIDATE"
         bool is_active
     }
     CompanyProfile {
@@ -102,7 +102,7 @@ erDiagram
         int id
         int job_id
         int candidate_id
-        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED"
+        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN"
         text admin_notes
     }
 ```
