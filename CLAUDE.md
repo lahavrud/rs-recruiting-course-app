@@ -44,6 +44,14 @@ frontend/src/
 │   │   ├── AppShell.tsx      # Root layout switcher (auth / public / bare)
 │   │   ├── Header.tsx        # Authenticated top bar
 │   │   └── Sidebar.tsx       # Authenticated nav sidebar (mobile drawer + desktop)
+│   ├── dashboard/
+│   │   ├── CandidateDashboard.tsx        # Candidate-role dashboard (composes sub-components below)
+│   │   ├── DashboardHero.tsx             # Greeting + applications count + profile completion stats
+│   │   ├── DashboardProfileCompletion.tsx # Inline completion strip with inline field editors
+│   │   ├── DashboardRecentApplications.tsx
+│   │   ├── DashboardBrowseJobsCta.tsx
+│   │   ├── DashboardInlineEditor.tsx     # Phone / LinkedIn / resume inline-edit widget
+│   │   └── dashboardUtils.ts             # profileCompletionPercent pure helper
 │   ├── admin/
 │   │   ├── ActiveFilterChip.tsx   # Copper chip with remove button
 │   │   ├── AnimatedAccordion.tsx  # Accordion + CollapsibleSection + FormSection exports
@@ -82,7 +90,12 @@ frontend/src/
 │   │   ├── JobBoardPage.tsx
 │   │   ├── JobDetailPage.tsx
 │   │   └── LandingPage.tsx
-│   └── …                          # Other pages (auth, candidate, company)
+│   ├── candidate/
+│   │   ├── components/            # Co-located sub-components
+│   │   ├── CandidateApplicationDetailPage.tsx
+│   │   ├── CandidateApplicationsPage.tsx
+│   │   └── CandidateProfilePage.tsx
+│   └── …                          # Auth pages, company pages, DashboardPage
 ├── utils/
 │   ├── formatDate.ts              # formatDate / formatDateLong (he-IL locale)
 │   ├── validators.ts              # EMAIL_RE, MOBILE_RE (strict Israeli), COMPANY_ID_RE + validateCompanyProfile/validateJob
@@ -101,21 +114,25 @@ frontend/src/
 
 | Condition | Shell |
 |---|---|
-| `/`, `/login`, `/register`, `/activate` | Bare — page owns its own layout |
-| Authenticated (admin or company) | Header + Sidebar + `bg-page` main area |
+| `/`, `/login`, `/register`, `/register-candidate`, `/activate` | Bare — page owns its own layout |
+| Authenticated (any role) | Header + Sidebar + `bg-page` main area |
 | Unauthenticated (public) | `PublicHeader` + `bg-page` main area |
+
+Note: `/jobs` and its sub-paths always render the public shell regardless of auth state — an authenticated candidate browsing jobs sees the same layout as an anonymous visitor (`PublicHeader` switches its CTA based on `isAuthenticated`).
 
 ### Routes (App.tsx)
 
 | Path | Guard | Page |
 |---|---|---|
 | `/` | — | `LandingPage` |
-| `/login` `/register` `/activate` | — | Auth pages |
+| `/login` `/register` `/register-candidate` `/activate` | — | Auth pages |
 | `/jobs` `/jobs/:id` `/jobs/:id/apply` | — | Public job board + apply |
 | `/dashboard` | `ProtectedRoute` | Role-aware `DashboardPage` |
 | `/admin/companies` `/admin/jobs` `/admin/applications` `/admin/candidates` | `AdminRoute` | Admin pages |
 | `/company/jobs` | `CompanyRoute` | `CompanyJobsPage` |
 | `/candidate/profile` | `CandidateRoute` | `CandidateProfilePage` |
+| `/candidate/applications` | `CandidateRoute` | `CandidateApplicationsPage` |
+| `/candidate/applications/:id` | `CandidateRoute` | `CandidateApplicationDetailPage` |
 
 ---
 
