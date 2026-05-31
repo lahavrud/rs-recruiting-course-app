@@ -90,7 +90,9 @@ gantt
 
 ### 📌 Deferred / post-MVP
 
-* **Candidate accounts** — currently anonymous-only. Future "claim" flow will match by email and link past applications. Schema design must keep this path open (nullable `user_id` on `CandidateProfile`).
+* **Candidate edit & withdraw** (#610) — candidates can revise answers and resume while status=NEW, or withdraw the application entirely.
+* **Candidate account deletion** (#611) — two-step GDPR right-to-be-forgotten: request → email confirmation → PII scrub + User hard-delete.
+* **Admin candidate page updates** (#615) — surface linked-user status, tombstone display, admin-initiated deletion.
 * **Company-side application visibility** — companies cannot yet view applications for their jobs.
 * **Public job-board search / filters** and SEO (per-job meta, sitemap, JobPosting schema).
 * **Admin shell redesign** (dashboard widgets, command palette, bulk actions) — defer until real usage data.

@@ -341,8 +341,9 @@ assembles a ZIP (profile JSON + per-application resume snapshots),
 uploads it to storage, mints a 24h signed download token, and emails
 the candidate a single-use link.
 * **Auth Required:** Candidate session.
-* **Rate Limit:** Per-user — at most one unused-and-unexpired export
-  (enforced via DB row count, no Redis).
+* **Rate Limit:** Two independent constraints — (1) per-IP `3/day` via
+  slowapi; (2) per-user at most one unused-and-unexpired export at a time
+  (enforced via DB row count, no Redis). Either can produce a `429`.
 * **Response:** `202 Accepted` | `429 export_already_pending`.
 
 ### `GET /api/candidate/me/export/{token}`

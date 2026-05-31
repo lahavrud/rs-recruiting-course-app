@@ -127,7 +127,7 @@ async def apply_to_job(
             fallback_resume_hash = existing_profile.resume_hash
     if resume_file is None and fallback_resume_path is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="resume_required",
         )
 
@@ -181,6 +181,6 @@ async def apply_to_job(
         raise service_exception_to_http(e) from e
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="invalid_application",
         ) from e

@@ -410,17 +410,20 @@ src/
 ```mermaid
 erDiagram
     User ||--o| CompanyProfile : owns
+    User ||--o| CandidateProfile : "linked (optional)"
     CompanyProfile ||--o{ Job : posts
     Job ||--o{ Application : receives
     CandidateProfile ||--o{ Application : submits
 
-    %% Auth System (Admins & Companies)
+    %% Auth System (Admins, Companies, Candidates)
     User {
         int id
         string email
         string hashed_password
-        enum role "ADMIN, COMPANY"
-        bool is_active "False until Admin approves"
+        enum role "ADMIN, COMPANY, CANDIDATE"
+        bool is_active "False until activated"
+        int failed_login_attempts
+        datetime locked_until
         datetime created_at
     }
 
@@ -448,35 +451,44 @@ erDiagram
         datetime updated_at
     }
 
-    %% Candidate Lead (No Authentication)
+    %% Candidate identity + consent record (Sprint 11)
+    %% Anonymous leads have user_id=NULL; registered candidates link 1:1 to User
     CandidateProfile {
         int id
+        int user_id "FK to User SET NULL, nullable"
         string full_name
-        string email
-        string phone
-        string resume_path
-        string linkedin_url
-
-        %% Interview Form (Subject to Change)
-        text service_concept
-        text salary_expectations
-        text military_service_details
-        text transportation
-        text personality_weakness
-        text personality_strength
-
+        string email "UNIQUE"
+        string phone "nullable"
+        string linkedin_url "nullable"
+        string resume_path "nullable"
+        string resume_filename "nullable"
+        string resume_hash "nullable"
+        datetime consent_given_at "nullable"
+        string consent_policy_version "nullable"
+        string consent_ip "nullable"
+        text consent_user_agent "nullable"
+        datetime tos_accepted_at "nullable"
+        string tos_version "nullable"
         datetime created_at
     }
 
     %% Match (Core Business Entity)
+    %% Partial unique index on (job_id, candidate_id) WHERE status != WITHDRAWN
     Application {
         int id
         int job_id
         int candidate_id
+        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN"
+        text admin_notes "nullable, internal only"
+        text service_concept "nullable"
+        text salary_expectations "nullable"
+        text strength "nullable"
+        text growth_area "nullable"
+        string resume_path "nullable, per-application snapshot"
+        string resume_filename "nullable"
+        string resume_hash "nullable"
         datetime created_at
         datetime updated_at
-        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED"
-        text admin_notes
     }
 
 ```
@@ -484,6 +496,7 @@ erDiagram
 **Key Relationships:**
 
 * `User` 1:1 `CompanyProfile` (one user owns one company profile)
+* `User` 1:1 `CandidateProfile` (optional — anonymous leads have no linked User; FK is SET NULL on User delete)
 * `CompanyProfile` 1:N `Job` (one company posts many jobs)
 * `Job` 1:N `Application` (one job receives many applications)
 * `CandidateProfile` 1:N `Application` (one candidate submits many applications)
