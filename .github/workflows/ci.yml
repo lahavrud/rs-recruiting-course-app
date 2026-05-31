@@ -91,7 +91,7 @@ jobs:
   # CVE auditing lives in the weekly security-audit workflow.
   backend-checks:
     needs: detect-changes
-    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.deploy == 'true'
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     services:
