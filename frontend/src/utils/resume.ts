@@ -1,4 +1,4 @@
-import { MIME_TO_EXT } from "@/utils/mime";
+import { mimeToExt } from "@/utils/mime";
 
 export const RESUME_ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"] as const;
 export const RESUME_MAX_FILE_SIZE_MB = 10;
@@ -22,7 +22,7 @@ export function buildResumeDownloadName(
   const keyExt = fileKey.includes(".") ? fileKey.split(".").pop() : undefined;
   const safeKeyExt =
     keyExt && /^[a-zA-Z0-9]{1,5}$/.test(keyExt) ? keyExt.toLowerCase() : undefined;
-  const ext = MIME_TO_EXT[mimeType] ?? safeKeyExt ?? "bin";
+  const ext = mimeToExt(mimeType, safeKeyExt ?? "bin");
   return `${slugifyCandidate(candidateName)}-resume.${ext}`;
 }
 
