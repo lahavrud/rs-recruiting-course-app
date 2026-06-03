@@ -141,6 +141,44 @@ These principles guide all architectural decisions:
 
 ---
 
+### 2a. Email Quota Throttling
+
+**Problem:** Resend's free tier allows 100 emails/day and 3,000/month. Introducing bulk notifications (e.g. closing a job notifies every applicant) could exhaust the daily quota in a single worker flush, silently stopping transactional emails (password reset, activation) for the rest of the day.
+
+**Decision:** Add two independent safeguards at the worker level — a send-rate throttle and a DB-backed quota counter with log alerts.
+
+**Options Considered:**
+- **Hard stop at limit** — reject sends once quota is hit. Rejected: transactional emails (password reset, activation) cannot be dropped silently; DLQ retry-next-day is not built into SQS without custom delay logic.
+- **Redis token bucket** — distributed, precise per-second throttle. Rejected: no Redis in the stack; single-worker deployment doesn't need distributed coordination.
+- **Reactive 429 handling only** — catch Resend's 429 and back off. Rejected: gives no advance warning and risks dropping urgent transactional mail.
+- **DB counter + inter-send sleep (chosen)** — proactive alerting before the wall, plus a simple sleep-based rate limit that requires zero extra infrastructure.
+
+**Chosen Solution:**
+- **Inter-send delay:** After each successful send and its SQS deletion, the worker sleeps `EMAIL_SEND_DELAY_SECONDS` (default `0.25 s`, ≈ 4 emails/s) before processing the next message. The sleep is `await asyncio.sleep()` — it yields to the event loop, not blocking anything. It sits _after_ `delete_message` so the SQS message is freed before the pause.
+- **Quota tracking:** `email_quota` table (date PK, count). After each successful send, `increment_and_alert()` upserts today's row and reads the month-to-date sum. Log events fire at 50 %, 75 %, 90 %, and 100 % of both the daily and monthly limits — `WARNING` up to 75 %, `CRITICAL` from 90 %. No hard stop; Resend's own 429 is the backstop.
+- **Configuration** (all overridable via SSM / env):
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `EMAIL_DAILY_LIMIT` | `100` | Free-tier daily ceiling |
+| `EMAIL_MONTHLY_LIMIT` | `3000` | Free-tier monthly ceiling |
+| `EMAIL_SEND_DELAY_SECONDS` | `0.25` | Inter-send pause in worker |
+
+**Scaling path (if/when upgrading Resend plan):**
+1. Set `EMAIL_DAILY_LIMIT` and `EMAIL_MONTHLY_LIMIT` to match the paid plan in SSM — alerts rescale automatically.
+2. Reduce or zero out `EMAIL_SEND_DELAY_SECONDS` to remove the throughput cap (Resend Pro allows much higher burst).
+3. If multiple worker instances are ever needed, the sleep-based throttle no longer gives a global rate limit — replace it with a Redis token bucket shared across workers (each worker acquires a token before sending, with a refill rate of `1 / EMAIL_SEND_DELAY_SECONDS` tokens/s). The `email_quota` counter logic is already multi-instance safe because it uses a Postgres upsert (`ON CONFLICT DO UPDATE`) — no change needed there.
+
+**Implementation:**
+- `src/core/services/email_quota.py` — `increment_and_alert(session)`
+- `src/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
+- `src/worker.py` — sleep after `delete_message` for `send_email` tasks only
+- `alembic/versions/e03b8aa073a3_add_email_quota_table.py` — creates `email_quota`
+
+**Status:** ✅ Implemented
+
+---
+
 ### 3. Async Background Jobs (Task Queue)
 
 **Problem:** Standard HTTP requests must return quickly. Long-running tasks (like sending emails or processing files) will cause API timeouts and poor user experience.

@@ -9,7 +9,6 @@ Public API (unchanged from Arq era — all 10+ call sites still work):
   enqueue_data_export_task(user_id)           → MessageId | "inline"
 """
 
-import asyncio
 import base64
 import json
 import logging
@@ -107,8 +106,6 @@ async def send_email_task(
             async with async_session() as session:
                 async with transactional(session):
                     await increment_and_alert(session)
-            if settings.email_send_delay_seconds > 0:
-                await asyncio.sleep(settings.email_send_delay_seconds)
         else:
             logger.warning("email_send_failed", extra={"to": _mask_email(to)})
             raise RuntimeError(f"Email provider returned False for {_mask_email(to)}")

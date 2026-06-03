@@ -54,18 +54,19 @@ def _deserialize_message(body: dict) -> tuple[str, dict]:
     return task_name, body
 
 
-async def _process_message(raw_body: str) -> None:
+async def _process_message(raw_body: str) -> str:
     body = json.loads(raw_body)
     task_name, kwargs = _deserialize_message(body)
 
     fn = TASK_REGISTRY.get(task_name)
     if fn is None:
         logger.warning("unknown_task", extra={"task": task_name})
-        return
+        return task_name
 
     logger.info("task_start", extra={"task": task_name})
     await fn(**kwargs)
     logger.info("task_done", extra={"task": task_name})
+    return task_name
 
 
 async def run(stop_event: asyncio.Event) -> None:
@@ -87,11 +88,14 @@ async def run(stop_event: asyncio.Event) -> None:
             for msg in resp.get("Messages", []):
                 receipt = msg["ReceiptHandle"]
                 try:
-                    await _process_message(msg["Body"])
+                    task_name = await _process_message(msg["Body"])
                     await sqs.delete_message(
                         QueueUrl=settings.sqs_queue_url,
                         ReceiptHandle=receipt,
                     )
+                    delay = settings.email_send_delay_seconds
+                    if task_name == "send_email" and delay > 0:
+                        await asyncio.sleep(delay)
                 except Exception:
                     logger.exception(
                         "task_failed",

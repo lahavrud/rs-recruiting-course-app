@@ -32,7 +32,6 @@ async def test_send_email_task_success():
         patch("src.core.tasks.async_session", return_value=session_cm),
         patch("src.core.tasks.transactional", return_value=txn_cm),
         patch("src.core.tasks.increment_and_alert", new_callable=AsyncMock),
-        patch("src.core.tasks.asyncio.sleep", new_callable=AsyncMock),
     ):
         mock_provider = AsyncMock()
         mock_provider.send_email.return_value = True
