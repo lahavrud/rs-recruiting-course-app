@@ -1,0 +1,71 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,sys; d=json.load(sys.stdin); cmd=d.get('command',''); exit(2) if 'alembic upgrade' in cmd and '--sql' not in cmd else exit(0)\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/trim_pytest_output.py"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Write(*)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(wc -l *)",
+      "Bash(npx tsc*)",
+      "Bash(npm run lint)",
+      "Bash(npm run test)",
+      "Bash(npm ci)",
+      "Bash(git fetch *)",
+      "Bash(aws sts get-caller-identity)",
+      "Bash(aws iam get-*)",
+      "Bash(aws ec2 describe-*)",
+      "Bash(aws ssm get-parameter *)",
+      "Bash(aws iam list-*)",
+      "Bash(aws s3api get-*)",
+      "Bash(aws ssm describe-parameters *)",
+      "Bash(aws ssm get-parameters-by-path *)",
+      "Bash(aws s3api list-buckets *)",
+      "Bash(aws rds describe-db-instances *)",
+      "Bash(aws cloudtrail describe-trails *)",
+      "Bash(aws cloudtrail get-trail-status *)",
+      "Bash(aws ecr describe-repositories *)",
+      "Bash(aws ecs list-clusters *)",
+      "Bash(aws ecs list-task-definitions *)",
+      "Bash(aws ecs describe-task-definition *)",
+      "Bash(aws secretsmanager list-secrets *)",
+      "Bash(aws guardduty list-detectors *)",
+      "Bash(aws wafv2 list-web-acls *)",
+      "Bash(aws iam get-account-summary *)",
+      "Bash(aws iam list-mfa-devices *)",
+      "Bash(uv run ruff check .)",
+      "Bash(npm run lint *)",
+      "Bash(uv run alembic current *)",
+      "Bash(uv run alembic heads *)",
+      "Bash(aws sts get-caller-identity *)",
+      "Bash(aws organizations list-*)",
+      "Bash(aws organizations describe-*)",
+      "Bash(aws ce get-cost-and-usage *)",
+      "Bash(aws rds describe-db-snapshots *)",
+      "Bash(aws sso-admin list-*)"
+    ]
+  }
+}

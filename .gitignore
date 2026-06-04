@@ -239,5 +239,6 @@ frontend/dist/
 # Local-only working notes, plans, scratch (not pushed)
 .local/
 
-# Claude Code local state (worktrees, settings)
-.claude/
+# Claude Code — commit shared config; ignore personal/runtime state
+.claude/settings.local.json
+.claude/worktrees/

@@ -68,7 +68,7 @@ jobs:
         run: |
           SHA="${{ steps.sha.outputs.sha }}"
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          S3_BUCKET="rs-recruitment-${ACCOUNT_ID}"
+          S3_BUCKET="rs-recruiting-deploy-prod-${ACCOUNT_ID}"
           DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${SHA}/deploy_ec2.sh /tmp/deploy_${SHA}.sh && IMAGE_TAG=${SHA} bash /tmp/deploy_${SHA}.sh"
           PARAMS=$(jq -n --arg cmd "$DEPLOY_CMD" '{commands: [$cmd]}')
           COMMAND_ID=$(aws ssm send-command \
