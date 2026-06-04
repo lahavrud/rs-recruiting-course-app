@@ -11,17 +11,7 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/trim_pytest_output.py"
-          }
-        ]
-      }
-    ]
+    "PostToolUse": []
   },
   "permissions": {
     "allow": [

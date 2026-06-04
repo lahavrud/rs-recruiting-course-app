@@ -8,7 +8,7 @@
 #
 # Resolution order for IMAGE_TAG:
 #   1. $IMAGE_TAG already exported (CI / rollback path)
-#   2. SSM /rs-recruitment/infra/CURRENT_SHA (manual rerun picks up last good)
+#   2. SSM /rs-recruiting/infra/CURRENT_SHA (manual rerun picks up last good)
 set -euo pipefail
 
 ENVIRONMENT="${ENVIRONMENT:-prod}"
@@ -20,7 +20,7 @@ export ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 S3_BUCKET="rs-recruiting-deploy-${ENVIRONMENT}-${ACCOUNT_ID}"
 
 OLD_CURRENT=$(aws ssm get-parameter \
-  --name /rs-recruitment/infra/CURRENT_SHA \
+  --name /rs-recruiting/infra/CURRENT_SHA \
   --query 'Parameter.Value' --output text 2>/dev/null || echo "")
 
 if [[ -z "${IMAGE_TAG:-}" ]]; then
@@ -43,7 +43,7 @@ aws ecr get-login-password --region "${REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 echo "==> Fetching Grafana Cloud credentials from SSM"
-SSM_PREFIX="/rs-recruitment/${ENVIRONMENT}"
+SSM_PREFIX="/rs-recruiting/${ENVIRONMENT}"
 export GRAFANA_LOKI_URL=$(aws ssm get-parameter \
   --name "${SSM_PREFIX}/GRAFANA_LOKI_URL" \
   --query 'Parameter.Value' --output text)
@@ -129,13 +129,13 @@ fi
 if [[ -n "${OLD_CURRENT}" && "${OLD_CURRENT}" != "${IMAGE_TAG}" ]]; then
   echo "==> Updating PREV_SHA -> ${OLD_CURRENT}"
   aws ssm put-parameter \
-    --name /rs-recruitment/infra/PREV_SHA \
+    --name /rs-recruiting/infra/PREV_SHA \
     --value "${OLD_CURRENT}" \
     --type String --overwrite >/dev/null
 fi
 echo "==> Updating CURRENT_SHA -> ${IMAGE_TAG}"
 aws ssm put-parameter \
-  --name /rs-recruitment/infra/CURRENT_SHA \
+  --name /rs-recruiting/infra/CURRENT_SHA \
   --value "${IMAGE_TAG}" \
   --type String --overwrite >/dev/null
 

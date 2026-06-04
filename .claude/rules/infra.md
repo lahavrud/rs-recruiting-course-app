@@ -6,7 +6,7 @@ CI/CD uses OIDC — there are no stored AWS credentials anywhere in this repo. N
 ## Secrets
 All secrets live in SSM Parameter Store as SecureStrings. To read a parameter locally:
 ```bash
-aws ssm get-parameter --name "/rs-recruitment/<param>" --with-decryption
+aws ssm get-parameter --name "/rs-recruiting/<param>" --with-decryption
 ```
 Never hardcode a value that should be in SSM. Never commit `.env` files that contain real credentials.
 

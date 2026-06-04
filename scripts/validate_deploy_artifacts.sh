@@ -64,8 +64,8 @@ check "captures OLD_CURRENT for automatic rollback"   grep_q  'OLD_CURRENT'     
 check "runs migrations BEFORE up -d (one-shot run --rm)" \
   grep_q 'run --rm --no-deps' "${DEPLOY_SH}"
 put_writes() { grep -A3 'aws ssm put-parameter' "${DEPLOY_SH}" | grep -q -- "$1"; }
-check "writes CURRENT_SHA on health-pass" put_writes '/rs-recruitment/infra/CURRENT_SHA'
-check "writes PREV_SHA on health-pass"    put_writes '/rs-recruitment/infra/PREV_SHA'
+check "writes CURRENT_SHA on health-pass" put_writes '/rs-recruiting/infra/CURRENT_SHA'
+check "writes PREV_SHA on health-pass"    put_writes '/rs-recruiting/infra/PREV_SHA'
 check "polls Docker health status before declaring deploy complete" \
   grep_q 'Health.Status' "${DEPLOY_SH}"
 

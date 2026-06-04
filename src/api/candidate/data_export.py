@@ -104,7 +104,7 @@ async def download_export(
     async with transactional(session):
         record.used = True
 
-    filename = f"rs-recruitment-export-{record.created_at:%Y%m%d}.zip"
+    filename = f"rs-recruiting-export-{record.created_at:%Y%m%d}.zip"
     return Response(
         content=body,
         media_type="application/zip",

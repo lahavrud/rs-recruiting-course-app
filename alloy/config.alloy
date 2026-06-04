@@ -114,11 +114,9 @@ loki.write "grafana_cloud" {
 }
 
 // ── 7. AWS CloudWatch metrics scraping → Mimir ───────────────────────────
-// Scrapes native AWS metrics (EC2, RDS, SQS, Route53) and forwards to Mimir.
+// Scrapes native AWS metrics (EC2, RDS, SQS) and forwards to Mimir.
 // The EC2 IAM role has cloudwatch:GetMetricData + cloudwatch:ListMetrics.
-//
-// Route53 health check: replace HEALTH_CHECK_UUID with the actual ID from:
-//   aws route53 list-health-checks --query 'HealthCheckList[].{ID:Id,FQDN:HealthCheckConfig.FullyQualifiedDomainName}'
+// Uptime monitoring is handled by Grafana Synthetic Monitoring (not CloudWatch).
 
 prometheus.exporter.cloudwatch "aws" {
   sts_region = "us-east-1"
@@ -173,16 +171,6 @@ prometheus.exporter.cloudwatch "aws" {
     }
   }
 
-  custom {
-    regions    = ["us-east-1"]
-    namespace  = "AWS/Route53"
-    dimensions = { "HealthCheckId" = "HEALTH_CHECK_UUID" }
-    metric {
-      name       = "HealthCheckStatus"
-      statistics = ["Minimum"]
-      period     = "1m"
-    }
-  }
 }
 
 prometheus.scrape "cloudwatch" {

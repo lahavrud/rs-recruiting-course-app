@@ -10,8 +10,8 @@
 #   GRAFANA_*         — Grafana Cloud credentials (read from SSM by deploy_ec2.sh)
 #
 # EC2 IAM role permissions:
-#   ssm:GetParameter / GetParametersByPath on /rs-recruitment/*
-#   ssm:PutParameter on /rs-recruitment/infra/CURRENT_SHA, PREV_SHA
+#   ssm:GetParameter / GetParametersByPath on /rs-recruiting/*
+#   ssm:PutParameter on /rs-recruiting/infra/CURRENT_SHA, PREV_SHA
 #   s3:GetObject + s3:PutObject on rs-recruiting-data-*
 #   ecr:GetAuthorizationToken + ecr:BatchGetImage
 #   logs:CreateLogStream + logs:PutLogEvents on /rs-recruiting/worker (worker only)

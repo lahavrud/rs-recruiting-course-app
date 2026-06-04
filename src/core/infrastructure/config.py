@@ -21,7 +21,7 @@ class SsmSettingsSource(PydanticBaseSettingsSource):
     Used in production so secrets are never written to disk.
 
     Naming convention: SSM parameter names are UPPERCASE (e.g.
-    `/rs-recruitment/prod/DATABASE_URL`); they map to snake_case Settings
+    `/rs-recruiting/prod/DATABASE_URL`); they map to snake_case Settings
     fields by lowercasing here. The lowercasing is a case-insensitive
     matching layer — *not* a license to store SSM names in mixed case.
     Keep new SSM params UPPERCASE so the AWS console listing stays
@@ -59,7 +59,7 @@ def _ssm_path_prefix() -> str:
     # Map ENVIRONMENT value to the SSM path segment (production → prod)
     env = os.environ.get("ENVIRONMENT", "development")
     segment = {"production": "prod"}.get(env, env)
-    return f"/rs-recruitment/{segment}/"
+    return f"/rs-recruiting/{segment}/"
 
 
 class Settings(BaseSettings):

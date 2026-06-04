@@ -1,5 +1,5 @@
 [project]
-name = "rs-recruitment"
+name = "rs-recruiting"
 version = "0.1.0"
 description = "RS Recruitment backend"
 requires-python = ">=3.12"

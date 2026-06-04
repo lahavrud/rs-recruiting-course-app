@@ -155,7 +155,7 @@ jobs:
               echo "sha=${INPUT_SHA}" >> "$GITHUB_OUTPUT"
             else
               CURRENT=$(aws ssm get-parameter \
-                --name /rs-recruitment/infra/CURRENT_SHA \
+                --name /rs-recruiting/infra/CURRENT_SHA \
                 --query 'Parameter.Value' --output text)
               echo "sha=${CURRENT}" >> "$GITHUB_OUTPUT"
             fi

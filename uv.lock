@@ -2118,7 +2118,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rs-recruitment"
+name = "rs-recruiting"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
