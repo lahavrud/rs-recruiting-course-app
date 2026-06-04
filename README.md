@@ -58,7 +58,7 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 | Email | Resend via SMTP relay (production) — provider abstraction; 10+ HTML templates |
 | Auth | JWT (PyJWT), bcrypt, HttpOnly refresh cookie, slowapi rate limiting |
 | Observability | Sentry (backend + frontend with source maps), Google Tag Manager, CloudWatch |
-| Infrastructure | EC2 + RDS + S3 + SQS + ECR + SSM, Cloudflare (TLS + CDN) |
+| Infrastructure | EC2 + RDS + S3 + SQS + ECR + SSM + CloudFront, Cloudflare (DNS only) |
 | CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL, SSM deploy |
 | Code Quality | Ruff, ESLint, TypeScript strict, 5 custom validation scripts, weekly pip-audit |
 
@@ -68,7 +68,7 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 
 <img src="docs/screenshots/aws-architecture.png" width="750" alt="AWS architecture diagram" />
 
-<p><em>Request path: Users → Cloudflare → nginx → API container → RDS / S3. Background jobs: SQS → worker container. CI/CD path: GitHub Actions → ECR (Docker images) + SSM Run Command → EC2. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or EC2 via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background jobs: SQS → worker container. CI/CD path: GitHub Actions → S3 (frontend bundle) + ECR (Docker images) + SSM Run Command → EC2. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
 
 ### Data model
 

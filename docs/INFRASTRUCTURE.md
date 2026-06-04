@@ -13,12 +13,18 @@ For higher-level architectural decisions (auth model, framework choices, etc.) s
 ```mermaid
 flowchart LR
   User((User))
-  CF["Cloudflare<br/>DNS + CDN + DDoS"]
+  CF["Cloudflare<br/>DNS only (grey-cloud)"]
 
   subgraph aws["AWS us-east-1"]
+    subgraph cdn["CloudFront d2ghcom3efd3zg"]
+      LE["Lambda@Edge<br/>viewer-request<br/>bot detection"]
+      CFD["CloudFront distribution<br/>rs-recruiting.com + www<br/>ACM cert TLS"]
+    end
+
+    S3FE[("S3 bucket<br/>rs-recruiting-frontend<br/>SPA bundle · 3-day lifecycle")]
+
     subgraph vpc["VPC 10.0.0.0/16 (<VPC_ID>)"]
       subgraph ec2host["EC2 t3.micro<br/><EC2_INSTANCE_ID> (rs-server)<br/>EIP <ELASTIC_IP>"]
-        nginx["frontend<br/>nginx:alpine<br/>port 443"]
         api["api<br/>FastAPI<br/>port 8000"]
         worker["worker<br/>Arq"]
         redis["redis<br/>port 6379"]
@@ -29,7 +35,6 @@ flowchart LR
     S3A[("S3 bucket<br/>rs-recruitment-app<br/>versioning suspended · SSE-S3<br/>resumes + deploy artifacts")]
     S3CT[("S3 bucket<br/>rs-recruitment-cloudtrail<br/>versioned · SSE-S3 · BPA full")]
     ECR1[("ECR rs-recruitment/api<br/>IMMUTABLE · scanOnPush")]
-    ECR2[("ECR rs-recruitment/frontend<br/>IMMUTABLE · scanOnPush")]
     SSM[("SSM Parameter Store<br/>secrets + CURRENT_SHA")]
     CW["CloudWatch<br/>5 log groups · 9 alarms · 1 dashboard"]
     CT["CloudTrail<br/>multi-region · log validation"]
@@ -40,8 +45,10 @@ flowchart LR
   GHA["GitHub Actions<br/>OIDC role"]
   Email["ops email"]
 
-  User --> CF --> nginx
-  nginx --> api
+  User --> CF --> CFD
+  CFD --> LE
+  CFD -->|default behavior| S3FE
+  CFD -->|"/api/* /auth/* /health"| api
   api --> redis
   api --> RDS
   worker --> redis
@@ -52,12 +59,11 @@ flowchart LR
   worker --> SSM
 
   GHA -->|push images| ECR1
-  GHA -->|push images| ECR2
+  GHA -->|"s3 sync frontend bundle"| S3FE
   GHA -->|deploy artifacts| S3A
   GHA -->|run command| ec2host
   GHA -->|put CURRENT_SHA| SSM
   ec2host -->|pull images| ECR1
-  ec2host -->|pull images| ECR2
   ec2host -->|logs + metrics| CW
   ec2host -->|API calls audit| CT
   CT -->|deliver logs| S3CT
@@ -69,15 +75,16 @@ flowchart LR
 ### Network notes
 
 - **Single VPC** (`<VPC_ID>`); default VPC was deleted 2026-05-09.
-- **No NAT Gateway, no ALB, no CloudFront.** EC2 has an Elastic IP and reaches the internet via IGW. TLS terminates at the nginx container on the EC2.
-- **DNS lives at Cloudflare**, not Route 53. The only Route 53 resource is one health check (`<R53_HC_ID>`) used by `rs-recruiting-uptime` alarm.
-- **No ACM cert.** TLS cert + key live in SSM SecureString; materialized to a host bind-mount at deploy time.
+- **No NAT Gateway, no ALB.** EC2 has an Elastic IP and reaches the internet via IGW. TLS terminates at CloudFront via ACM — EC2 only accepts HTTP :80 from the CloudFront managed prefix list.
+- **CloudFront distribution** (`d2ghcom3efd3zg.cloudfront.net`) sits in front of both the S3 frontend bucket (default behavior) and EC2 (API behaviors). Lambda@Edge on the viewer-request event handles bot/crawler detection for OG prerendering.
+- **DNS lives at Cloudflare** (grey-cloud, DNS only — proxying disabled). The only Route 53 resource is one health check (`<R53_HC_ID>`) used by `rs-recruiting-uptime` alarm.
+- **ACM certificate** (`arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-7bc9-41f8-9d81-98cb3786a626`) validated for `rs-recruiting.com` and `www.rs-recruiting.com`; attached to the CloudFront distribution.
 
 ### Security groups
 
 | SG | Purpose | Ingress | Egress |
 |---|---|---|---|
-| `Web-SG` (`<WEB_SG_ID>`) | Public-facing on EC2 | `:443` from `0.0.0.0/0`, `:22` from `<ADMIN_IP>/32` | (default all-out) |
+| `Web-SG` (`<WEB_SG_ID>`) | Public-facing on EC2 | `:80` from CloudFront managed prefix list (`com.amazonaws.global.cloudfront.origin-facing`), `:22` from `<ADMIN_IP>/32` | (default all-out) |
 | `App-SG` (`<APP_SG_ID>`) | Inter-container on EC2 | `:8000` from Web-SG, `:6379` self-ref | `:443/80` to `0.0.0.0/0`, `:5432` to `0.0.0.0/0`, SMTP `:465/587` |
 | `RDS-SG` (`<RDS_SG_ID>`) | RDS Postgres | `:5432` from App-SG | (default all-out) |
 | `default` (`<DEFAULT_SG_ID>`) | VPC default — unused | (default self-ref) | (default all-out) |
@@ -99,7 +106,7 @@ flowchart LR
   EC2 -->|"fetch deploy_ec2.sh"| S3
   EC2 -->|"pull images by SHA"| ECR1
   EC2 -->|"pull images by SHA"| ECR2
-  EC2 -->|"materialize TLS<br/>docker compose up<br/>migrate"| running["Running stack"]
+  EC2 -->|"docker compose up<br/>migrate"| running["Running stack"]
   CI -->|"on success"| SHA_PARAM["SSM CURRENT_SHA set to SHA"]
 ```
 
@@ -117,7 +124,9 @@ flowchart LR
 ### Compute & data
 | Resource | Identifier | Notes |
 |---|---|---|
-| EC2 | `<EC2_INSTANCE_ID>` (t3.micro) | IMDSv2 required, basic monitoring, in `App-SG` + `Web-SG` |
+| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | Custom domains: `rs-recruiting.com`, `www.rs-recruiting.com`. S3 default origin + EC2 API behaviors. Lambda@Edge viewer-request for bot detection. |
+| ACM certificate | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-7bc9-41f8-9d81-98cb3786a626` | `us-east-1` (required for CloudFront). Covers apex + www. |
+| EC2 | `<EC2_INSTANCE_ID>` (t3.micro) | IMDSv2 required, basic monitoring, in `App-SG` + `Web-SG`. Port 80 restricted to CloudFront prefix list. |
 | EBS root | `<EBS_VOL_ID>` (8 GB gp3) | **Unencrypted** (pre-default-encryption); account-default now ON; one-shot re-encryption pending |
 | Elastic IP | `<ELASTIC_IP>` (`<EIP_ASSOC_ID>`) | Attached to EC2 |
 | RDS | `rs-recruitment-prod-db` (db.t3.micro) | Postgres 16, single-AZ, encrypted, 7d backup retention, deletion protection ON, Performance Insights 7d, postgresql log export to CW |
@@ -127,9 +136,9 @@ flowchart LR
 | Bucket / repo | Purpose | Settings |
 |---|---|---|
 | `<APP_BUCKET>` | App data — resumes (`resumes/`), public assets (`public/*`), deploy artifacts (`deploy/${SHA}/`) | **Versioning SUSPENDED** (was ON; suspended 2026-05-13 — see decisions log). SSE-S3. BPA partial (public path allowed for BIMI logo). **Lifecycle:** noncurrent versions expire after 1d; delete markers auto-cleaned (`ExpiredObjectDeleteMarker: true`); abort incomplete multipart 7d. Deploy artifacts (`deploy/` prefix) expire after 30d (S3 lifecycle rule — CI does not prune; see decisions log 2026-05-09). |
+| `rs-recruiting-frontend` | Frontend SPA bundle — CloudFront default-behavior origin | SSE-S3. **Lifecycle:** current versions expire after 3 days (stale bundle cleanup). CI syncs the new bundle and CloudFront serves from here; previous deploy's assets expire automatically. |
 | `<CLOUDTRAIL_BUCKET>` | CloudTrail logs | Versioning ON, SSE-S3, BPA full block |
 | ECR `rs-recruitment/api` | Backend image | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" (manually applied — no IaC) |
-| ECR `rs-recruitment/frontend` | Frontend image (multistage build) | IMMUTABLE, scanOnPush, lifecycle "keep last 10 images" (manually applied — no IaC) |
 
 ### IAM
 | Principal | Type | What it does |
@@ -149,7 +158,7 @@ Default EBS encryption: ON (account-wide).
 |---|---|
 | SSM `/rs-recruitment/prod/*` | App secrets (DATABASE_URL, JWT_SECRET_KEY, SMTP_*, STORAGE_PROVIDER, etc.) — SecureString where appropriate. **Naming convention: parameter names are UPPERCASE**; the app loader lowercases them to match snake_case Pydantic field names. Keep new params UPPERCASE for operator clarity. |
 | SSM `/rs-recruitment/infra/CURRENT_SHA` | String — current deployed SHA (deploy version pointer) |
-| SSM `/rs-recruitment/infra/TLS_CERT`, `TLS_KEY` | SecureString — TLS cert/key for the frontend nginx |
+| SSM `/rs-recruitment/infra/TLS_CERT`, `TLS_KEY` | SecureString — **superseded** by ACM + CloudFront; no longer materialized at deploy time. Kept in SSM pending cleanup. |
 | KMS | 2 customer-managed keys (default RDS + SSM) |
 | Route 53 | 1 health check; no hosted zones (DNS at Cloudflare) |
 
@@ -202,6 +211,11 @@ Default EBS encryption: ON (account-wide).
 ## 4. Decisions log (append-only)
 
 Newest first. Each entry: date, what, why, links. When updating, append; don't rewrite history.
+
+### 2026-06-04 — CloudFront + S3 frontend; custom domain via ACM (PR [#723](https://github.com/lahavrud/rs-recruiting/pull/723), infra PR [#1](https://github.com/lahavrud/rs-recruiting-infra/pull/1))
+**Decision:** Replace direct EC2 serving with a CloudFront distribution. Frontend SPA is now served from a dedicated S3 bucket (`rs-recruiting-frontend`, 3-day lifecycle). API traffic (`/api/*`, `/auth/*`, `/health`) continues to hit EC2, but now via CloudFront as an origin — no direct public exposure. Lambda@Edge viewer-request function handles bot/crawler detection and routes to the FastAPI OG prerender endpoint. TLS terminates at CloudFront via an ACM certificate (`us-east-1`) covering apex and www. EC2 port 443 (nginx TLS) is replaced by port 80 restricted to the CloudFront managed prefix list. Cloudflare DNS set to grey-cloud (DNS only) — proxying disabled so CloudFront handles its own TLS handshake. Custom domains wired as CloudFront aliases: `rs-recruiting.com` and `www.rs-recruiting.com`.
+**Why:** nginx TLS on EC2 required storing a cert+key in SSM and materializing it on every deploy — rotating it was manual. ACM auto-renews. S3 for the SPA removes the EC2 as a static-asset bottleneck, drops one concern from the EC2 deploy (no more `nginx.conf` in the image), and adds a CDN cache layer. CloudFront also gives us a single consistent TLS endpoint for both frontend and API, and Lambda@Edge bot detection runs at the edge rather than on every EC2 request.
+**Trade:** CloudFront adds ~$0.50–1/mo in CDN costs at current traffic (negligible). Lambda@Edge adds ~1ms viewer-request latency. The frontend bucket's 3-day lifecycle means a rollback window of 3 days; beyond that the old bundle is gone (acceptable — we can re-deploy any SHA from ECR history). Cloudflare proxying disabled — lose Cloudflare's DDoS scrubbing; CloudFront's WAF/Shield Standard replaces it.
 
 ### 2026-05-20 — Auth observability: structured log events, split metrics, brute-force alarm
 **Decision:** Added structured log events across the auth surface: `login_failed`, `login_account_locked`, `login_lockout_hit`, `login_email_not_found`, `login_success`, `rate_limit_hit` (all with `ip` field), `password_reset_token_invalid`, `registration_email_exists`. Fixed `request_id` correlation ID to appear in every JSON log line (`fmt` fix). Split the old combined `LoginFailureCount` metric filter into four distinct signals (`LoginFailedCount`, `AccountLockedCount`, `LockoutHitCount`, `RateLimitHitCount`) under `RsRecruiting/Auth`. Added alarm `auth-login-failed-spike` (> 10 in 5 min). Updated `rs-recruiting-ops` dashboard auth panel to show all four series. Added `RateLimitExceeded` exception handler that logs and returns clean JSON 429.

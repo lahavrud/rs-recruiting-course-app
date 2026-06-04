@@ -1,32 +1,31 @@
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import ECR
+from diagrams.aws.compute import EC2, ECR, Lambda
 from diagrams.aws.database import RDS
 from diagrams.aws.integration import SNS, SQS
 from diagrams.aws.management import SSM, Cloudwatch
-from diagrams.aws.security import Inspector
+from diagrams.aws.network import CloudFront
 from diagrams.aws.storage import S3
 from diagrams.generic.network import Firewall
 from diagrams.onprem.ci import GithubActions
 from diagrams.onprem.client import Users
-from diagrams.onprem.network import Nginx
 
 graph_attr = {
     "fontsize": "14",
     "bgcolor": "white",
     "pad": "2.0",
     "splines": "curved",
-    "nodesep": "1.5",
-    "ranksep": "2.5",
+    "nodesep": "1.0",
+    "ranksep": "2.2",
     "overlap": "false",
 }
 
 node_attr = {
-    "fontsize": "13",
-    "margin": "0.5,0.4",
+    "fontsize": "12",
+    "margin": "0.4,0.3",
 }
 
 with Diagram(
-    "RS Recruitment — AWS Architecture",
+    "RS Recruiting — AWS Architecture",
     filename="docs/screenshots/aws-architecture",
     outformat="png",
     show=False,
@@ -34,36 +33,50 @@ with Diagram(
     node_attr=node_attr,
     direction="LR",
 ):
+    # ── Left: ingress ──────────────────────────────────────────
     users = Users("Users")
-    cloudflare = Firewall("Cloudflare\nTLS + CDN")
-    github = GithubActions("GitHub Actions")
+    cloudflare = Firewall("Cloudflare\nDNS only")
 
     with Cluster("AWS  us-east-1"):
-        ecr = ECR("ECR\napi + frontend")
-        ssm = SSM("SSM\nParam Store + Run Command")
-        s3 = S3("S3\nuploads · deploy · trail")
-        cw = Cloudwatch("CloudWatch\n7 alarms · 6 log groups")
-        sns = SNS("SNS\nops-alerts")
-        sqs = SQS("SQS\nrs-recruiting-tasks")
-        inspector = Inspector("Inspector2\nvuln scanning")
+        # CDN layer
+        cf = CloudFront("CloudFront\nCDN + TLS\nACM cert")
+        le = Lambda("Lambda@Edge\nbot detection")
 
-        with Cluster("VPC  10.0.0.0/16\npublic + private subnets  (1a + 1b)"):
-            nginx = Nginx("nginx\nSPA + /api proxy")
-            rds = RDS("RDS PostgreSQL 16\ndb.t3.micro")
+        # Serving layer
+        s3_fe = S3("S3 Frontend\nSPA bundle")
+        ec2 = EC2("EC2  t3.micro\nFastAPI · worker")
 
-    # Request path
-    users >> cloudflare >> nginx
-    nginx >> rds
-    nginx >> sqs
-    nginx >> s3
+        # Data layer
+        rds = RDS("RDS\nPostgreSQL 16")
+        sqs = SQS("SQS\ntask queue")
+        s3_app = S3("S3\nuploads · deploy")
 
-    # CI/CD
-    github >> Edge(label="push") >> ecr
-    github >> Edge(label="deploy via SSM") >> ssm >> nginx
-    ecr >> Edge(label="pull") >> nginx
+        # CI / CD
+        with Cluster("CI / CD"):
+            github = GithubActions("GitHub Actions")
+            ecr = ECR("ECR")
+            ssm = SSM("SSM")
 
-    # Observability
-    nginx >> Edge(style="dashed", color="gray") >> cw
-    rds >> Edge(style="dashed", color="gray") >> cw
+        # Observability
+        with Cluster("Observability"):
+            cw = Cloudwatch("CloudWatch\n9 alarms")
+            sns = SNS("SNS\nops-alerts")
+
+    # ── Request path ──────────────────────────────────────────
+    users >> cloudflare >> cf
+    cf >> le
+    cf >> Edge(label="SPA") >> s3_fe
+    cf >> Edge(label="/api /auth") >> ec2
+    ec2 >> rds
+    ec2 >> sqs
+    ec2 >> s3_app
+
+    # ── CI / CD ───────────────────────────────────────────────
+    github >> ecr >> Edge(label="pull") >> ec2
+    github >> Edge(label="bundle") >> s3_fe
+    github >> ssm >> ec2
+
+    # ── Observability ─────────────────────────────────────────
+    ec2 >> Edge(style="dashed", color="lightgray") >> cw
+    rds >> Edge(style="dashed", color="lightgray") >> cw
     cw >> sns
-    inspector >> Edge(style="dashed", color="gray") >> ecr

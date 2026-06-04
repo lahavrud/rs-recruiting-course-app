@@ -608,22 +608,26 @@ erDiagram
 
 ### 2. Production Infrastructure
 
-**Decision:** Single EC2 instance running Docker Compose behind Cloudflare, with managed RDS PostgreSQL. Simple and cost-effective for MVP scale; migrating to ECS/ALB when load requires it.
+**Decision:** Single EC2 instance running Docker Compose behind CloudFront, with managed RDS PostgreSQL. Simple and cost-effective for MVP scale; migrating to ECS/ALB when load requires it.
 
 **Architecture:**
 
 ```
 Internet (HTTPS)
       │
-Cloudflare  ←── TLS termination, DDoS protection, CDN caching
-      │ HTTP :80
+Cloudflare (DNS only, grey-cloud — no proxy)
+      │
+CloudFront distribution (d2ghcom3efd3zg.cloudfront.net)
+  ├── Lambda@Edge viewer-request  ← bot/crawler detection → FastAPI OG prerender
+  ├── Default behavior            ← S3 origin (frontend SPA bundle, 3-day lifecycle)
+  └── /api/* /auth/* /health      ← EC2 origin (Host header forwarded)
+        │ HTTP :80 (CloudFront prefix list only)
 EC2 t3.micro (Amazon Linux 2023, us-east-1)
-  ├── nginx:alpine       ← serves React SPA + proxies /api /auth /health → api:8000
   ├── api container      ← FastAPI (pulled from ECR on each deploy)
   └── worker container   ← SQS worker (same ECR image, different CMD: python -m src.worker)
         │
 RDS PostgreSQL db.t3.micro  ← private subnets, encrypted at rest
-S3 rs-recruitment-*         ← file uploads + CI deploy artifacts
+S3 rs-recruitment-app       ← file uploads + CI deploy artifacts + frontend bundle
 ECR rs-recruitment/api      ← Docker image registry
 AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, retention purge)
 ```
@@ -632,15 +636,17 @@ AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, ret
 
 | Resource | Identifier | Purpose |
 |---|---|---|
-| EC2 | `<EC2_INSTANCE_ID>` | App server |
+| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + EC2 origins |
+| ACM | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-…` | TLS cert for rs-recruiting.com + www |
+| EC2 | `<EC2_INSTANCE_ID>` | API + worker server (port 80, CloudFront-only) |
 | RDS | `rs-recruitment-prod-db` | PostgreSQL 16, private subnets |
-| S3 | `<APP_BUCKET>` | Uploads + deploy artifacts |
+| S3 | `<APP_BUCKET>` | Uploads + deploy artifacts + frontend bundle |
 | ECR | `rs-recruitment/api` | Docker images |
 | SQS | `rs-recruiting-tasks` | Async task queue for worker |
 | IAM Role (EC2) | `rs-recruitment-app-role` | SSM, ECR pull, S3, SQS receive/delete, CloudWatch metrics |
 | IAM Role (CI) | `github-actions-rs-recruitment` | OIDC, ECR push, S3 deploy, SSM send |
 
-**Domain:** `rs-recruiting.com` managed in Cloudflare (DNS, TLS via Cloudflare Flexible, CDN)
+**Domain:** `rs-recruiting.com` — DNS in Cloudflare (grey-cloud, DNS only). TLS terminates at CloudFront via ACM certificate (`us-east-1`). Cloudflare proxying intentionally disabled — CloudFront handles CDN and certificate.
 
 **Configuration:** Runtime secrets stored in a `.env` file on EC2 (`/home/ec2-user/app/.env`). Non-secret config stored in AWS SSM Parameter Store under `/rs-recruitment/prod/`.
 
