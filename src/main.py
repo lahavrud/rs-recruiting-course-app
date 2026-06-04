@@ -127,8 +127,8 @@ logging.getLogger().addFilter(RequestIdFilter())
 
 
 app = FastAPI(title="RS Recruitment API", lifespan=lifespan)
-FastAPIInstrumentor().instrument_app(app)
 app.add_middleware(RequestMiddleware)
+FastAPIInstrumentor().instrument_app(app)
 
 
 @app.exception_handler(RateLimitExceeded)
