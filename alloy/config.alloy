@@ -35,6 +35,10 @@ otelcol.exporter.otlp "tempo" {
   client {
     endpoint = sys.env("GRAFANA_TEMPO_URL")
     auth     = otelcol.auth.basic.tempo.handler
+
+    tls {
+      insecure = false
+    }
   }
 }
 
