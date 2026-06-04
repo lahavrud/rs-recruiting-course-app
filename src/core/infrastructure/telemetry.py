@@ -5,9 +5,9 @@ libraries activate. Both src/main.py (API) and src/worker.py use this
 module so the configuration is identical across processes.
 
 OTLP endpoint is read from the OTEL_EXPORTER_OTLP_ENDPOINT env var
-(compose sets it to http://grafana-alloy:4317). Falls back to localhost
-for local dev where no Alloy is running — the OTLP exporter will fail to
-connect silently; telemetry is simply dropped, which is acceptable in dev.
+(compose sets it to http://grafana-alloy:4317). When the variable is absent
+(local dev) providers are initialised without exporters — no connection is
+attempted and no warnings are emitted; telemetry is simply dropped.
 """
 
 import logging
@@ -47,7 +47,7 @@ def configure_telemetry(
     if _tracer_provider is not None:
         return
 
-    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     env = deployment_environment or os.environ.get("ENVIRONMENT", "development")
 
     resource = Resource.create(
@@ -60,29 +60,35 @@ def configure_telemetry(
 
     # Traces
     _tracer_provider = TracerProvider(resource=resource)
-    _tracer_provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
-    )
+    if endpoint:
+        _tracer_provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
+        )
     trace.set_tracer_provider(_tracer_provider)
 
     # Metrics — export every 60 s
     _meter_provider = MeterProvider(
         resource=resource,
-        metric_readers=[
-            PeriodicExportingMetricReader(
-                OTLPMetricExporter(endpoint=endpoint, insecure=True),
-                export_interval_millis=60_000,
-            )
-        ],
+        metric_readers=(
+            [
+                PeriodicExportingMetricReader(
+                    OTLPMetricExporter(endpoint=endpoint, insecure=True),
+                    export_interval_millis=60_000,
+                )
+            ]
+            if endpoint
+            else []
+        ),
     )
     metrics.set_meter_provider(_meter_provider)
 
     # Logs — bridge Python logging → OTel so existing logger.info(...) calls
     # are forwarded to Loki without changing any call sites.
     _logger_provider = LoggerProvider(resource=resource)
-    _logger_provider.add_log_record_processor(
-        BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint, insecure=True))
-    )
+    if endpoint:
+        _logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint, insecure=True))
+        )
     set_logger_provider(_logger_provider)
 
     # Injects otelTraceID + otelSpanID into every LogRecord for Loki→Tempo correlation.
