@@ -1,7 +1,7 @@
 """Tests for authentication endpoints — login, refresh, logout."""
 
 import logging
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -190,7 +190,8 @@ async def test_refresh_returns_new_tokens(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_is_single_use(client: AsyncClient):
+@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+async def test_refresh_token_is_single_use(_mock_nuke: AsyncMock, client: AsyncClient):
     """Test that an already-rotated refresh token is rejected."""
     await _create_active_user(client, "singleuse@example.com")
     original_refresh = client.cookies.get("refresh_token")
@@ -257,7 +258,7 @@ async def test_account_lockout_after_failed_attempts(client: AsyncClient):
             raise AccountLockedError(minutes_remaining=15)
 
     with patch(
-        "src.services.auth.session._check_lockout",
+        "src.services.auth.login._check_lockout",
         side_effect=fake_check_lockout,
     ):
         for _ in range(5):
@@ -303,22 +304,22 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
         user.is_active = True
         await session.commit()
 
-    _session_logger = logging.getLogger("src.services.auth.session")
+    _login_logger = logging.getLogger("src.services.auth.login")
 
     async def _stub_record_failed(
         user_id: int, email: str, client_ip: str | None = None
     ) -> None:
-        _session_logger.warning(
+        _login_logger.warning(
             "login_failed",
             extra={"email_prefix": email[:2] + "***", "attempt": 1, "ip": client_ip},
         )
 
     with (
         patch(
-            "src.services.auth.session._record_failed_attempt",
+            "src.services.auth.login._record_failed_attempt",
             side_effect=_stub_record_failed,
         ),
-        caplog.at_level(logging.WARNING, logger="src.services.auth.session"),
+        caplog.at_level(logging.WARNING, logger="src.services.auth.login"),
     ):
         await client.post(
             "/auth/login",

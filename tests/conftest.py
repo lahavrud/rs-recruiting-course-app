@@ -158,11 +158,11 @@ def _mock_lockout_db_writes():
     """
     with (
         patch(
-            "src.services.auth.session._record_failed_attempt",
+            "src.services.auth.login._record_failed_attempt",
             new_callable=AsyncMock,
         ),
         patch(
-            "src.services.auth.session._clear_failed_attempts",
+            "src.services.auth.login._clear_failed_attempts",
             new_callable=AsyncMock,
         ),
     ):

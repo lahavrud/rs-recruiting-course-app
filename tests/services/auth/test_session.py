@@ -1,7 +1,6 @@
-"""Unit tests for authentication service layer.
+"""Tests for src/services/auth/session.py — token issuance, rotation, replay detection.
 
-Registration is covered in `test_auth_register.py` (mirrors the
-`auth.py` → `auth_register.py` source split).
+Login credential tests (authenticate_user) live in test_login.py.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -13,21 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash, hash_token
 from src.enums import UserRole
-from src.models import RefreshToken, User
-from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import register_company_user
+from src.models import RefreshToken, UsedRefreshToken, User
 from src.services.auth.session import (
-    authenticate_user,
     create_user_tokens,
     logout_user,
     refresh_user_tokens,
 )
-from src.services.exceptions import (
-    InvalidCredentialsError,
-    PendingApprovalError,
-)
-from tests.conftest import FAKE_LOGO
-from tests.conftest import FAKE_SIG_B64 as FAKE_SIGNATURE_B64
+from src.services.exceptions import InvalidCredentialsError
 
 
 def _active_user(email: str = "session-test@example.com") -> User:
@@ -37,99 +28,6 @@ def _active_user(email: str = "session-test@example.com") -> User:
         role=UserRole.COMPANY,
         is_active=True,
     )
-
-
-FAKE_LOGO_NAME = "logo.png"
-
-
-def _make_user_create(email: str = "company@example.com") -> UserCreate:
-    return UserCreate(
-        email=email,
-        password="SecurePass1!",
-        company_profile=CompanyProfileCreate(
-            name="Test Company",
-            company_id="123456789",
-            address="רח׳ הדוגמה 1, תל אביב",
-            contact_first_name="ישראל",
-            contact_last_name="ישראלי",
-            contact_mobile_phone="0501234567",
-        ),
-    )
-
-
-@pytest.mark.asyncio
-async def test_authenticate_user_success(session: AsyncSession):
-    """Test successful user authentication."""
-    user_data = _make_user_create("login@example.com")
-    await register_company_user(
-        user_data,
-        session,
-        FAKE_LOGO,
-        FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
-    )
-    await session.commit()
-
-    result = await session.execute(
-        select(User).where(User.email == "login@example.com")  # pyright: ignore[reportArgumentType]
-    )
-    user = result.scalar_one()
-    user.is_active = True
-    await session.commit()
-
-    authenticated_user = await authenticate_user(
-        "login@example.com", "SecurePass1!", session
-    )
-    assert authenticated_user.email == "login@example.com"
-    assert authenticated_user.is_active is True
-
-
-@pytest.mark.asyncio
-async def test_authenticate_user_invalid_email(session: AsyncSession):
-    """Test authentication fails with unknown email."""
-    with pytest.raises(InvalidCredentialsError):
-        await authenticate_user("nonexistent@example.com", "somepassword", session)
-
-
-@pytest.mark.asyncio
-async def test_authenticate_user_invalid_password(session: AsyncSession):
-    """Test authentication fails with wrong password."""
-    user_data = _make_user_create("wrongpass@example.com")
-    await register_company_user(
-        user_data,
-        session,
-        FAKE_LOGO,
-        FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
-    )
-    await session.commit()
-
-    result = await session.execute(
-        select(User).where(User.email == "wrongpass@example.com")  # pyright: ignore[reportArgumentType]
-    )
-    user = result.scalar_one()
-    user.is_active = True
-    await session.commit()
-
-    with pytest.raises(InvalidCredentialsError):
-        await authenticate_user("wrongpass@example.com", "wrongpassword", session)
-
-
-@pytest.mark.asyncio
-async def test_authenticate_user_inactive(session: AsyncSession):
-    """Test authentication fails for inactive users."""
-    user_data = _make_user_create("inactive@example.com")
-    await register_company_user(
-        user_data,
-        session,
-        FAKE_LOGO,
-        FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
-    )
-    await session.commit()
-
-    with pytest.raises(PendingApprovalError):
-        await authenticate_user("inactive@example.com", "SecurePass1!", session)
 
 
 # ── create_user_tokens ───────────────────────────────────────────────────────
@@ -218,7 +116,11 @@ async def test_refresh_user_tokens_rotates_token(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_refresh_user_tokens_single_use(session: AsyncSession):
+@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+async def test_refresh_user_tokens_single_use(
+    _mock_nuke: AsyncMock,
+    session: AsyncSession,
+):
     """A consumed refresh token cannot be reused — second rotation raises
     InvalidCredentialsError."""
     user = _active_user("singleuse@example.com")
@@ -336,3 +238,137 @@ async def test_logout_user_noop_for_unknown_token(session: AsyncSession):
 async def test_logout_user_noop_for_none(session: AsyncSession):
     """logout_user does not raise when passed None."""
     await logout_user(None, session)
+
+
+# ── replay detection ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_refresh_records_used_hash(session: AsyncSession):
+    """After rotation the consumed token hash is written to UsedRefreshToken."""
+    user = _active_user("usedrecord@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    _, old_raw = await create_user_tokens(user, session)
+    await session.commit()
+
+    old_hash = hash_token(old_raw)
+    await refresh_user_tokens(old_raw, session)
+    await session.commit()
+
+    result = await session.execute(
+        select(UsedRefreshToken).where(
+            UsedRefreshToken.token_hash == old_hash  # pyright: ignore[reportArgumentType]
+        )
+    )
+    used = result.scalar_one_or_none()
+    assert used is not None
+    assert used.user_id == user.id
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+async def test_refresh_replay_detected_nukes_sessions(
+    mock_nuke: AsyncMock,
+    session: AsyncSession,
+):
+    """Presenting a previously-consumed token triggers session nuke + 401.
+
+    _nuke_user_refresh_tokens is patched for the same reason as _delete_refresh_token
+    in the expired-token test: it opens its own async_session bound to the base
+    DATABASE_URL, which is wrong in -n auto parallel runs.
+    """
+    user = _active_user("replay@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    raw_token = "replay-raw-token"
+    used = UsedRefreshToken(
+        token_hash=hash_token(raw_token),
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    session.add(used)
+    await session.commit()
+
+    with pytest.raises(InvalidCredentialsError):
+        await refresh_user_tokens(raw_token, session)
+
+    mock_nuke.assert_awaited_once_with(user.id)
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+async def test_refresh_expired_used_hash_no_nuke(
+    mock_nuke: AsyncMock,
+    session: AsyncSession,
+):
+    """An expired UsedRefreshToken record does not trigger replay detection."""
+    user = _active_user("expiredused@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    raw_token = "expired-used-raw-token"
+    used = UsedRefreshToken(
+        token_hash=hash_token(raw_token),
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    session.add(used)
+    await session.commit()
+
+    with pytest.raises(InvalidCredentialsError):
+        await refresh_user_tokens(raw_token, session)
+
+    mock_nuke.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_logout_records_used_hash(session: AsyncSession):
+    """logout_user writes the token hash to UsedRefreshToken."""
+    user = _active_user("logoutused@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    _, raw = await create_user_tokens(user, session)
+    await session.commit()
+
+    token_hash = hash_token(raw)
+    await logout_user(raw, session)
+    await session.commit()
+
+    result = await session.execute(
+        select(UsedRefreshToken).where(
+            UsedRefreshToken.token_hash == token_hash  # pyright: ignore[reportArgumentType]
+        )
+    )
+    assert result.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+async def test_replay_after_logout_nukes_sessions(
+    mock_nuke: AsyncMock,
+    session: AsyncSession,
+):
+    """A token re-presented after logout is treated as a replay — nukes sessions."""
+    user = _active_user("replaylogout@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    _, raw = await create_user_tokens(user, session)
+    await session.commit()
+
+    await logout_user(raw, session)
+    await session.commit()
+
+    with pytest.raises(InvalidCredentialsError):
+        await refresh_user_tokens(raw, session)
+
+    mock_nuke.assert_awaited_once_with(user.id)

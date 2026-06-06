@@ -14,8 +14,8 @@ from src.core.infrastructure.security import REFRESH_TTL_LONG
 from src.core.infrastructure.transactions import transactional
 from src.enums import UserRole
 from src.schemas import AccessTokenResponse, LoginRequest
+from src.services.auth.login import authenticate_user
 from src.services.auth.session import (
-    authenticate_user,
     create_user_tokens,
     logout_user,
     refresh_user_tokens,

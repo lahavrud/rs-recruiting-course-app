@@ -52,6 +52,22 @@ repos:
             docs/.*
           )$
 
+  # Pre-push validation scripts (run on push, not on every commit)
+  - repo: local
+    hooks:
+      - id: check-file-sizes
+        name: check-file-sizes
+        language: system
+        entry: uv run python scripts/check_file_sizes.py
+        pass_filenames: false
+        stages: [pre-push]
+      - id: validate-test-files
+        name: validate-test-files
+        language: system
+        entry: uv run python scripts/validate_test_files.py
+        pass_filenames: false
+        stages: [pre-push]
+
   # Commit message validation (Conventional Commits)
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.0.0

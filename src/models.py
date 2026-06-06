@@ -125,6 +125,32 @@ class RefreshToken(SQLModel, table=True):
     )
 
 
+class UsedRefreshToken(SQLModel, table=True):
+    """Consumed refresh token hashes retained for replay detection.
+
+    When a refresh token is rotated or invalidated on logout, its hash is
+    written here with the same ``expires_at`` as the original token.  If the
+    same hash is presented again before expiry, all active sessions for that
+    user are nuked — a replay after rotation is a strong signal of token theft.
+    Rows are cheap to keep until the original TTL elapses; expired rows are
+    cleaned up passively at detection time and in bulk by the nightly cron (#619).
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    token_hash: str = Field(unique=True, index=True)
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
 class DataExportRequest(SQLModel, table=True):
     """One-shot signed download token for the candidate GDPR data export.
 

@@ -1,37 +1,32 @@
-"""Authentication service layer for business logic.
+"""Token lifecycle: issuance, rotation, replay detection, and logout.
 
-Company registration lives in `auth_register.py` to keep this file
-under the service-layer line cap.
+Login credential validation and lockout tracking live in ``login.py``.
+Company registration lives in ``registration.py``.
 """
 
 import logging
-import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import (
     create_access_token,
     create_refresh_token,
     hash_token,
-    verify_password,
 )
 from src.enums import InviteTokenStatus
-from src.models import ActivationToken, InviteToken, RefreshToken, User
-from src.services.exceptions import (
-    AccountLockedError,
-    InvalidCredentialsError,
-    PendingActivationError,
-    PendingApprovalError,
+from src.models import (
+    InviteToken,
+    RefreshToken,
+    UsedRefreshToken,
+    User,
 )
+from src.services.exceptions import InvalidCredentialsError
 from src.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
-
-_MAX_FAILED_ATTEMPTS = 5
-_LOCKOUT_DURATION = timedelta(minutes=15)
 
 
 async def _delete_refresh_token(token_id: int) -> None:
@@ -57,139 +52,22 @@ async def _delete_refresh_token(token_id: int) -> None:
         await cleanup_session.commit()
 
 
-def _email_prefix(email: str) -> str:
-    """First two chars of the local part — loggable without storing PII."""
-    local = email.split("@")[0]
-    return f"{local[:2]}***"
+async def _nuke_user_refresh_tokens(user_id: int) -> None:
+    """Delete every active refresh token for a user on replay detection.
 
-
-def _check_lockout(user: User, client_ip: str | None = None) -> None:
-    """Raise AccountLockedError if the user is currently locked out."""
-    if user.locked_until is None:
-        return
-    now = datetime.now(timezone.utc)
-    locked_until = user.locked_until
-    if locked_until.tzinfo is None:
-        locked_until = locked_until.replace(tzinfo=timezone.utc)
-    if locked_until > now:
-        ttl = (locked_until - now).total_seconds()
-        logger.warning(
-            "login_lockout_hit",
-            extra={
-                "email_prefix": _email_prefix(user.email),
-                "ttl_s": int(ttl),
-                "ip": client_ip,
-            },
-        )
-        raise AccountLockedError(minutes_remaining=math.ceil(ttl / 60))
-
-
-async def _record_failed_attempt(
-    user_id: int, email: str, client_ip: str | None = None
-) -> None:
-    """Atomically increment failed_login_attempts; lock the account at threshold.
-
-    Uses its own DB session so the write persists even when the calling
-    request raises InvalidCredentialsError and its session rolls back.
-    The UPDATE is a single atomic SQL statement — no read-modify-write race.
+    Uses its own committed session for the same reason as ``_delete_refresh_token``:
+    the caller raises ``InvalidCredentialsError`` afterwards, which rolls back the
+    outer transactional() session and would undo a plain session.execute() delete.
     """
     from src.core.infrastructure.database import async_session as _session_factory
 
-    async with _session_factory() as session:
-        await session.execute(
-            update(User)
-            .where(User.id == user_id)  # type: ignore[arg-type]
-            .values(failed_login_attempts=User.failed_login_attempts + 1)
-        )
-        await session.flush()
-
-        result = await session.execute(
-            select(User.failed_login_attempts).where(User.id == user_id)  # type: ignore[arg-type]
-        )
-        count = result.scalar_one()
-
-        if count >= _MAX_FAILED_ATTEMPTS:
-            await session.execute(
-                update(User)
-                .where(User.id == user_id)  # type: ignore[arg-type]
-                .values(
-                    failed_login_attempts=0,
-                    locked_until=datetime.now(timezone.utc) + _LOCKOUT_DURATION,
-                )
-            )
-            logger.warning(
-                "login_account_locked",
-                extra={"email_prefix": _email_prefix(email), "ip": client_ip},
-            )
-        else:
-            logger.warning(
-                "login_failed",
-                extra={
-                    "email_prefix": _email_prefix(email),
-                    "attempt": count,
-                    "ip": client_ip,
-                },
-            )
-
-        await session.commit()
-
-
-async def _clear_failed_attempts(user_id: int) -> None:
-    """Reset lockout state on successful login or password reset."""
-    from src.core.infrastructure.database import async_session as _session_factory
-
-    async with _session_factory() as session:
-        await session.execute(
-            update(User)
-            .where(User.id == user_id)  # type: ignore[arg-type]
-            .values(failed_login_attempts=0, locked_until=None)
-        )
-        await session.commit()
-
-
-async def authenticate_user(
-    email: str,
-    password: str,
-    session: AsyncSession,
-    client_ip: str | None = None,
-) -> User:
-    """Authenticate a user by email and password.
-
-    Checks for account lockout before attempting credential validation.
-    Tracks failed attempts and locks the account after too many failures.
-    """
-    email = email.lower().strip()
-    result = await session.execute(
-        select(User).where(User.email == email)  # pyright: ignore[reportArgumentType]
-    )
-    user = result.scalar_one_or_none()
-    if not user:
-        logger.warning("login_email_not_found", extra={"ip": client_ip})
-        raise InvalidCredentialsError("Incorrect email or password")
-
-    _check_lockout(user, client_ip)
-
-    if not verify_password(password, user.hashed_password):
-        assert user.id is not None
-        await _record_failed_attempt(user.id, email, client_ip)
-        raise InvalidCredentialsError("Incorrect email or password")
-
-    if not user.is_active:
-        # Distinguish: has a pending activation token → admin approved but company
-        # hasn't clicked the link yet.  No token → still awaiting admin review.
-        activation_result = await session.execute(
-            select(ActivationToken).where(
-                ActivationToken.user_id == user.id,  # type: ignore[arg-type]
-                ActivationToken.used == False,  # noqa: E712
+    async with _session_factory() as nuke_session:
+        await nuke_session.execute(
+            sa_delete(RefreshToken).where(
+                RefreshToken.user_id == user_id  # pyright: ignore[reportArgumentType]
             )
         )
-        if activation_result.scalar_one_or_none() is not None:
-            raise PendingActivationError("account_pending_activation")
-        raise PendingApprovalError("account_pending_approval")
-
-    assert user.id is not None
-    await _clear_failed_attempts(user.id)
-    return user
+        await nuke_session.commit()
 
 
 async def create_user_tokens(
@@ -228,6 +106,30 @@ async def refresh_user_tokens(
     persistence survives token rotation.
     """
     token_hash = hash_token(raw_refresh_token)
+
+    # Replay detection: if this hash appears in the used-token store, an
+    # already-consumed token has been presented again — strong signal of theft.
+    # Expired used-hash records are cleaned up passively here; bulk cleanup
+    # lives in the nightly cron (#619).
+    used_result = await session.execute(
+        select(UsedRefreshToken).where(
+            UsedRefreshToken.token_hash == token_hash  # pyright: ignore[reportArgumentType]
+        )
+    )
+    used_record = used_result.scalar_one_or_none()
+    if used_record is not None:
+        if used_record.expires_at > datetime.now(timezone.utc):
+            # Two simultaneous refresh requests sharing one token will also trip
+            # this path — accepted trade-off of single-use rotation.
+            await _nuke_user_refresh_tokens(used_record.user_id)
+            logger.warning(
+                "refresh_token_replay_detected",
+                extra={"user_id": used_record.user_id},
+            )
+            raise InvalidCredentialsError("Invalid or expired refresh token")
+        else:
+            await session.delete(used_record)
+
     result = await session.execute(
         select(RefreshToken).where(
             RefreshToken.token_hash == token_hash  # pyright: ignore[reportArgumentType]
@@ -260,11 +162,15 @@ async def refresh_user_tokens(
 
     remember_me = db_token.remember_me
 
-    # Rotate: drop the consumed token before minting the next one. The
-    # previous "is_revoked = True" approach left rows accumulating
-    # forever — and the code treated ``revoked`` and ``missing``
-    # identically (both raised InvalidCredentialsError), so the column
-    # provided no extra security value.
+    # Rotate: delete the consumed token and record its hash atomically so a
+    # later replay is detected.
+    session.add(
+        UsedRefreshToken(
+            token_hash=db_token.token_hash,
+            user_id=db_token.user_id,
+            expires_at=db_token.expires_at,
+        )
+    )
     await session.delete(db_token)
     await session.flush()
 
@@ -292,6 +198,13 @@ async def logout_user(
         )
         db_token = result.scalar_one_or_none()
         if db_token is not None:
+            session.add(
+                UsedRefreshToken(
+                    token_hash=db_token.token_hash,
+                    user_id=db_token.user_id,
+                    expires_at=db_token.expires_at,
+                )
+            )
             await session.delete(db_token)
 
 

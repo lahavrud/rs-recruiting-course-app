@@ -27,7 +27,7 @@ from src.core.infrastructure.security import (
 from src.core.infrastructure.transactions import defer_after_commit
 from src.core.tasks import enqueue_email_task
 from src.models import PasswordResetToken, RefreshToken, User
-from src.services.auth.session import _clear_failed_attempts
+from src.services.auth.login import _clear_failed_attempts
 from src.services.exceptions import InvalidPasswordResetTokenError
 from src.services.utils.audit import record_audit_event
 from src.templates.email import build_password_reset_html
