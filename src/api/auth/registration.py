@@ -23,6 +23,7 @@ from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.invite_tokens import validate_invite_token
 from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.transactions import transactional
+from src.core.services.file_validation import validate_upload
 from src.schemas import CompanyProfileCreate, UserCreate, UserWithCompanyRead
 from src.services.auth.registration import register_company_user
 from src.services.auth.session import mark_invite_used
@@ -30,6 +31,9 @@ from src.services.exceptions import EmailAlreadyExistsError, InvalidInviteTokenE
 
 limiter = get_limiter()
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_LOGO_ALLOWED_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+_LOGO_MAX_BYTES = 2 * 1024 * 1024
 
 
 @router.post(
@@ -86,7 +90,7 @@ async def register(
             detail=json.loads(exc.json()),
         ) from exc
 
-    logo_content = await logo.read()
+    logo_content = await validate_upload(logo, _LOGO_ALLOWED_TYPES, _LOGO_MAX_BYTES)
     logo_filename = logo.filename or "logo"
     logo_content_type = logo.content_type
 
@@ -120,7 +124,7 @@ async def register(
         if pgcode == "23505":  # unique_violation
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"User with email '{email}' already exists.",
+                detail="email_already_exists",
             ) from e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

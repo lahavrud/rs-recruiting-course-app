@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import { formatDate } from "@/utils/formatDate";
+import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 interface DetailProps {
   app: ApplicationWithDetails | null;
@@ -103,7 +104,7 @@ export function ApplicationDetailBody({
         {c.phone && <span className="text-white/60">{c.phone}</span>}
         {c.linkedin_url && (
           <a
-            href={c.linkedin_url}
+            href={sanitizeLinkedInUrl(c.linkedin_url)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-copper hover:text-gold"

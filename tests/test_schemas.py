@@ -262,11 +262,6 @@ def test_candidate_profile_update_phone_null_clears():
             "https://www.linkedin.com/in/johndoe",
             "https://www.linkedin.com/in/johndoe",
         ),
-        (
-            CandidateProfileCreate,
-            "http://linkedin.com/in/janedoe",
-            "http://linkedin.com/in/janedoe",
-        ),
         (CandidateProfileCreate, None, None),
         (CandidateProfileCreate, "", None),
         (
@@ -290,8 +285,9 @@ def test_valid_linkedin_url(schema_class, url, expected):
 @pytest.mark.parametrize(
     "schema_class,url,error_match",
     [
-        # Wrong scheme
-        (CandidateProfileCreate, "ftp://linkedin.com/in/foo", "http"),
+        # Wrong scheme (http is no longer accepted — https only)
+        (CandidateProfileCreate, "http://linkedin.com/in/janedoe", "https"),
+        (CandidateProfileCreate, "ftp://linkedin.com/in/foo", "https"),
         # Not a linkedin.com host (substring bypass attempt)
         (
             CandidateProfileCreate,
@@ -299,7 +295,7 @@ def test_valid_linkedin_url(schema_class, url, expected):
             "linkedin.com",
         ),
         # Missing scheme
-        (CandidateProfileCreate, "linkedin.com/in/foo", "http"),
+        (CandidateProfileCreate, "linkedin.com/in/foo", "https"),
         # Wrong host entirely
         (CandidateProfileUpdate, "https://notlinkedin.com/in/foo", "linkedin.com"),
     ],

@@ -342,3 +342,30 @@ async def test_register_weak_password_rejected(
         files={"logo": FAKE_LOGO_FILE},
     )
     assert response.status_code == 422, f"Expected rejection for: {reason}"
+
+
+@pytest.mark.asyncio
+async def test_register_logo_wrong_mime_returns_422(client: AsyncClient):
+    """Logo with a non-image/jpeg/png/webp MIME type is rejected with 422."""
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(),
+        files={"logo": ("logo.gif", b"GIF89a", "image/gif")},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "unsupported_file_type"
+
+
+@pytest.mark.asyncio
+async def test_register_logo_oversized_returns_413(client: AsyncClient):
+    """Logo exceeding 2 MB is rejected with 413."""
+    large_logo = b"x" * (3 * 1024 * 1024)  # 3 MB
+    response = await client.post(
+        "/auth/register",
+        params={"token": "valid-test-token"},
+        data=_reg_data(),
+        files={"logo": ("logo.png", large_logo, "image/png")},
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "file_too_large"

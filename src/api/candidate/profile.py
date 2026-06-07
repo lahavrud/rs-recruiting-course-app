@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_candidate
 from src.core.infrastructure.transactions import transactional
+from src.core.services.file_validation import validate_upload
 from src.core.services.storage import get_storage_provider
 from src.models import CandidateProfile, User
 from src.schemas import CandidateMeRead, CandidateMeUpdate
@@ -15,6 +16,14 @@ from src.services.candidate.profile import (
     remove_resume,
     replace_resume,
 )
+
+_RESUME_ALLOWED_TYPES = frozenset(
+    {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+)
+_RESUME_MAX_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(prefix="/api/candidate", tags=["candidate"])
 
@@ -95,7 +104,7 @@ async def upload_resume(
     session: AsyncSession = Depends(get_session),
 ) -> CandidateMeRead:
     """Upload (or replace) the candidate's profile-level resume."""
-    content = await resume.read()
+    content = await validate_upload(resume, _RESUME_ALLOWED_TYPES, _RESUME_MAX_BYTES)
     filename = resume.filename or "resume"
     user, profile = current
     try:

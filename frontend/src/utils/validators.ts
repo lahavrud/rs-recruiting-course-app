@@ -8,6 +8,30 @@ import {
 } from "@/types/api";
 import type { JobRequirementItem } from "@/types/api";
 
+// ── URL sanitization ─────────────────────────────────────────────────────────
+
+/**
+ * Returns the URL only if it uses https: and a linkedin.com hostname.
+ * Falls back to undefined for any other value, preventing javascript: XSS.
+ */
+export function sanitizeLinkedInUrl(
+  url: string | null | undefined,
+): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol !== "https:" ||
+      !parsed.hostname.endsWith("linkedin.com")
+    ) {
+      return undefined;
+    }
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
 // ── Regex patterns ──────────────────────────────────────────────────────────
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

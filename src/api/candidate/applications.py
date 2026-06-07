@@ -28,6 +28,7 @@ from src.core.infrastructure.pagination import (
     MAX_LIMIT,
     CursorPage,
 )
+from src.core.services.file_validation import validate_upload
 from src.core.services.storage import get_storage_provider
 from src.models import CandidateProfile, User
 from src.schemas import (
@@ -46,6 +47,14 @@ from src.services.exceptions import (
     ApplicationNotFoundError,
     InvalidCursorError,
 )
+
+_RESUME_ALLOWED_TYPES = frozenset(
+    {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+)
+_RESUME_MAX_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(prefix="/api/candidate/me/applications", tags=["candidate"])
 
@@ -94,10 +103,10 @@ async def get_application(
 @router.patch("/{application_id}", response_model=CandidateApplicationDetail)
 async def edit_application(
     application_id: int,
-    service_concept: str | None = Form(None),
-    salary_expectations: str | None = Form(None),
-    strength: str | None = Form(None),
-    growth_area: str | None = Form(None),
+    service_concept: str | None = Form(None, max_length=2000),
+    salary_expectations: str | None = Form(None, max_length=2000),
+    strength: str | None = Form(None, max_length=2000),
+    growth_area: str | None = Form(None, max_length=2000),
     resume: UploadFile | None = File(None),
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
@@ -117,7 +126,11 @@ async def edit_application(
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty_body"
         )
 
-    resume_bytes = await resume.read() if resume else None
+    resume_bytes = (
+        await validate_upload(resume, _RESUME_ALLOWED_TYPES, _RESUME_MAX_BYTES)
+        if resume
+        else None
+    )
     resume_filename = resume.filename if resume else None
 
     _, profile = current

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.transactions import transactional
+from src.core.services.file_validation import validate_upload
 from src.enums import UserRole
 from src.models import CandidateProfile, User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
@@ -30,6 +31,14 @@ from src.services.exceptions import (
     JobNotFoundError,
 )
 from src.services.public.applications import create_candidate_profile
+
+_RESUME_ALLOWED_TYPES = frozenset(
+    {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+)
+_RESUME_MAX_BYTES = 10 * 1024 * 1024
 
 
 def validate_optional_password(
@@ -103,7 +112,9 @@ async def apply_to_job(
     resume_file: bytes | None = None
     resume_filename: str | None = None
     if resume is not None:
-        resume_file = await resume.read()
+        resume_file = await validate_upload(
+            resume, _RESUME_ALLOWED_TYPES, _RESUME_MAX_BYTES
+        )
         resume_filename = resume.filename
 
     # Every live application requires a resume. Logged-in candidates that

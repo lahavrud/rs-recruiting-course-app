@@ -38,8 +38,8 @@ def _validate_linkedin_url_value(v: str | None) -> str | None:
     if v is None or v == "":
         return None
     parsed = urlparse(v)
-    if parsed.scheme not in ("http", "https"):
-        raise ValueError("LinkedIn URL must start with http:// or https://")
+    if parsed.scheme != "https":
+        raise ValueError("LinkedIn URL must start with https://")
     hostname = parsed.hostname or ""
     if not (hostname == "linkedin.com" or hostname.endswith(".linkedin.com")):
         raise ValueError("LinkedIn URL must be a linkedin.com address")

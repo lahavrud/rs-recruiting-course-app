@@ -83,9 +83,7 @@ async def get_current_user(
 
     # Attach user to the current Sentry scope so any exception raised later
     # in this request gets tagged with them. No-op when Sentry isn't init'd.
-    sentry_sdk.set_user(
-        {"id": str(user.id), "email": user.email, "role": user.role.value}
-    )
+    sentry_sdk.set_user({"id": str(user.id), "role": user.role.value})
 
     return user
 

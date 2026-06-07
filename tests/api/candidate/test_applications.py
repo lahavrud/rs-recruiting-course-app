@@ -672,6 +672,55 @@ async def test_patch_invalid_resume_mime_returns_400(test_db):
         assert unchanged.resume_path == "resumes/orig.pdf"
 
 
+@pytest.mark.asyncio
+async def test_patch_resume_wrong_mime_returns_422(test_db):
+    """PATCH resume with a non-PDF/DOCX MIME type is rejected at the API gate."""
+    async with TestSessionLocal() as session:
+        _, job = await _seed_company_and_job(session)
+        await session.commit()
+        user, profile = await _seed_candidate(session, "pe8@test.com")
+        a = await _make_app(
+            session,
+            candidate_id=profile.id,
+            job_id=job.id,
+            resume_path="resumes/orig.pdf",
+        )
+    _override_user(user.id, user.email)
+
+    async with await _client() as client:
+        resp = await client.patch(
+            f"/api/candidate/me/applications/{a.id}",
+            files={"resume": ("cv.txt", b"plain text", "text/plain")},
+        )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "unsupported_file_type"
+
+
+@pytest.mark.asyncio
+async def test_patch_resume_oversized_returns_413(test_db):
+    """PATCH resume over 10 MB is rejected at the API gate with 413."""
+    async with TestSessionLocal() as session:
+        _, job = await _seed_company_and_job(session)
+        await session.commit()
+        user, profile = await _seed_candidate(session, "pe9@test.com")
+        a = await _make_app(
+            session,
+            candidate_id=profile.id,
+            job_id=job.id,
+            resume_path="resumes/orig.pdf",
+        )
+    _override_user(user.id, user.email)
+
+    large_pdf = b"%PDF-1.4" + b"x" * (11 * 1024 * 1024)
+    async with await _client() as client:
+        resp = await client.patch(
+            f"/api/candidate/me/applications/{a.id}",
+            files={"resume": ("big.pdf", large_pdf, "application/pdf")},
+        )
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "file_too_large"
+
+
 # --------------------------------------------------------------------------
 # POST /api/candidate/me/applications/:id/withdraw
 # --------------------------------------------------------------------------

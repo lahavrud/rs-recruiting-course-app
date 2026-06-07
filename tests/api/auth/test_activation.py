@@ -319,3 +319,33 @@ async def test_activate_candidate_falls_back_to_email_prefix_when_no_name(
 
     assert resp.status_code == 200
     assert profile.full_name == user.email.split("@", 1)[0]
+
+
+@pytest.mark.asyncio
+async def test_activate_rate_limit_returns_429_after_five_attempts():
+    """POST /auth/activate is capped at 5 requests/hour per IP.
+
+    Uses an invalid token so the handler returns 400 on each of the first
+    five attempts; the sixth attempt hits the rate limit and returns 429.
+    The limiter is enabled only for this test and storage is cleared
+    before and after to avoid interfering with sibling tests.
+    """
+    from src.api.auth import activation
+
+    activation.limiter.enabled = True
+    activation.limiter._storage.reset()
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            for _ in range(5):
+                r = await client.post("/auth/activate?token=fake-token")
+                assert r.status_code == 400
+
+            rate_limited = await client.post("/auth/activate?token=fake-token")
+
+        assert rate_limited.status_code == 429
+    finally:
+        activation.limiter._storage.reset()
+        activation.limiter.enabled = False

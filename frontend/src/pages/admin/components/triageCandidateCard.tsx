@@ -7,6 +7,7 @@ import {
 import { IconDocument } from "./triageIcons";
 import { formatTriageDate, type Decision } from "./triageTypes";
 import type { TriageItem } from "./useTriageQueue";
+import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 /**
  * One candidate's content card. Used inside the carousel — rendered for the
@@ -78,7 +79,7 @@ export function CandidateCard({
               </a>
               {app.candidate.linkedin_url && (
                 <a
-                  href={active ? app.candidate.linkedin_url : undefined}
+                  href={active ? sanitizeLinkedInUrl(app.candidate.linkedin_url) : undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-copper hover:text-gold"

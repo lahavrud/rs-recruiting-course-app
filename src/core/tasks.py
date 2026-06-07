@@ -23,6 +23,7 @@ from src.core.infrastructure.database import async_session
 from src.core.infrastructure.transactions import transactional
 from src.core.services.email import get_email_provider
 from src.core.services.email_quota import increment_and_alert
+from src.core.utils import mask_email
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +43,6 @@ _last_purge_ran_gauge = _meter.create_gauge(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _mask_email(to: str | List[str]) -> str:
-    if isinstance(to, list):
-        return ", ".join(_mask_email(e) for e in to)
-    parts = to.split("@", 1)
-    if len(parts) != 2:
-        return "***"
-    local, domain = parts
-    return f"{local[:2]}***@{domain}"
 
 
 async def _sqs_send(message: dict) -> str:
@@ -82,7 +73,7 @@ async def send_email_task(
     from_email: Optional[str] = None,
 ) -> bool:
     """Send an email via the configured provider. Called by the SQS worker."""
-    logger.info("sending_email", extra={"to": _mask_email(to), "subject": subject})
+    logger.info("sending_email", extra={"to": mask_email(to), "subject": subject})
     try:
         provider = get_email_provider()
         success = await provider.send_email(
@@ -94,17 +85,17 @@ async def send_email_task(
             from_email=from_email,
         )
         if success:
-            logger.info("email_sent", extra={"to": _mask_email(to)})
+            logger.info("email_sent", extra={"to": mask_email(to)})
             async with async_session() as session:
                 async with transactional(session):
                     await increment_and_alert(session)
         else:
-            logger.warning("email_send_failed", extra={"to": _mask_email(to)})
-            raise RuntimeError(f"Email provider returned False for {_mask_email(to)}")
+            logger.warning("email_send_failed", extra={"to": mask_email(to)})
+            raise RuntimeError(f"Email provider returned False for {mask_email(to)}")
         return success
     except Exception as e:
         logger.error(
-            "email_error", extra={"to": _mask_email(to), "error": str(e)}, exc_info=True
+            "email_error", extra={"to": mask_email(to), "error": str(e)}, exc_info=True
         )
         raise
 
@@ -225,7 +216,7 @@ async def enqueue_email_task(
         }
     )
     logger.info(
-        "email_enqueued", extra={"message_id": message_id, "to": _mask_email(to)}
+        "email_enqueued", extra={"message_id": message_id, "to": mask_email(to)}
     )
     return message_id
 

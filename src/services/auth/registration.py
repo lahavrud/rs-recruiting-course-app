@@ -19,6 +19,7 @@ from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.file_validation import validate_image_magic_bytes
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
+from src.core.utils import mask_email
 from src.enums import UserRole
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileRead, UserCreate, UserRead, UserWithCompanyRead
@@ -33,8 +34,8 @@ from src.templates.email import build_new_registration_html
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_LOGO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-_MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5 MB
+_ALLOWED_LOGO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 _MAX_SIGNATURE_SIZE = 2 * 1024 * 1024  # 2 MB decoded
 
 
@@ -85,7 +86,7 @@ async def _notify_admins_new_registration(
             company_signature_png_bytes=sig_bytes,
         )
     except Exception:
-        logger.exception("Failed to generate contract PDF for %s", email)
+        logger.exception("Failed to generate contract PDF for %s", mask_email(email))
     attachments = [("חוזה-RS.pdf", pdf_bytes, "application/pdf")] if pdf_bytes else None
     await enqueue_email_task(
         to=admin_emails,

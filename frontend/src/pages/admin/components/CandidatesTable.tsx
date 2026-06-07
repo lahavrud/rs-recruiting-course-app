@@ -8,6 +8,7 @@ import KebabButton from "@/components/ui/KebabButton";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import { formatDate } from "@/utils/formatDate";
+import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 interface CandidatesTableProps {
   candidates: CandidateProfileRead[];
@@ -82,7 +83,7 @@ export default function CandidatesTable({
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   {c.linkedin_url ? (
                     <a
-                      href={c.linkedin_url}
+                      href={sanitizeLinkedInUrl(c.linkedin_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-copper hover:text-gold"

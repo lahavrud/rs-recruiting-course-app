@@ -9,6 +9,7 @@ from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.error_handling import service_exception_to_http
+from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.transactions import defer_after_commit, transactional
 from src.core.tasks import enqueue_email_task
 from src.enums import UserRole
@@ -17,10 +18,12 @@ from src.services.exceptions import InvalidActivationTokenError
 from src.templates.email import build_candidate_welcome_html
 
 logger = logging.getLogger(__name__)
+limiter = get_limiter()
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/activate", status_code=status.HTTP_200_OK)
+@limiter.limit("5/hour")
 async def activate(
     request: Request,
     token: str = Query(

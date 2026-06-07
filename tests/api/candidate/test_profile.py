@@ -193,5 +193,27 @@ async def test_resume_upload_rejects_wrong_extension(test_db):
                 files={"resume": ("doc.txt", b"plain text", "text/plain")},
             )
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "invalid_resume"
+    assert resp.json()["detail"] == "unsupported_file_type"
+    mock_storage.upload_file.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resume_upload_rejects_oversized_file(test_db):
+    """Profile resume upload rejects files over 10 MB with 413."""
+    async with TestSessionLocal() as session:
+        user, profile = await _seed_candidate(session, "big-file@test.com")
+        _override_user(user.id, user.email)
+
+    mock_storage = AsyncMock()
+    large_content = b"%PDF-1.4" + b"x" * (11 * 1024 * 1024)
+    with patch(
+        "src.api.candidate.profile.get_storage_provider", return_value=mock_storage
+    ):
+        async with await _client() as client:
+            resp = await client.post(
+                "/api/candidate/me/resume",
+                files={"resume": ("big.pdf", large_content, "application/pdf")},
+            )
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "file_too_large"
     mock_storage.upload_file.assert_not_called()
