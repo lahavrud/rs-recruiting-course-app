@@ -40,6 +40,12 @@ services:
       - run
       - /etc/alloy/config.alloy
       - --server.http.listen-addr=0.0.0.0:12345
+    networks:
+      # See the note on the nginx service below — every service on this
+      # network gets a pinned address so Docker's dynamic allocator never
+      # claims nginx's reserved IP out from under it.
+      default:
+        ipv4_address: 172.28.0.4
     restart: unless-stopped
 
   nginx:
@@ -52,6 +58,13 @@ services:
       # Static IP so the api container can pin it as its sole trusted proxy
       # for X-Forwarded-For (see FORWARDED_ALLOW_IPS below + TRUSTED_PROXY_IPS
       # in SSM) — must stay in sync with both.
+      #
+      # Every other service on this network ALSO needs a pinned ipv4_address
+      # (not just this one): Docker doesn't pre-reserve a service's declared
+      # static IP across the stack — it's only claimed when that container
+      # actually connects. nginx starts last (depends_on: api healthy), so an
+      # unpinned sibling can be dynamically handed *this* address first,
+      # and nginx fails to start with "Address already in use".
       default:
         ipv4_address: 172.28.0.2
     depends_on:
@@ -72,6 +85,9 @@ services:
       # see client_ip()'s docstring in core/infrastructure/dependencies.py
       # for why both layers need to agree.
       - FORWARDED_ALLOW_IPS=172.28.0.2
+    networks:
+      default:
+        ipv4_address: 172.28.0.3
     volumes:
       - app-data:/app/data
     depends_on:
@@ -92,6 +108,9 @@ services:
       - ENVIRONMENT=production
       - SENTRY_RELEASE=${IMAGE_TAG}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-alloy:4317
+    networks:
+      default:
+        ipv4_address: 172.28.0.5
     depends_on:
       - grafana-alloy
     restart: unless-stopped
