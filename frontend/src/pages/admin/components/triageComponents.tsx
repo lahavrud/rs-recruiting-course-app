@@ -146,10 +146,10 @@ export function RevisitBanner({
  */
 export function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
   const { t } = useTranslation('admin');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const id = setTimeout(onDismiss, 3500);
     return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div
@@ -278,10 +278,10 @@ export function UndoToast({
   onDismiss: () => void;
 }) {
   const { t } = useTranslation('admin');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const id = setTimeout(onDismiss, 5000);
     return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const meta = DECISION_META[decision];

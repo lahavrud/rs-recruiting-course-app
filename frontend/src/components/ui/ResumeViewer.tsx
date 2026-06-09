@@ -60,7 +60,6 @@ export function ResumeViewer({
     : "";
 
   // Lock body scroll + Escape to close
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const original = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -72,6 +71,7 @@ export function ResumeViewer({
       document.body.style.overflow = original;
       window.removeEventListener("keydown", onEsc);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch blob → hold both blob (for download/share) and an object URL (for

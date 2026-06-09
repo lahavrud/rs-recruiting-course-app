@@ -46,7 +46,7 @@ export function useTriageQueue() {
     const PAGE_SIZE = 100;
     const MAX_PAGES = 5;
     try {
-      const apps: typeof state.items = [] as TriageItem[];
+      const apps: TriageItem[] = [];
       // We need the full list, so iterate cursor pages serially.
       // Companies can be fetched in parallel with the first apps page.
       const [firstAppsPage, companiesPage] = await Promise.all([

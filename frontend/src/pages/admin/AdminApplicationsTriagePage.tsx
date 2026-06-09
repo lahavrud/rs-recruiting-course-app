@@ -315,7 +315,7 @@ export default function AdminApplicationsTriagePage() {
         setHintSeen(true);
       }
     },
-    [prevApp, nextApp],
+    [prevApp, nextApp, setHintSeen],
   );
 
   const onTouchEnd = useCallback(() => {

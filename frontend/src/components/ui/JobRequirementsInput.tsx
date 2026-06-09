@@ -215,7 +215,6 @@ export default function JobRequirementsInput({ value, onChange, error }: Props) 
         return [...prev, ...extra];
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids.length, value.length]);
 
   // Safe for the current render: effect above runs asynchronously, so trim
