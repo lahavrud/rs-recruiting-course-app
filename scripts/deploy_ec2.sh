@@ -77,6 +77,9 @@ aws s3 cp "s3://${S3_BUCKET}/deploy/${IMAGE_TAG}/alloy/config.alloy" "${APP_DIR}
 echo "==> Pulling Docker images"
 docker compose -f "${COMPOSE_FILE}" pull
 
+echo "==> Stopping existing stack (ensures clean network state before IPAM recreation)"
+docker compose -f "${COMPOSE_FILE}" down --timeout 30 || true
+
 echo "==> Validating migration chain (must be exactly one head)"
 HEAD_COUNT=$(docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api \
   alembic heads 2>&1 | grep -c "(head)" || true)
