@@ -74,9 +74,6 @@ if settings.sentry_dsn:
         )
 
 
-configure_telemetry("rs-recruiting-api")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
@@ -110,6 +107,11 @@ def _configure_logging() -> None:
 
 
 _configure_logging()
+
+# Must run after _configure_logging() — LoggingInstrumentor adds a handler to
+# the root logger that bridges stdlib logging to the OTLP log exporter, and
+# _configure_logging() replaces root.handlers wholesale.
+configure_telemetry("rs-recruiting-api")
 
 logger = logging.getLogger(__name__)
 

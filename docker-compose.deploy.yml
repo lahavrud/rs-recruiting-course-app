@@ -26,6 +26,10 @@ services:
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persists the loki.write WAL (see alloy/config.alloy) across container
+      # restarts and EC2 reboots — the EBS root volume backs Docker's volume
+      # storage, so this survives a reboot unlike the container's writable layer.
+      - alloy-data:/var/lib/alloy/data
     ports:
       - "127.0.0.1:4317:4317"
     environment:
@@ -40,6 +44,7 @@ services:
       - run
       - /etc/alloy/config.alloy
       - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
     networks:
       # See the note on the nginx service below — every service on this
       # network gets a pinned address so Docker's dynamic allocator never
@@ -127,6 +132,7 @@ services:
 
 volumes:
   app-data:
+  alloy-data:
 
 networks:
   # Pinned subnet so container addresses are stable across redeploys/recreations

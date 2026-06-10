@@ -115,6 +115,14 @@ loki.write "grafana_cloud" {
       password = sys.env("GRAFANA_API_TOKEN")
     }
   }
+
+  // Persist queued-but-unsent entries to disk (under --storage.path, which
+  // is bind-mounted to a named volume in docker-compose.deploy.yml) so a
+  // hard reboot or container restart doesn't drop logs that haven't been
+  // pushed to Grafana Cloud yet.
+  wal {
+    enabled = true
+  }
 }
 
 // ── 7. AWS CloudWatch metrics scraping → Mimir ───────────────────────────
