@@ -11,7 +11,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
@@ -24,26 +23,10 @@ from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import JobAdminCreate, JobAdminUpdate, JobRead
+from src.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
 from src.services.utils.audit import record_audit_event
-from src.templates.email import (
-    build_job_admin_edited_html,
-    build_job_closed_candidate_html,
-    build_job_closed_company_html,
-)
-
-_FIELD_LABELS: dict[str, str] = {
-    "title": "כותרת",
-    "short_description": "תיאור קצר",
-    "description": "תיאור מפורט",
-    "requirements": "דרישות",
-    "tags": "תגיות",
-    "is_featured": "מוצגת",
-    "location": "מיקום",
-    "salary_min": "שכר מינימום",
-    "salary_max": "שכר מקסימום",
-    "status": "סטטוס",
-}
+from src.templates.email import build_job_closed_candidate_html
 
 
 async def list_jobs(
@@ -139,13 +122,13 @@ async def update_job(
     payload = data.model_dump(exclude_unset=True)
 
     changed_labels = [
-        _FIELD_LABELS.get(field, field)
+        FIELD_LABELS.get(field, field)
         for field, value in payload.items()
         if getattr(job, field) != value
     ]
-    _old_title = job.title
-    _old_status = job.status
-    _title_changed = "title" in payload and payload["title"] != _old_title
+    old_title = job.title
+    old_status = job.status
+    title_changed = "title" in payload and payload["title"] != old_title
 
     for field, value in payload.items():
         setattr(job, field, value)
@@ -153,70 +136,19 @@ async def update_job(
 
     await session.flush()
 
-    _is_closing = _old_status == JobStatus.PUBLISHED and job.status == JobStatus.CLOSED
+    is_closing = old_status == JobStatus.PUBLISHED and job.status == JobStatus.CLOSED
 
-    # Capture notification data before session.refresh() — refresh re-fetches
-    # the Job row and expires selectinloaded relationships, making company/user
-    # inaccessible via async lazy-load afterward.
-    if job.company.user is not None:
-        _email = job.company.user.email
-        _new_title = job.title
-        _former_title: str | None = _old_title if _title_changed else None
-        _company_name = job.company.name
-        _dashboard_url = f"{settings.frontend_base_url}/login?redirect=/company/jobs"
-
-        if _is_closing:
-            # Dedicated closure email — more informative than generic "fields updated".
-            defer_after_commit(
-                lambda: enqueue_email_task(
-                    to=_email,
-                    subject=(f"משרה נסגרה על-ידי המנהל — {_new_title} — RS Recruiting"),
-                    body=(
-                        f"שלום {_company_name},\n\n"
-                        f"מנהל המערכת סגר את המשרה '{_new_title}'.\n"
-                        "המשרה הוסרה מלוח המשרות הציבורי, "
-                        "והמועמדים הפעילים קיבלו הודעה.\n\n"
-                        f"לפרטים נוספים: {_dashboard_url}\n\nצוות RS Recruiting"
-                    ),
-                    html_body=build_job_closed_company_html(
-                        job_title=_new_title,
-                        company_name=_company_name,
-                        dashboard_url=_dashboard_url,
-                    ),
-                )
-            )
-
-        # Generic "fields updated" email — when closing, omit "status" since
-        # the dedicated closure email above already covers it.
-        _status_label = _FIELD_LABELS.get("status")
-        _notify_labels = [
-            lbl for lbl in changed_labels if not (_is_closing and lbl == _status_label)
-        ]
-        if _notify_labels:
-            _changed_labels = _notify_labels
-            _plain = (
-                f"פרסום המשרה '{_new_title}'"
-                + (f" ({_old_title} לשעבר)" if _title_changed else "")
-                + f" עודכן על-ידי המנהל. שדות שעודכנו: {', '.join(_changed_labels)}"
-            )
-            defer_after_commit(
-                lambda: enqueue_email_task(
-                    to=_email,
-                    subject="פרסום משרה עודכן על-ידי המנהל — RS Recruiting",
-                    body=_plain,
-                    html_body=build_job_admin_edited_html(
-                        job_title=_new_title,
-                        company_name=_company_name,
-                        changed_fields=_changed_labels,
-                        dashboard_url=_dashboard_url,
-                        former_title=_former_title,
-                    ),
-                )
-            )
+    notify_company_of_update(
+        job,
+        old_title=old_title,
+        title_changed=title_changed,
+        changed_labels=changed_labels,
+        is_closing=is_closing,
+    )
 
     # When a published job is closed, notify all active applicants and
     # transition their applications to JOB_CLOSED.
-    if _is_closing:
+    if is_closing:
         await _close_active_applications(
             job_id, job.title, session, actor_user_id=actor_user_id
         )
