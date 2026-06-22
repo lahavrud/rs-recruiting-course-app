@@ -137,7 +137,6 @@ async def apply_to_job(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="resume_required",
         )
-
     candidate_data = CandidateProfileCreate(
         full_name=full_name,
         email=email,
