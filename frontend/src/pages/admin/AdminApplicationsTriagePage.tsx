@@ -1,9 +1,13 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+
 import Button from "@/components/ui/Button";
-import { useToast } from "@/hooks/useToast";
 import { ResumeViewer } from "@/components/ui/ResumeViewer";
+import { useToast } from "@/hooks/useToast";
+
+import { CandidateCard } from "./components/TriageCandidateCard";
 import {
   DecisionButtons,
   HelpOverlay,
@@ -14,7 +18,6 @@ import {
   UndoToast,
 } from "./components/TriageComponents";
 import { IconClose } from "./components/TriageIcons";
-import { CandidateCard } from "./components/TriageCandidateCard";
 import { useTriageQueue, type TriageItem } from "./components/useTriageQueue";
 import { useTriageSession } from "./components/useTriageSession";
 
