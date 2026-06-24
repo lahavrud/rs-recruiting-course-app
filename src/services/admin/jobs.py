@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
@@ -19,10 +20,17 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.core.infrastructure.transactions import defer_after_commit
+from src.core.matching import cosine_similarity_score
 from src.core.tasks import enqueue_email_task, enqueue_embed_job_task
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, CandidateProfile, CompanyProfile, Job
-from src.schemas import JobAdminCreate, JobAdminUpdate, JobRead
+from src.schemas import (
+    CandidateProfileRead,
+    JobAdminCreate,
+    JobAdminUpdate,
+    JobCandidateMatchRead,
+    JobRead,
+)
 from src.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
 from src.services.utils.audit import record_audit_event
@@ -64,6 +72,42 @@ async def list_jobs(
         cursor_key=lambda j: (j.created_at, j.id),
         limit=page_size,
     )
+
+
+async def get_job_candidate_matches(
+    job_id: int, session: AsyncSession
+) -> list[JobCandidateMatchRead]:
+    """Live-ranked candidates for a job, best score first.
+
+    Computed on demand (cosine distance) against every embedded candidate —
+    mirrors ``services.admin.candidates.get_candidate_job_matches``, the
+    reverse direction.
+
+    Raises ``JobNotFoundError`` if the job doesn't exist. Returns an empty
+    list if the job isn't PUBLISHED or has no embedding yet.
+    """
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
+    )
+    if job.status != JobStatus.PUBLISHED or job.embedding is None:
+        return []
+
+    distance = CandidateProfile.embedding.cosine_distance(job.embedding)
+    rows = (
+        await session.execute(
+            select(CandidateProfile, distance.label("distance"))
+            .where(CandidateProfile.embedding.is_not(None))
+            .order_by(distance)
+            .limit(settings.embedding_top_matches)
+        )
+    ).all()
+    return [
+        JobCandidateMatchRead(
+            candidate=CandidateProfileRead.model_validate(candidate),
+            score=cosine_similarity_score(dist),
+        )
+        for candidate, dist in rows
+    ]
 
 
 async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRead:
