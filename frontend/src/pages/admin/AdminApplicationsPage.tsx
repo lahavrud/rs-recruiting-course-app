@@ -6,23 +6,19 @@ import { useNavigate, useParams } from "react-router-dom";
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import DropdownMenu, {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/DropdownMenu";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
-import KebabButton from "@/components/ui/KebabButton";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
-import StatusBadge from "@/components/ui/StatusBadge";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
 import {
   deleteApplication,
@@ -33,12 +29,12 @@ import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
 import { type ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
-import { formatDate } from "@/utils/formatDate";
 
 import ApplicationNotesDialog from "./components/ApplicationNotesDialog";
 import ApplicationRecordPane from "./components/ApplicationRecordPane";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
 import ApplicationsRailList from "./components/ApplicationsRailList";
+import ApplicationsTable from "./components/ApplicationsTable";
 import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
 import { IconSparkle } from "./components/TriageIcons";
@@ -51,6 +47,9 @@ const CLOSED_STATUSES = new Set<ApplicationStatus>([
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
+type AppSortColumn = "name" | "created_at" | "status";
+const naturalOrder = (column: AppSortColumn) =>
+  column === "created_at" ? "desc" : "asc";
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -97,13 +96,32 @@ export default function AdminApplicationsPage() {
     }
   }, [id, selectedId, navigate]);
 
+  const { chain, click, replace } = useSortChain<AppSortColumn>([
+    { column: "status", order: "asc" },
+    { column: "created_at", order: "desc" },
+  ]);
+  const handleSort = (column: AppSortColumn) => click(column, naturalOrder(column));
+  const [primary, secondary] = chain;
+  const { column: sort, order } = primary;
+  const sort2 = secondary?.column;
+  const order2 = secondary?.order;
+  const columnState = (column: AppSortColumn) => {
+    const idx = chain.findIndex((key) => key.column === column);
+    if (idx === -1) return { active: false, order: "desc" as const, rank: undefined };
+    return {
+      active: true,
+      order: chain[idx].order,
+      rank: chain.length > 1 ? ((idx + 1) as 1 | 2) : undefined,
+    };
+  };
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
-      const params: ApplicationListParams = { cursor };
+      const params: ApplicationListParams = { cursor, sort, order, sort2, order2 };
       if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
       return getApplications(params);
     },
-    [filter],
+    [filter, sort, order, sort2, order2],
   );
 
   const {
@@ -286,6 +304,22 @@ export default function AdminApplicationsPage() {
     </>
   );
 
+  const sortControl = (
+    <SortControl
+      ariaLabel={t("admin:applications.sort.label")}
+      value={`${sort}:${order}`}
+      onChange={(col, ord) => replace(col as AppSortColumn, ord)}
+      options={[
+        { value: "status:desc", label: t("admin:applications.sort.statusDesc") },
+        { value: "status:asc", label: t("admin:applications.sort.statusAsc") },
+        { value: "created_at:desc", label: t("admin:applications.sort.dateDesc") },
+        { value: "created_at:asc", label: t("admin:applications.sort.dateAsc") },
+        { value: "name:asc", label: t("admin:applications.sort.nameAsc") },
+        { value: "name:desc", label: t("admin:applications.sort.nameDesc") },
+      ]}
+    />
+  );
+
   const searchAndFilters = (
     <>
       <div className="mb-3 flex items-stretch gap-2">
@@ -375,8 +409,9 @@ export default function AdminApplicationsPage() {
           emptyHeadline={t("admin:applications.empty")}
         >
           <>
-            {/* Mobile — same rail rows as the split-pane workspace; tap navigates straight to the record route, matching Candidates */}
+            {/* Mobile */}
             <div className="md:hidden">
+              <div className="mb-3">{sortControl}</div>
               <ApplicationsRailList
                 applications={activeFiltered}
                 selectedId={null}
@@ -392,86 +427,15 @@ export default function AdminApplicationsPage() {
             </div>
 
             {/* Desktop */}
-            <div className="hidden overflow-x-auto rounded-xl border border-white/8 bg-card md:block">
-              <table className="min-w-full divide-y divide-white/6 text-sm">
-                <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
-                  <tr>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.candidate")}
-                    </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.job")}
-                    </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.status")}
-                    </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.date")}
-                    </th>
-                    <th className="px-4 py-3 text-end" aria-hidden />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/6">
-                  {activeFiltered.map((app) => (
-                    <tr
-                      key={app.id}
-                      onClick={() => navigate(`/admin/applications/${app.id}`)}
-                      className="cursor-pointer transition hover:bg-white/3"
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-white/85">
-                          {app.candidate.full_name}
-                        </p>
-                        <p className="text-xs text-white/40">{app.candidate.email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-white/80">{app.job.title}</p>
-                        <p className="text-xs text-white/40">{app.job.location}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge
-                          label={STATUS_LABELS[app.status]}
-                          colorCls={APPLICATION_STATUS_COLORS[app.status]}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-white/40">
-                        {formatDate(app.created_at)}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <DropdownMenu
-                          ariaLabel={t("admin:applications.rowActionsLabel")}
-                          trigger={<KebabButton size="sm" />}
-                        >
-                          <DropdownMenuItem
-                            onSelect={() => navigate(`/admin/applications/${app.id}`)}
-                          >
-                            {t("admin:applications.viewAction")}
-                          </DropdownMenuItem>
-                          {app.status !== ApplicationStatus.WITHDRAWN && (
-                            <DropdownMenuItem onSelect={() => setStatusModal(app)}>
-                              {t("admin:applications.updateStatusAction")}
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onSelect={() => setNotesModal(app)}>
-                            {t("admin:applications.editNotesAction")}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="danger"
-                            onSelect={() => setDeleteCandidate(app)}
-                          >
-                            {t("admin:applications.deleteAction")}
-                          </DropdownMenuItem>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ApplicationsTable
+              applications={activeFiltered}
+              statusLabels={STATUS_LABELS}
+              columnState={columnState}
+              onSort={handleSort}
+              onUpdateStatus={setStatusModal}
+              onEditNotes={setNotesModal}
+              onDelete={setDeleteCandidate}
+            />
 
             {/* Sentinel for IntersectionObserver */}
             <InfiniteScrollFooter
@@ -513,6 +477,8 @@ export default function AdminApplicationsPage() {
           />
 
           {searchAndFilters}
+
+          <div className="mb-3">{sortControl}</div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ListStateSwitch
