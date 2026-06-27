@@ -10,15 +10,25 @@ from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import CompanyProfile, User
 from src.schemas import JobCreate, JobRead, JobUpdate
+from src.schemas.companies import (
+    CompanyApplicationRead,
+    CompanyApplicationStatusUpdate,
+    CompanyJobRecommendationRead,
+)
 from src.services.company.jobs import (
     create_job,
     delete_job,
     get_job,
+    get_job_recommendations,
     list_company_jobs,
+    list_job_applications,
+    update_application_status,
     update_job,
 )
 from src.services.exceptions import (
+    ApplicationNotFoundError,
     CompanyNotFoundError,
+    InvalidApplicationStatusTransitionError,
     JobCannotBeDeletedError,
     JobCannotBeUpdatedError,
     JobNotFoundError,
@@ -102,4 +112,60 @@ async def delete_job_posting(
         async with transactional(session):
             await delete_job(job_id, company_profile.id, session)
     except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeDeletedError) as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get("/{job_id}/applications", response_model=list[CompanyApplicationRead])
+async def get_job_applications(
+    job_id: int,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> list[CompanyApplicationRead]:
+    """List all applications for a job owned by the current company."""
+    _, company_profile = current_company
+    try:
+        return await list_job_applications(job_id, company_profile.id, session)
+    except (JobNotFoundError, JobNotOwnedByCompanyError) as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.patch(
+    "/{job_id}/applications/{app_id}/status",
+    response_model=CompanyApplicationRead,
+)
+async def update_job_application_status(
+    job_id: int,
+    app_id: int,
+    body: CompanyApplicationStatusUpdate,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> CompanyApplicationRead:
+    """Update an application's status (HIRED or REJECTED only). Company owner only."""
+    _, company_profile = current_company
+    try:
+        async with transactional(session):
+            return await update_application_status(
+                job_id, app_id, body.status, company_profile.id, session
+            )
+    except InvalidApplicationStatusTransitionError as e:
+        raise service_exception_to_http(e) from e
+    except (JobNotFoundError, ApplicationNotFoundError) as e:
+        raise service_exception_to_http(e) from e
+    except JobNotOwnedByCompanyError as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/{job_id}/recommendations", response_model=list[CompanyJobRecommendationRead]
+)
+async def get_job_candidate_recommendations(
+    job_id: int,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> list[CompanyJobRecommendationRead]:
+    """AI-ranked candidate suggestions for a specific job owned by this company."""
+    _, company_profile = current_company
+    try:
+        return await get_job_recommendations(job_id, company_profile.id, session)
+    except (JobNotFoundError, JobNotOwnedByCompanyError) as e:
         raise service_exception_to_http(e) from e

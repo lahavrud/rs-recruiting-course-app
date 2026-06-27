@@ -62,6 +62,14 @@ const AdminCandidatesPage = lazyWithRetry(
   () => import("@/pages/admin/AdminCandidatesPage"),
 );
 const CompanyJobsPage = lazyWithRetry(() => import("@/pages/company/CompanyJobsPage"));
+const CompanyPostJobPage = lazyWithRetry(() => import("@/pages/company/CompanyPostJobPage"));
+const CompanyEditJobPage = lazyWithRetry(() => import("@/pages/company/CompanyEditJobPage"));
+const CompanyJobKanbanPage = lazyWithRetry(
+  () => import("@/pages/company/CompanyJobKanbanPage"),
+);
+const CompanyProfilePage = lazyWithRetry(
+  () => import("@/pages/company/CompanyProfilePage"),
+);
 const CandidateProfilePage = lazyWithRetry(
   () => import("@/pages/candidate/CandidateProfilePage"),
 );
@@ -286,6 +294,46 @@ export default function App() {
                     <CompanyRoute>
                       <RouteErrorBoundary>
                         <CompanyJobsPage />
+                      </RouteErrorBoundary>
+                    </CompanyRoute>
+                  }
+                />
+                <Route
+                  path="/company/jobs/new"
+                  element={
+                    <CompanyRoute>
+                      <RouteErrorBoundary>
+                        <CompanyPostJobPage />
+                      </RouteErrorBoundary>
+                    </CompanyRoute>
+                  }
+                />
+                <Route
+                  path="/company/jobs/:jobId/edit"
+                  element={
+                    <CompanyRoute>
+                      <RouteErrorBoundary>
+                        <CompanyEditJobPage />
+                      </RouteErrorBoundary>
+                    </CompanyRoute>
+                  }
+                />
+                <Route
+                  path="/company/jobs/:jobId"
+                  element={
+                    <CompanyRoute>
+                      <RouteErrorBoundary>
+                        <CompanyJobKanbanPage />
+                      </RouteErrorBoundary>
+                    </CompanyRoute>
+                  }
+                />
+                <Route
+                  path="/company/profile"
+                  element={
+                    <CompanyRoute>
+                      <RouteErrorBoundary>
+                        <CompanyProfilePage />
                       </RouteErrorBoundary>
                     </CompanyRoute>
                   }

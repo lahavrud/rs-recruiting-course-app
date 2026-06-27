@@ -19,6 +19,11 @@ from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from src.schemas import JobCreate, JobRead, JobUpdate
 from src.services.admin.companies import get_all_admin_emails
+from src.services.company._jobs_applications import (
+    list_job_applications,
+    update_application_status,
+)
+from src.services.company._jobs_recommendations import get_job_recommendations
 from src.services.exceptions import (
     CompanyNotFoundError,
     JobCannotBeDeletedError,
@@ -27,6 +32,17 @@ from src.services.exceptions import (
     JobNotOwnedByCompanyError,
 )
 from src.templates.email import build_job_updated_html, build_new_job_html
+
+__all__ = [
+    "create_job",
+    "delete_job",
+    "get_job",
+    "get_job_recommendations",
+    "list_company_jobs",
+    "list_job_applications",
+    "update_application_status",
+    "update_job",
+]
 
 
 async def create_job(
@@ -39,7 +55,6 @@ async def create_job(
     Raises:
         CompanyNotFoundError: If company not found
     """
-    # Verify company exists
     company = await get_by_id_or_raise(
         session,
         CompanyProfile,
@@ -47,7 +62,6 @@ async def create_job(
         lambda pk: CompanyNotFoundError(f"Company with ID {pk} not found"),
     )
 
-    # Create job with PENDING_APPROVAL status
     new_job = Job(
         company_id=company_id,
         title=job_data.title,
@@ -63,7 +77,6 @@ async def create_job(
     session.add(new_job)
     await session.flush()
 
-    # Send email notification to all admins
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
         from src.core.infrastructure.config import settings
@@ -146,23 +159,19 @@ async def update_job(
         options=[selectinload(Job.company)],  # pyright: ignore[reportArgumentType]
     )
 
-    # Verify ownership
     if job.company_id != company_id:
         raise JobNotOwnedByCompanyError(
             f"Job {job_id} is not owned by company {company_id}"
         )
 
-    # Verify job can be updated (only PENDING_APPROVAL or PUBLISHED)
     if job.status not in (JobStatus.PENDING_APPROVAL, JobStatus.PUBLISHED):
         raise JobCannotBeUpdatedError(
             f"Job {job_id} with status {job.status} cannot be updated"
         )
 
-    # Companies cannot change status (only admin can)
     if job_data.status is not None and job_data.status != job.status:
         raise JobCannotBeUpdatedError("Companies cannot change job status")
 
-    # Update fields
     if job_data.title is not None:
         job.title = job_data.title
     if job_data.short_description is not None:
@@ -180,11 +189,9 @@ async def update_job(
     if job_data.salary_max is not None:
         job.salary_max = job_data.salary_max
 
-    # Update updated_at timestamp
     job.updated_at = datetime.now(timezone.utc)
     await session.flush()
 
-    # Send email notification to all admins
     company = job.company
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
@@ -227,19 +234,16 @@ async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> Non
         session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
 
-    # Verify ownership
     if job.company_id != company_id:
         raise JobNotOwnedByCompanyError(
             f"Job {job_id} is not owned by company {company_id}"
         )
 
-    # Verify job can be deleted (only PENDING_APPROVAL)
     if job.status != JobStatus.PENDING_APPROVAL:
         raise JobCannotBeDeletedError(
             f"Job {job_id} with status {job.status} cannot be deleted. "
             "Only jobs with PENDING_APPROVAL status can be deleted."
         )
 
-    # Delete the job
     await session.delete(job)
     await session.flush()
