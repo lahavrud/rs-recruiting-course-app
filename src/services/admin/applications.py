@@ -7,7 +7,6 @@ from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
@@ -16,17 +15,19 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.matching import cosine_similarity_score
 from src.enums import ApplicationStatus
-from src.models import Application, CandidateProfile
+from src.models import Application, CandidateProfile, Job
 from src.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
-from src.services.exceptions import (
-    ApplicationNotEditableError,
-    ApplicationNotFoundError,
+from src.services.admin._application_status import (
+    update_application_status as update_application_status,
 )
-from src.services.utils.audit import list_audit_events, record_audit_event
-from src.templates.email import build_application_rejection_html
+from src.services.exceptions import ApplicationNotFoundError
+from src.services.utils.audit import list_audit_events
 
-ApplicationSortColumn = Literal["name", "created_at", "status"]
+ApplicationSortColumn = Literal["name", "created_at", "status", "score"]
+
+_SCORE_SORT_LIMIT = 200
 
 _STATUS_PRIORITY: dict[ApplicationStatus, int] = {
     ApplicationStatus.NEW: 0,
@@ -43,8 +44,7 @@ def _sort_column(column: ApplicationSortColumn) -> Any:
         return CandidateProfile.full_name
     if column == "status":
         return case(
-            _STATUS_PRIORITY,  # pyright: ignore[reportArgumentType]
-            value=Application.status,
+            *[(Application.status == k, v) for k, v in _STATUS_PRIORITY.items()],
             else_=len(_STATUS_PRIORITY),
         )
     return Application.created_at
@@ -56,6 +56,49 @@ def _sort_value(application: Application, column: ApplicationSortColumn) -> Sort
     if column == "status":
         return _STATUS_PRIORITY.get(application.status, len(_STATUS_PRIORITY))
     return application.created_at
+
+
+async def _list_applications_by_score(
+    session: AsyncSession,
+    *,
+    status: ApplicationStatus | None = None,
+    job_id: int | None = None,
+    candidate_id: int | None = None,
+) -> CursorPage[ApplicationWithDetails]:
+    """Return applications ranked by AI match score, best first.
+
+    Only includes rows where both the candidate and job have embeddings.
+    Returns a single non-paginated page (next_cursor=None).
+    """
+    distance_expr = CandidateProfile.embedding.cosine_distance(Job.embedding)
+    stmt = (
+        select(Application, distance_expr.label("dist"))
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
+        .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+        .options(
+            selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
+            selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
+        )
+        .where(
+            CandidateProfile.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
+            Job.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
+        )
+    )
+    if status is not None:
+        stmt = stmt.where(Application.status == status)  # pyright: ignore[reportArgumentType]
+    if job_id is not None:
+        stmt = stmt.where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
+    if candidate_id is not None:
+        stmt = stmt.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
+    stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
+
+    rows = (await session.execute(stmt)).all()
+    items: list[ApplicationWithDetails] = []
+    for app, dist in rows:
+        schema = ApplicationWithDetails.model_validate(app)
+        schema.ai_score = cosine_similarity_score(dist)
+        items.append(schema)
+    return CursorPage(items=items, next_cursor=None)
 
 
 async def list_applications(
@@ -80,11 +123,15 @@ async def list_applications(
     `sort="status"` with `sort2="created_at"` groups by status, then orders
     by date within each group. A column can't be paired with itself.
     """
+    if sort == "score":
+        return await _list_applications_by_score(
+            session, status=status, job_id=job_id, candidate_id=candidate_id
+        )
     if sort2 == sort:
         sort2 = None
     page_size = clamp_limit(limit)
     base = select(Application).options(
-        selectinload(Application.job),  # pyright: ignore[reportArgumentType]
+        selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
         selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
     )
     if status is not None:
@@ -142,7 +189,7 @@ async def get_application(
         application_id,
         lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
         options=[
-            selectinload(Application.job),  # pyright: ignore[reportArgumentType]
+            selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
             selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
         ],
     )
@@ -180,11 +227,16 @@ async def get_application_activity(
         limit=limit,
     )
     if page.next_cursor is None:
+        action = (
+            "application.pushed_by_admin"
+            if application.pushed_by_admin_id is not None
+            else "application.submitted"
+        )
         page.items.append(
             AuditLogRead(
                 id=-application_id,
-                actor_user_id=None,
-                action="application.submitted",
+                actor_user_id=application.pushed_by_admin_id,
+                action=action,
                 target_type="Application",
                 target_id=application_id,
                 detail=None,
@@ -193,107 +245,6 @@ async def get_application_activity(
             )
         )
     return page
-
-
-async def update_application_status(
-    application_id: int,
-    new_status: ApplicationStatus,
-    session: AsyncSession,
-    admin_notes: str | None = None,
-    *,
-    actor_user_id: int | None = None,
-    ip_address: str | None = None,
-) -> tuple[ApplicationRead, list[dict[str, str]]]:
-    """Update an application's status and optionally add admin notes.
-
-    Enforces valid status transitions. Returns the updated application and
-    a list of email payloads to be enqueued by the caller *after* the
-    surrounding DB transaction has been committed, so emails are never sent
-    for changes that were subsequently rolled back.
-
-    Args:
-        application_id: ID of the application to update
-        new_status: The target status
-        session: Database session
-        admin_notes: Optional notes from the admin
-
-    Returns:
-        Tuple of (updated ApplicationRead, list of email payload dicts).
-        Each payload dict has keys: ``to``, ``subject``, ``body``, ``html_body``.
-
-    Raises:
-        ApplicationNotFoundError: If application not found
-    """
-    application = await get_by_id_or_raise(
-        session,
-        Application,
-        application_id,
-        lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
-        options=[
-            selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
-            selectinload(Application.job),  # pyright: ignore[reportArgumentType]
-        ],
-    )
-
-    old_status = application.status
-
-    if old_status == ApplicationStatus.WITHDRAWN:
-        raise ApplicationNotEditableError(
-            "Cannot change status of a withdrawn application"
-        )
-
-    application.status = new_status
-    if admin_notes is not None:
-        application.admin_notes = admin_notes
-    application.updated_at = datetime.now(timezone.utc)
-    await session.flush()
-
-    if old_status != new_status:
-        await record_audit_event(
-            session,
-            actor_user_id=actor_user_id,
-            action="application.status_change",
-            target_type="Application",
-            target_id=application_id,
-            detail=f"{old_status.value}->{new_status.value}",
-            ip_address=ip_address,
-        )
-
-    email_payloads: list[dict[str, str]] = []
-    newly_rejected = (
-        new_status == ApplicationStatus.REJECTED
-        and old_status != ApplicationStatus.REJECTED
-    )
-    if newly_rejected:
-        candidate = application.candidate
-        job = application.job
-        plain = (
-            f"{candidate.full_name} שלום,\n\n"
-            "ראשית, אנו רוצים להודות לך על הזמן שהשקעת בהגשת המועמדות ועל העניין "
-            "שגילית בתפקיד.\n\n"
-            "לאחר בחינה מעמיקה של קורות החיים מול צרכי הלקוח, הרינו לעדכנך כי בשלב "
-            "זה הוחלט לבחון מועמדים שרקעם התעסוקתי תואם באופן מדויק יותר את הפרופיל "
-            "המבוקש.\n\n"
-            "יחד עם זאת, התרשמנו מהפרופיל המקצועי ונשמח לשמור את קורות החיים אצלנו. "
-            "במידה ותעמוד על הפרק משרה שתהלם את הכישורים והניסיון הרלוונטיים, "
-            "נשמח מאוד ליצור קשר.\n\n"
-            "שוב תודה, והרבה הצלחה בהמשך הדרך המקצועית.\n\n"
-            "בברכה,\nצוות RS Recruiting\n\n"
-            f"סבורים שחלה טעות? ניתן לפנות אלינו: {settings.support_email}"
-        )
-        email_payloads = [
-            {
-                "to": candidate.email,
-                "subject": f"עדכון בנוגע למועמדותך למשרת {job.title} — RS Recruiting",
-                "body": plain,
-                "html_body": build_application_rejection_html(
-                    candidate_name=candidate.full_name,
-                    job_title=job.title,
-                ),
-            }
-        ]
-
-    return ApplicationRead.model_validate(application), email_payloads
 
 
 async def update_application_notes(

@@ -6,9 +6,9 @@ on behalf of a company that hasn't been onboarded yet.
 """
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
-from sqlalchemy import delete, select
+from sqlalchemy import case, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,14 +16,15 @@ from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
+    SortValue,
     apply_cursor,
     build_cursor_page,
     clamp_limit,
 )
 from src.core.infrastructure.transactions import defer_after_commit
 from src.core.matching import cosine_similarity_score
-from src.core.tasks import enqueue_email_task, enqueue_embed_job_task
-from src.enums import ApplicationStatus, JobStatus
+from src.core.tasks import enqueue_embed_job_task
+from src.enums import JobStatus
 from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import (
     CandidateProfileRead,
@@ -32,10 +33,37 @@ from src.schemas import (
     JobCandidateMatchRead,
     JobRead,
 )
+from src.services.admin._job_close import close_active_applications
 from src.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
-from src.services.utils.audit import record_audit_event
-from src.templates.email import build_job_closed_candidate_html
+
+JobSortColumn = Literal["name", "created_at", "status"]
+
+_STATUS_PRIORITY: dict[JobStatus, int] = {
+    JobStatus.PENDING_APPROVAL: 0,
+    JobStatus.PUBLISHED: 1,
+    JobStatus.CLOSED: 2,
+}
+
+
+def _sort_column(column: JobSortColumn) -> Any:
+    if column == "name":
+        return Job.title
+    if column == "status":
+        return case(
+            *[(Job.status == k, v) for k, v in _STATUS_PRIORITY.items()],
+            else_=len(_STATUS_PRIORITY),
+        )
+    return Job.created_at
+
+
+def _sort_value(job: Job, column: JobSortColumn) -> SortValue:
+    if column == "name":
+        return job.title
+    if column == "status":
+        return _STATUS_PRIORITY.get(job.status, len(_STATUS_PRIORITY))
+    return job.created_at
+
 
 # Job fields that feed the matching embedding (see cv_extraction.job_embedding_text).
 # A change to any of these on a PUBLISHED job warrants a re-embed.
@@ -48,37 +76,67 @@ async def list_jobs(
     session: AsyncSession,
     *,
     status: JobStatus | None = None,
+    company_id: int | None = None,
+    q: str | None = None,
     cursor: str | None = None,
     limit: int | None = None,
-    sort: Literal["name", "created_at"] = "created_at",
+    sort: JobSortColumn = "created_at",
     order: Literal["asc", "desc"] = "desc",
+    sort2: JobSortColumn | None = None,
+    order2: Literal["asc", "desc"] = "desc",
 ) -> CursorPage[JobRead]:
     """One page of jobs across all statuses, sorted by `sort`/`order`.
 
     `status` filters to a single status when provided (None returns all).
+    `company_id` filters to jobs belonging to a specific company.
+    `q` searches job title (case-insensitive substring match).
     `sort="name"` sorts by the job title.
+    `sort="status"` groups by status priority — PENDING_APPROVAL first when
+    `order="asc"`, CLOSED first when `order="desc"`.
+    `sort2` adds a tiebreaker column within each primary group (e.g.
+    `sort="status"` with `sort2="created_at"` groups by status, then by date).
     """
+    if sort2 == sort:
+        sort2 = None
     page_size = clamp_limit(limit)
-    base = select(Job)
+    base = select(Job).options(selectinload(Job.company))
     if status is not None:
         base = base.where(Job.status == status)  # pyright: ignore[reportArgumentType]
-    sort_col = Job.title if sort == "name" else Job.created_at
+    if company_id is not None:
+        base = base.where(Job.company_id == company_id)  # pyright: ignore[reportArgumentType]
+    if q:
+        base = base.where(Job.title.icontains(q))  # pyright: ignore[reportArgumentType]
+
+    sort_col = _sort_column(sort)
+    secondary_col = _sort_column(sort2) if sort2 is not None else None
+    sort_key = sort if sort2 is None else f"{sort},{sort2}"
+
     query = apply_cursor(
         base,
         sort_col=sort_col,  # pyright: ignore[reportArgumentType]
         id_col=Job.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
-        sort_key=sort,
+        sort_key=sort_key,
         direction=order,
+        secondary_col=secondary_col,  # pyright: ignore[reportArgumentType]
+        secondary_direction=order2,
     )
     rows = list((await session.execute(query)).scalars().all())
+
+    def _cursor_key(
+        j: Job,
+    ) -> tuple[SortValue, int] | tuple[SortValue, SortValue | None, int]:
+        if sort2 is not None:
+            return _sort_value(j, sort), _sort_value(j, sort2), j.id
+        return _sort_value(j, sort), j.id
+
     return build_cursor_page(
         rows,
         serializer=JobRead.model_validate,
-        cursor_key=lambda j: (j.title if sort == "name" else j.created_at, j.id),
+        cursor_key=_cursor_key,
         limit=page_size,
-        sort_key=sort,
+        sort_key=sort_key,
     )
 
 
@@ -146,7 +204,7 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
     )
     session.add(job)
     await session.flush()
-    await session.refresh(job)
+    await session.refresh(job, attribute_names=["company"])
     return JobRead.model_validate(job)
 
 
@@ -207,7 +265,7 @@ async def update_job(
     # When a published job is closed, notify all active applicants and
     # transition their applications to JOB_CLOSED.
     if is_closing:
-        await _close_active_applications(
+        await close_active_applications(
             job_id, job.title, session, actor_user_id=actor_user_id
         )
 
@@ -217,72 +275,8 @@ async def update_job(
         embed_job_id = job.id
         defer_after_commit(lambda: enqueue_embed_job_task(embed_job_id))
 
-    await session.refresh(job)
+    await session.refresh(job, attribute_names=["company"])
     return JobRead.model_validate(job)
-
-
-_ACTIVE_STATUSES = (ApplicationStatus.NEW, ApplicationStatus.APPROVED_BY_ADMIN)
-
-
-async def _close_active_applications(
-    job_id: int,
-    job_title: str,
-    session: AsyncSession,
-    *,
-    actor_user_id: int | None = None,
-) -> None:
-    """Transition active applications to JOB_CLOSED and send closure emails."""
-    apps_result = await session.execute(
-        select(Application)
-        .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
-        .where(
-            Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
-            Application.status.in_(_ACTIVE_STATUSES),  # pyright: ignore[reportArgumentType]
-        )
-    )
-    apps = list(apps_result.scalars().all())
-
-    now = datetime.now(timezone.utc)
-    for app in apps:
-        app.status = ApplicationStatus.JOB_CLOSED
-        app.updated_at = now
-
-    await session.flush()
-
-    for app in apps:
-        await record_audit_event(
-            session,
-            actor_user_id=actor_user_id,
-            action="application.status_change",
-            target_type="Application",
-            target_id=app.id,
-            detail=f"JOB_CLOSED (cascade, job {job_id})",
-        )
-
-    for app in apps:
-        candidate: CandidateProfile = app.candidate
-        _to = candidate.email
-        _name = candidate.full_name
-        _title = job_title
-        defer_after_commit(
-            lambda to=_to, name=_name, title=_title: enqueue_email_task(
-                to=to,
-                subject=f"עדכון בנוגע למועמדותך למשרת {title} — RS Recruiting",
-                body=(
-                    f"{name} שלום,\n\n"
-                    f"תודה על מועמדותך ועל העניין שגילית בתפקיד {title}.\n\n"
-                    "לצערנו, המשרה נסגרה. הדבר אינו קשור לפרופיל שלך אלא נובע "
-                    "מנסיבות פנימיות — כגון איוש המשרה או שינוי בצרכי הגיוס.\n\n"
-                    "נשמח לשמור את קורות החיים שלך ולפנות אליך כשתעמוד על הפרק "
-                    "משרה שתתאים לכישוריך.\n\n"
-                    "בברכה,\nצוות RS Recruiting"
-                ),
-                html_body=build_job_closed_candidate_html(
-                    candidate_name=name,
-                    job_title=title,
-                ),
-            )
-        )
 
 
 async def delete_job(job_id: int, session: AsyncSession) -> None:

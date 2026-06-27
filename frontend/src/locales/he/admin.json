@@ -6,6 +6,22 @@
   "companies": {
     "title": "חברות",
     "subtitle": "ניהול רישומי חברות והזמנות.",
+    "record": {
+      "eyebrow": "פרופיל חברה",
+      "showList": "הצג רשימת חברות",
+      "hideList": "הסתר רשימת חברות",
+      "emptyHeadline": "בחר חברה לצפייה",
+      "emptyDescription": "בחר חברה מהרשימה כדי לצפות בפרטיה.",
+      "notFound": "החברה לא נמצאה.",
+      "tabs": {
+        "profile": "פרופיל",
+        "jobs": "משרות"
+      },
+      "jobsTab": {
+        "empty": "לחברה זו אין משרות.",
+        "loadError": "טעינת המשרות נכשלה."
+      }
+    },
     "empty": "אין חברות ממתינות לאישור.",
     "contactLabel": "איש קשר",
     "registeredLabel": "נרשם",
@@ -163,6 +179,8 @@
     "submittedLabel": "הוגש",
     "sort": {
       "label": "מיון",
+      "statusAsc": "סטטוס (ממתינים לאישור קודם)",
+      "statusDesc": "סטטוס (סגורים קודם)",
       "nameAsc": "כותרת (א-ת)",
       "nameDesc": "כותרת (ת-א)",
       "dateDesc": "תאריך הגשה (החדש ביותר)",
@@ -176,6 +194,15 @@
     "email": "שלח דוא״ל",
     "emailSubjectPrefix": "RS Recruiting — בנוגע למשרה: {{title}}",
     "emailNoAddress": "אין כתובת דוא״ל זמינה עבור החברה.",
+    "contactDialog": {
+      "title": "יצירת קשר עם החברה",
+      "noteLabel": "הערה לחברה (אופציונלי)",
+      "notePlaceholder": "הוסף הקשר או פרטים נוספים לחברה…",
+      "sendButton": "שלח",
+      "sendingButton": "שולח…",
+      "successToast": "ההודעה נשלחה בהצלחה.",
+      "errorToast": "שגיאה בשליחת ההודעה."
+    },
     "candidatesLabel": "מועמדים",
     "candidatesView": "צפה ברשימה",
     "matchesSection": "מועמדים מתאימים",
@@ -282,7 +309,8 @@
       "dateDesc": "תאריך (החדש ביותר)",
       "dateAsc": "תאריך (הישן ביותר)",
       "statusDesc": "סטטוס (דורש טיפול קודם, חדש→ישן)",
-      "statusAsc": "סטטוס (דורש טיפול קודם, ישן→חדש)"
+      "statusAsc": "סטטוס (דורש טיפול קודם, ישן→חדש)",
+      "aiScore": "דירוג AI"
     },
     "filters": "סינון",
     "openFilters": "פתח סינון",
@@ -331,6 +359,7 @@
     "editNotesAction": "עריכת הערות",
     "deleteAction": "מחיקה",
     "rowActionsLabel": "פעולות נוספות",
+    "pushedByAdmin": "הוגש ע״י מנהל",
     "revertConfirm": "לשחזר מועמדות מסטטוס סופי?",
     "savedToast": "הסטטוס עודכן",
     "notesSavedToast": "ההערות עודכנו",
@@ -340,7 +369,8 @@
     "activityEmpty": "לא נמצאה פעילות עבור מועמדות זו.",
     "activity": {
       "actions": {
-        "submitted": "הוגשה מועמדות"
+        "submitted": "הוגשה מועמדות",
+        "pushedByAdmin": "הוגשה על ידי מנהל"
       }
     },
     "errors": {
@@ -431,7 +461,10 @@
       "nameAsc": "שם (א-ת)",
       "nameDesc": "שם (ת-א)",
       "dateDesc": "תאריך (החדש ביותר)",
-      "dateAsc": "תאריך (הישן ביותר)"
+      "dateAsc": "תאריך (הישן ביותר)",
+      "aiScore": "דירוג AI",
+      "selectJob": "בחר משרה לדירוג...",
+      "searchJob": "חפש משרה..."
     },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",
@@ -471,6 +504,39 @@
       "emptyHeadline": "בחר מועמד להצגה",
       "emptyDescription": "בחר מועמד מהרשימה כדי לצפות בפרטיו.",
       "notFound": "המועמד לא נמצא."
+    }
+  },
+  "reviewQueue": {
+    "title": "תור סקירה",
+    "subtitle": "פריטים הממתינים להחלטה",
+    "tabs": {
+      "applications": "מועמדויות",
+      "jobs": "משרות",
+      "companies": "חברות"
+    },
+    "empty": {
+      "applications": "אין מועמדויות חדשות הממתינות לסקירה",
+      "jobs": "אין משרות הממתינות לאישור",
+      "companies": "אין חברות הממתינות לאישור"
+    },
+    "keyboard": {
+      "hint": "A לאישור · R לדחייה"
+    },
+    "approved": "אושר",
+    "rejected": "נדחה",
+    "undo": "בטל",
+    "inviteSent": "הזמנה נשלחה",
+    "inviteNotSent": "הזמנה לא נשלחה",
+    "errors": {
+      "approveFailed": "האישור נכשל, נסה שוב",
+      "rejectFailed": "הדחייה נכשלה, נסה שוב",
+      "undoFailed": "הביטול נכשל"
+    },
+    "record": {
+      "showList": "הצג תור",
+      "hideList": "הסתר תור",
+      "emptyHeadline": "בחר פריט לסקירה",
+      "emptyDescription": "לחץ על פריט בתור כדי לצפות בפרטיו."
     }
   }
 }

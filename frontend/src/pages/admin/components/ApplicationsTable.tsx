@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import ScoreBadge from "@/components/admin/ScoreBadge";
 import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import DropdownMenu, {
   DropdownMenuItem,
@@ -11,7 +12,6 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import type { SortOrder } from "@/hooks/useColumnSort";
 import { type ApplicationWithDetails } from "@/types/candidates";
-import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 interface ColumnState {
@@ -25,7 +25,7 @@ interface ApplicationsTableProps {
   statusLabels: Record<string, string>;
   columnState: (column: "name" | "created_at" | "status") => ColumnState;
   onSort: (column: "name" | "created_at" | "status") => void;
-  onUpdateStatus: (app: ApplicationWithDetails) => void;
+  showScore?: boolean;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
 }
@@ -35,7 +35,7 @@ export default function ApplicationsTable({
   statusLabels,
   columnState,
   onSort,
-  onUpdateStatus,
+  showScore = false,
   onEditNotes,
   onDelete,
 }: ApplicationsTableProps) {
@@ -86,7 +86,17 @@ export default function ApplicationsTable({
               className="cursor-pointer transition hover:bg-white/3"
             >
               <td className="px-4 py-3">
-                <p className="font-medium text-white/85">{app.candidate.full_name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white/85">{app.candidate.full_name}</p>
+                  {showScore && app.ai_score != null && (
+                    <ScoreBadge score={app.ai_score} />
+                  )}
+                  {app.pushed_by_admin_id != null && (
+                    <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
+                      {t("applications.pushedByAdmin")}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-white/40">{app.candidate.email}</p>
               </td>
               <td className="px-4 py-3">
@@ -113,11 +123,6 @@ export default function ApplicationsTable({
                   >
                     {t("applications.viewAction")}
                   </DropdownMenuItem>
-                  {app.status !== ApplicationStatus.WITHDRAWN && (
-                    <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                      {t("applications.updateStatusAction")}
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onSelect={() => onEditNotes(app)}>
                     {t("applications.editNotesAction")}
                   </DropdownMenuItem>

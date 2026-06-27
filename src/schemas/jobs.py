@@ -1,6 +1,7 @@
 """Job posting schemas."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -187,6 +188,7 @@ class JobRead(BaseModel):
 
     id: int
     company_id: int
+    company_name: str = ""
     title: str
     short_description: str
     description: str
@@ -199,6 +201,20 @@ class JobRead(BaseModel):
     status: JobStatus
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _populate_company_name(cls, value: Any, handler: Any) -> "JobRead":
+        obj = handler(value)
+        if not isinstance(value, dict):
+            # Use vars() to read only already-loaded relationships — avoids
+            # triggering async lazy loads in ORM paths that don't selectinload
+            # the company (e.g. company-facing endpoints where the caller already
+            # knows their own company name).
+            loaded_company = vars(value).get("company")
+            if loaded_company is not None:
+                obj.company_name = loaded_company.name
+        return obj
 
 
 class MyApplicationInfo(BaseModel):

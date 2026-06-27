@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -16,12 +16,11 @@ import NoResults from "@/components/ui/NoResults";
 import PageHeader from "@/components/ui/PageHeader";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { JOB_STATUS_COLORS } from "@/constants/statusColors";
-import { useColumnSort } from "@/hooks/useColumnSort";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
-import { getActiveCompanies } from "@/services/adminCompanies";
 import {
   approveJob,
   deleteJob,
@@ -31,6 +30,7 @@ import {
 import { JobStatus } from "@/types/enums";
 import type { JobRead } from "@/types/jobs";
 
+import ContactJobDialog from "./components/ContactJobDialog";
 import JobCreateDialog from "./components/JobCreateDialog";
 import JobDialog from "./components/JobDialog";
 import JobRecordPane from "./components/JobRecordPane";
@@ -47,6 +47,9 @@ const ALL_STATUSES = [
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
+type JobSortColumn = "name" | "created_at" | "status";
+const naturalOrder = (column: JobSortColumn): "asc" | "desc" =>
+  column === "created_at" ? "desc" : "asc";
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -67,20 +70,32 @@ export default function AdminJobsPage() {
     return ALL_FILTER;
   });
 
-  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
-    column: "created_at",
-    order: "desc",
-  });
-  const handleSort = (column: "name" | "created_at") =>
-    toggle(column, column === "name" ? "asc" : "desc");
+  const { chain, click, replace } = useSortChain<JobSortColumn>([
+    { column: "status", order: "asc" },
+    { column: "created_at", order: "desc" },
+  ]);
+  const handleSort = (column: JobSortColumn) => click(column, naturalOrder(column));
+  const [primary, secondary] = chain;
+  const { column: sort, order } = primary;
+  const sort2 = secondary?.column;
+  const order2 = secondary?.order;
+  const columnState = (column: JobSortColumn) => {
+    const idx = chain.findIndex((key) => key.column === column);
+    if (idx === -1) return { active: false, order: "desc" as const, rank: undefined };
+    return {
+      active: true,
+      order: chain[idx].order,
+      rank: chain.length > 1 ? ((idx + 1) as 1 | 2) : undefined,
+    };
+  };
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<JobRead>> => {
       const params: { status?: JobStatus; cursor: string | null } = { cursor };
       if (filter !== ALL_FILTER) params.status = filter as JobStatus;
-      return getJobs({ ...params, sort, order });
+      return getJobs({ ...params, sort, order, sort2, order2 });
     },
-    [filter, sort, order],
+    [filter, sort, order, sort2, order2],
   );
 
   const {
@@ -103,8 +118,8 @@ export default function AdminJobsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [deletePending, setDeletePending] = useState<JobRead | null>(null);
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
+  const [contactPending, setContactPending] = useState<JobRead | null>(null);
   const [isPendingMutation, setIsPendingMutation] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Client-side filters (applied to the loaded set).
   // Status is the only filter that re-fetches server-side (see fetcher above);
@@ -124,10 +139,15 @@ export default function AdminJobsPage() {
   }, [jobs]);
 
   const uniqueCompanies = useMemo(() => {
-    const seen = new Set<number>();
-    for (const j of jobs) seen.add(j.company_id);
-    return Array.from(seen);
+    const seen = new Map<number, string>();
+    for (const j of jobs) seen.set(j.company_id, j.company_name);
+    return Array.from(seen.keys());
   }, [jobs]);
+
+  const companyNameById = useMemo(
+    () => new Map(jobs.map((j) => [j.company_id, j.company_name])),
+    [jobs],
+  );
 
   const salaryBounds = useMemo(() => {
     let lo = Infinity,
@@ -213,43 +233,8 @@ export default function AdminJobsPage() {
     setSalaryRange(null);
   }
 
-  // Load company names + emails for the filter chip and the mailto action.
-  const [companyNameById, setCompanyNameById] = useState<Map<number, string>>(
-    new Map(),
-  );
-  const [companyEmailById, setCompanyEmailById] = useState<Map<number, string>>(
-    new Map(),
-  );
-  useEffect(() => {
-    if (uniqueCompanies.length === 0) return;
-    const ctrl = new AbortController();
-    getActiveCompanies({ limit: 100 }, ctrl.signal)
-      .then((page) => {
-        const names = new Map<number, string>();
-        const emails = new Map<number, string>();
-        for (const row of page.items) {
-          names.set(row.company_profile.id, row.company_profile.name);
-          if (row.user?.email) {
-            emails.set(row.company_profile.id, row.user.email);
-          }
-        }
-        setCompanyNameById(names);
-        setCompanyEmailById(emails);
-      })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, [uniqueCompanies.length]);
-
-  function openMailToCompany(job: JobRead) {
-    const email = companyEmailById.get(job.company_id);
-    if (!email) {
-      toast.error(t("admin:jobs.emailNoAddress"));
-      return;
-    }
-    const subject = encodeURIComponent(
-      t("admin:jobs.emailSubjectPrefix", { title: job.title }),
-    );
-    window.open(`mailto:${email}?subject=${subject}`, "_self");
+  function openContactJob(job: JobRead) {
+    setContactPending(job);
   }
 
   const selectedJob = selectedId != null ? jobs.find((j) => j.id === selectedId) : undefined;
@@ -321,8 +306,10 @@ export default function AdminJobsPage() {
     <SortControl
       ariaLabel={t("admin:jobs.sort.label")}
       value={`${sort}:${order}`}
-      onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+      onChange={(col, ord) => replace(col as JobSortColumn, ord)}
       options={[
+        { value: "status:asc", label: t("admin:jobs.sort.statusAsc") },
+        { value: "status:desc", label: t("admin:jobs.sort.statusDesc") },
         { value: "created_at:desc", label: t("admin:jobs.sort.dateDesc") },
         { value: "created_at:asc", label: t("admin:jobs.sort.dateAsc") },
         { value: "name:asc", label: t("admin:jobs.sort.nameAsc") },
@@ -391,6 +378,11 @@ export default function AdminJobsPage() {
 
   const dialogs = (
     <>
+      <ContactJobDialog
+        job={contactPending}
+        companyName={contactPending ? companyNameById.get(contactPending.company_id) : undefined}
+        onClose={() => setContactPending(null)}
+      />
       <JobDialog
         job={detail}
         companyName={detail ? companyNameById.get(detail.company_id) : undefined}
@@ -488,12 +480,11 @@ export default function AdminJobsPage() {
               onApprove={handleApprove}
               onReject={setRejectPending}
               onDelete={setDeletePending}
-              onMailto={openMailToCompany}
+              onMailto={openContactJob}
             />
             <JobsTable
               jobs={filteredJobs}
-              sort={sort}
-              order={order}
+              columnState={columnState}
               onSort={handleSort}
               statusLabels={STATUS_LABELS}
               statusColors={JOB_STATUS_COLORS}
@@ -502,7 +493,7 @@ export default function AdminJobsPage() {
               onApprove={handleApprove}
               onReject={setRejectPending}
               onDelete={setDeletePending}
-              onMailto={openMailToCompany}
+              onMailto={openContactJob}
             />
             <InfiniteScrollFooter
               sentinelRef={sentinelRef}
@@ -517,8 +508,7 @@ export default function AdminJobsPage() {
 
   return (
     <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      recordPresent={selectedId != null}
       showListLabel={t("admin:jobs.record.showList")}
       hideListLabel={t("admin:jobs.record.hideList")}
       rail={
