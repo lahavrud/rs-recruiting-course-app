@@ -107,8 +107,13 @@ services:
     # Logs via OTLP (telemetry.py LoggerProvider → Alloy :4317 → Loki).
 
   worker:
-    image: ${ECR_REGISTRY}/rs-recruiting/api:${IMAGE_TAG}
-    command: ["python", "-m", "src.worker"]
+    # INFRA FOLLOW-UP: the worker is now a separate, lean image (no web stack).
+    # CI must build & push rs-recruiting/worker (and the shared base) — see
+    # services/worker/Dockerfile. Until the pipeline builds two images, this
+    # reference won't resolve. The api image no longer contains the `rs-worker`
+    # entrypoint, so the worker can't reuse it anymore.
+    image: ${ECR_REGISTRY}/rs-recruiting/worker:${IMAGE_TAG}
+    command: ["rs-worker"]
     environment:
       - ENVIRONMENT=production
       - SENTRY_RELEASE=${IMAGE_TAG}

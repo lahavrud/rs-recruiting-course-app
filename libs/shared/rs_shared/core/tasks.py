@@ -62,6 +62,7 @@ async def _sqs_send(message: dict) -> str:
     async with session.client(
         "sqs",
         region_name=settings.aws_region,
+        endpoint_url=settings.sqs_endpoint_url,
     ) as sqs:
         resp = await sqs.send_message(
             QueueUrl=settings.sqs_queue_url,

@@ -93,6 +93,9 @@ class Settings(BaseSettings):
 
     # SQS task queue — empty string means tasks run inline (local dev)
     sqs_queue_url: str = ""
+    # Custom SQS endpoint for LocalStack / local dev (mirrors aws_s3_endpoint_url).
+    # None uses the real AWS endpoint for the region.
+    sqs_endpoint_url: Optional[str] = None
 
     # AWS Configuration
     aws_access_key_id: Optional[str] = None

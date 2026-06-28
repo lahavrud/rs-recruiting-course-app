@@ -86,7 +86,11 @@ async def run(stop_event: asyncio.Event) -> None:
     logger.info("worker_starting", extra={"queue": settings.sqs_queue_url})
 
     session = aioboto3.Session()
-    async with session.client("sqs", region_name=settings.aws_region) as sqs:
+    async with session.client(
+        "sqs",
+        region_name=settings.aws_region,
+        endpoint_url=settings.sqs_endpoint_url,
+    ) as sqs:
         while not stop_event.is_set():
             resp = await sqs.receive_message(
                 QueueUrl=settings.sqs_queue_url,

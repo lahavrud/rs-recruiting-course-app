@@ -12,22 +12,33 @@
 
 IMAGE_TAG ?= local
 BASE_IMAGE ?= rs-recruiting-base:$(IMAGE_TAG)
-BUILDX ?= docker buildx build --load
+BUILD ?= docker buildx build --load
 
-.PHONY: images base api worker
+.PHONY: images base api worker up down logs
 
 # Build every service image (base first).
 images: base api worker
 
+# Bring up the full local stack (builds images first, since compose does not
+# build the shared base image).
+up: images
+	docker compose up -d
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f api worker
+
 base:
-	$(BUILDX) -f docker/base.Dockerfile -t $(BASE_IMAGE) .
+	$(BUILD) -f docker/base.Dockerfile -t $(BASE_IMAGE) .
 
 api: base
-	$(BUILDX) -f services/api/Dockerfile \
+	$(BUILD) -f services/api/Dockerfile \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-t rs-recruiting-api:$(IMAGE_TAG) .
 
 worker: base
-	$(BUILDX) -f services/worker/Dockerfile \
+	$(BUILD) -f services/worker/Dockerfile \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-t rs-recruiting-worker:$(IMAGE_TAG) .

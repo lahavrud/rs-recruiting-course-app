@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from pgvector.sqlalchemy import Vector
 from pydantic import field_validator
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -230,6 +231,26 @@ class PasswordResetToken(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class EmailQuota(SQLModel, table=True):
+    """Daily email-send counter (one row per calendar day).
+
+    Written via a raw-SQL upsert by the worker after each successful send
+    (see ``core/services/email_quota.py``). Modeled here so SQLModel's
+    ``create_all`` builds it in dev/test exactly as Alembic migration
+    ``e03b8aa073a3`` builds it in production — keep the two in sync.
+    """
+
+    __tablename__ = "email_quota"
+
+    # Attribute is `day` (a bare `date` field name clashes with the `date` type
+    # under pydantic v2); the DB column is "date" to match migration e03b8aa073a3.
+    day: date = Field(sa_column=Column("date", Date, primary_key=True, nullable=False))
+    count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
     )
 
 
