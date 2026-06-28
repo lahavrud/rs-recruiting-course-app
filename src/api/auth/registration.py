@@ -17,13 +17,13 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import exc as sqlalchemy_exc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.uploads import validate_upload
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.invite_tokens import validate_invite_token
 from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.transactions import transactional
-from src.core.services.file_validation import validate_upload
 from src.schemas import CompanyProfileCreate, UserCreate, UserWithCompanyRead
 from src.services.auth.registration import (
     CompanyRegistrationData,

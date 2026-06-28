@@ -21,6 +21,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api._resume_streaming import basename_from_storage_key, stream_resume
+from src.api.uploads import validate_upload
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import client_ip, get_current_candidate
 from src.core.infrastructure.error_handling import service_exception_to_http
@@ -29,7 +30,6 @@ from src.core.infrastructure.pagination import (
     MAX_LIMIT,
     CursorPage,
 )
-from src.core.services.file_validation import validate_upload
 from src.core.services.storage import get_storage_provider
 from src.models import CandidateProfile, User
 from src.schemas import (

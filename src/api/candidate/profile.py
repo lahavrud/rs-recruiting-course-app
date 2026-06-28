@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.uploads import validate_upload
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.dependencies import get_current_candidate
 from src.core.infrastructure.transactions import transactional
-from src.core.services.file_validation import validate_upload
 from src.core.services.storage import get_storage_provider
 from src.models import CandidateProfile, User
 from src.schemas import CandidateMeRead, CandidateMeUpdate

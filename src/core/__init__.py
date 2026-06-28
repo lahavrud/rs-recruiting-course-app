@@ -4,6 +4,12 @@ Structure:
 - `core/infrastructure/` - Pure infrastructure (config, database, security,
   limiter, dependencies)
 - `core/services/` - Infrastructure services for external systems (email, storage)
+
+NOTE: this barrel deliberately does NOT re-export the FastAPI/slowapi-coupled
+modules (`infrastructure.dependencies`, `infrastructure.limiter`). Python runs
+this `__init__` on *any* `src.core.*` import, so re-exporting them here would
+drag the whole web stack into the worker process. Import those from their
+submodules in the API layer instead.
 """
 
 # Re-export infrastructure modules for backward compatibility
@@ -20,8 +26,6 @@ from src.core.infrastructure.database import (
     get_session,
     init_db,
 )
-from src.core.infrastructure.dependencies import get_current_admin, get_current_user
-from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.security import (
     create_access_token,
     decode_access_token,
@@ -52,11 +56,6 @@ __all__ = [
     "async_session",
     "get_session",
     "init_db",
-    # Dependencies
-    "get_current_user",
-    "get_current_admin",
-    # Limiter
-    "get_limiter",
     # Security
     "create_access_token",
     "decode_access_token",

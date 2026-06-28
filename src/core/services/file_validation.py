@@ -1,10 +1,12 @@
-"""Magic byte validation and upload guards for uploaded files.
+"""Magic byte validation for uploaded files.
 
 Verifies that the actual file content matches the declared file type,
 preventing extension-spoofing attacks (e.g. renaming malware.exe to resume.pdf).
-"""
 
-from fastapi import HTTPException, UploadFile
+Pure, framework-free functions over bytes — no FastAPI. The HTTP-facing upload
+guard (`UploadFile` → bytes, size/MIME checks raising `HTTPException`) lives in
+`src/api/uploads.py` so the worker never imports the web stack.
+"""
 
 _JPEG = b"\xff\xd8\xff"
 _PNG = b"\x89PNG\r\n\x1a\n"
@@ -30,23 +32,6 @@ def is_valid_image_magic_bytes(data: bytes, declared_mime: str) -> bool:
         return len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"
     sigs = _IMAGE_SIGNATURES.get(declared_mime, [])
     return any(data.startswith(sig) for sig in sigs)
-
-
-async def validate_upload(
-    file: UploadFile,
-    allowed_types: set[str],
-    max_bytes: int,
-) -> bytes:
-    """Validate content type and size; return file bytes on success.
-
-    Raises HTTPException 422 for disallowed MIME type, 413 for oversized file.
-    """
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=422, detail="unsupported_file_type")
-    content = await file.read()
-    if len(content) > max_bytes:
-        raise HTTPException(status_code=413, detail="file_too_large")
-    return content
 
 
 def is_valid_document_magic_bytes(data: bytes, extension: str) -> bool:

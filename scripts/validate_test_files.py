@@ -42,6 +42,11 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     # tests/api/public/test_applications.py respectively.
     "src/services/public/_application_helpers.py",
     "src/api/public/_apply_handler.py",
+    # HTTP upload guard (UploadFile → bytes, MIME/size checks). A thin FastAPI
+    # wrapper split out of core/services/file_validation.py to keep the domain
+    # framework-free; exercised end-to-end via the four upload-endpoint tests
+    # (auth registration, candidate profile, candidate + public applications).
+    "src/api/uploads.py",
     # Sprint 11 / #609 — shared resume-streaming helper imported by both
     # the admin (src/api/company/resumes.py) and candidate-facing
     # (src/api/candidate/applications.py) resume endpoints. Exercised

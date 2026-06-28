@@ -14,10 +14,10 @@ domain exceptions only.
 from fastapi import HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.uploads import validate_upload
 from src.core.infrastructure.dependencies import client_ip
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.transactions import transactional
-from src.core.services.file_validation import validate_upload
 from src.enums import UserRole
 from src.models import User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead

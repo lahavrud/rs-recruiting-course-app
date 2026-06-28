@@ -1,4 +1,4 @@
-"""Tests for RequestMiddleware and RequestIdFilter."""
+"""Tests for RequestMiddleware (the Starlette request-correlation middleware)."""
 
 import logging
 
@@ -9,11 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from src.core.infrastructure.middleware import (
-    RequestIdFilter,
-    RequestMiddleware,
-    request_id_var,
-)
+from src.core.infrastructure.middleware import RequestMiddleware, request_id_var
 
 
 def _make_app(handler=None):
@@ -125,39 +121,3 @@ async def test_error_still_logs_with_500(caplog):
     records = [r for r in caplog.records if r.getMessage() == "request"]
     assert len(records) == 1
     assert records[0].__dict__["status_code"] == 500
-
-
-def test_request_id_filter_injects_field():
-    """RequestIdFilter adds request_id to every LogRecord."""
-    token = request_id_var.set("test-uuid-1234")
-    try:
-        f = RequestIdFilter()
-        record = logging.LogRecord(
-            name="test",
-            level=logging.INFO,
-            pathname="",
-            lineno=0,
-            msg="hello",
-            args=(),
-            exc_info=None,
-        )
-        f.filter(record)
-        assert record.__dict__["request_id"] == "test-uuid-1234"
-    finally:
-        request_id_var.reset(token)
-
-
-def test_request_id_filter_empty_outside_request():
-    """Outside a request context, request_id is an empty string."""
-    f = RequestIdFilter()
-    record = logging.LogRecord(
-        name="test",
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg="hello",
-        args=(),
-        exc_info=None,
-    )
-    f.filter(record)
-    assert record.__dict__["request_id"] == ""

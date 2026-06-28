@@ -24,7 +24,7 @@ from opentelemetry import trace as otel_trace
 from pythonjsonlogger import json as jsonlogger
 
 from src.core.infrastructure.config import settings
-from src.core.infrastructure.middleware import RequestIdFilter
+from src.core.infrastructure.request_context import RequestIdFilter
 from src.core.infrastructure.telemetry import configure_telemetry, shutdown_telemetry
 from src.core.tasks import TASK_REGISTRY
 

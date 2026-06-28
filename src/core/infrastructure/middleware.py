@@ -1,10 +1,14 @@
-"""FastAPI middleware: request correlation IDs and APM latency logging."""
+"""FastAPI middleware: request correlation IDs and APM latency logging.
+
+The framework-free logging primitives (`request_id_var`, `RequestIdFilter`)
+live in `request_context.py` so the worker can use them without Starlette;
+they're re-exported here for backward compatibility with existing imports.
+"""
 
 import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from contextvars import ContextVar
 
 import sentry_sdk
 from opentelemetry import trace as otel_trace
@@ -12,23 +16,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+from src.core.infrastructure.request_context import RequestIdFilter, request_id_var
+
+__all__ = ["RequestIdFilter", "RequestMiddleware", "request_id_var"]
 
 logger = logging.getLogger(__name__)
 
 _HEALTH_PATH = "/health"
-
-
-class RequestIdFilter(logging.Filter):
-    """Inject the current request_id into every LogRecord emitted in this context.
-
-    Install once on the root logger so every logger in the process picks it up.
-    When called outside a request context the field is an empty string.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = request_id_var.get("")  # type: ignore[attr-defined]  # dynamically attaching request_id to LogRecord; stdlib stubs don't declare it
-        return True
 
 
 class RequestMiddleware(BaseHTTPMiddleware):
