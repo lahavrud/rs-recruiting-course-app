@@ -29,7 +29,7 @@ jobs:
   # ── RC: build & push image only ─────────────────────────────────────────
 
   build-rc:
-    name: Build & push RC image
+    name: Build & push RC images
     if: contains(github.ref_name, '-rc.')
     runs-on: ubuntu-latest
     permissions:
@@ -41,14 +41,17 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 1
 
+      # Build once into the ops/shared-services account. prod + staging pull the
+      # same images cross-account (the ecr units grant their account roots pull),
+      # so there's no longer a per-account mirror step.
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OPS_ECR_PUSH_ROLE_ARN }}
           aws-region: us-east-1
 
       - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      - name: Check if RC image already in ECR
+      - name: Check if RC images already in ECR
         id: rc_exists
         run: |
           if aws ecr describe-images \
@@ -56,46 +59,16 @@ jobs:
             --image-ids imageTag=${{ github.ref_name }} \
             --region us-east-1 > /dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "==> Image already exists — skipping build"
+            echo "==> RC images already exist — skipping build"
           fi
 
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Build & push RC images (base + api + worker)
         if: steps.rc_exists.outputs.exists != 'true'
-
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        if: steps.rc_exists.outputs.exists != 'true'
+        uses: ./.github/actions/build-images
         with:
-          context: .
-          push: true
-          provenance: false
-          sbom: false
-          tags: |
-            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
-            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.sha }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-
-      # Mirror the RC image into the staging account's ECR so the ephemeral
-      # staging EC2 (separate account) can pull it. imagetools copies the
-      # manifest server-side, so this works whether the image was just built or
-      # already existed (build skipped). Logging in to staging ECR leaves the
-      # prod login in place — docker keeps per-registry credentials.
-      - name: Log in to staging ECR
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
-        with:
-          # Persistent base-account role (tofu/staging) — the ephemeral
-          # github-actions deploy role doesn't exist until staging-app applies,
-          # which happens AFTER this mirror step. See tofu/staging/iam.tf.
-          role-to-assume: ${{ secrets.AWS_STAGING_ECR_PUSH_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
-
-      - name: Mirror RC image to staging ECR
-        run: |
-          docker buildx imagetools create \
-            --tag ${{ secrets.STAGING_ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }} \
-            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
+          registry: ${{ secrets.OPS_ECR_REGISTRY }}
+          image-tag: ${{ github.ref_name }}
+          sha: ${{ github.sha }}
 
       - name: Mint GitHub App token (infra repo)
         id: app-token
@@ -130,55 +103,58 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 1
 
+      # Image promotion happens in the ops account (the build-once registry).
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OPS_ECR_PUSH_ROLE_ARN }}
           aws-region: us-east-1
 
       - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      - name: Promote existing RC image, or build fresh
+      - name: Re-tag RC images to the final tag, or flag a rebuild
         id: promote
         run: |
           set -euo pipefail
           SHA="${{ github.sha }}"
           TAG="${{ github.ref_name }}"
-          if aws ecr describe-images \
-            --repository-name rs-recruiting/api \
-            --image-ids imageTag="${SHA}" \
-            --region us-east-1 > /dev/null 2>&1; then
-            echo "==> Found image for ${SHA} — re-tagging ${TAG} (no rebuild)"
-            IMAGE_MANIFEST=$(aws ecr batch-get-image \
-              --repository-name rs-recruiting/api \
+          rebuild=false
+          for repo in rs-recruiting/api rs-recruiting/worker; do
+            if aws ecr describe-images \
+              --repository-name "${repo}" \
               --image-ids imageTag="${SHA}" \
-              --region us-east-1 \
-              --query 'images[0].imageManifest' --output text)
-            aws ecr put-image \
-              --repository-name rs-recruiting/api \
-              --image-tag "${TAG}" \
-              --image-manifest "${IMAGE_MANIFEST}" \
-              --region us-east-1 > /dev/null
-            echo "rebuild=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "==> No image found for ${SHA} — building fresh (no preceding RC; safety net)"
-            echo "rebuild=true" >> "$GITHUB_OUTPUT"
-          fi
+              --region us-east-1 > /dev/null 2>&1; then
+              echo "==> ${repo}: found ${SHA} — re-tagging ${TAG} (no rebuild)"
+              MANIFEST=$(aws ecr batch-get-image \
+                --repository-name "${repo}" \
+                --image-ids imageTag="${SHA}" \
+                --region us-east-1 \
+                --query 'images[0].imageManifest' --output text)
+              aws ecr put-image \
+                --repository-name "${repo}" \
+                --image-tag "${TAG}" \
+                --image-manifest "${MANIFEST}" \
+                --region us-east-1 > /dev/null
+            else
+              echo "==> ${repo}: no image for ${SHA} — building fresh (no preceding RC; safety net)"
+              rebuild=true
+            fi
+          done
+          echo "rebuild=${rebuild}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Build & push fresh images (base + api + worker)
         if: steps.promote.outputs.rebuild == 'true'
-
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        if: steps.promote.outputs.rebuild == 'true'
+        uses: ./.github/actions/build-images
         with:
-          context: .
-          push: true
-          provenance: false
-          sbom: false
-          tags: |
-            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
-            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.sha }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          registry: ${{ secrets.OPS_ECR_REGISTRY }}
+          image-tag: ${{ github.ref_name }}
+          sha: ${{ github.sha }}
+
+      # Version-pinned deploy artifacts live in the PROD account's deploy bucket;
+      # switch credentials from ops -> prod for the upload.
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
       - name: Upload version-pinned artifacts to S3
         run: |
@@ -240,6 +216,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           instance-id: ${{ secrets.EC2_INSTANCE_ID }}
+          ecr-registry: ${{ secrets.OPS_ECR_REGISTRY }}
 
   # ── GitHub Release ──────────────────────────────────────────────────────
 
