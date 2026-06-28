@@ -26,8 +26,9 @@
 Resolves initial state synchronously from `localStorage`, then verifies via `/api/auth/me` on mount. Never block render waiting for the verify call — the sync read is the optimistic state.
 
 ## What lives where
-- Session logic: `src/services/auth/session.py`
-- Registration: `src/services/auth/registration.py` (company) + `src/services/auth/candidate_registration.py`
-- Activation: `src/services/auth/activation.py`
-- Password reset: `src/services/auth/password_reset.py`
+- Session logic: `libs/shared/rs_shared/services/auth/session.py`
+- Registration: `libs/shared/rs_shared/services/auth/registration.py` (company) + `.../candidate_registration.py`
+- Activation: `libs/shared/rs_shared/services/auth/activation.py`
+- Password reset: `libs/shared/rs_shared/services/auth/password_reset.py`
+- Auth API routers: `services/api/rs_api/api/auth/`; web infra (auth deps, slowapi limiter): `services/api/rs_api/infrastructure/`
 - Route guards: `frontend/src/components/guards/`

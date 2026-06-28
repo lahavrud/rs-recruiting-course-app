@@ -68,3 +68,29 @@ asyncio_default_fixture_loop_scope = "function"
 # that occur with __init__.py-based package imports in xdist workers.
 addopts = "--durations=20"
 filterwarnings = []
+
+# import-linter — structural guard behind the lean images. Run with
+# `uv run lint-imports`. Keeps the web stack out of the shared domain and the
+# worker so their images never re-acquire FastAPI/uvicorn/slowapi/starlette,
+# and stops the shared layer from depending on the services.
+[tool.importlinter]
+root_packages = ["rs_shared", "rs_api", "rs_worker"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Shared domain is framework-free"
+type = "forbidden"
+source_modules = ["rs_shared"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi"]
+
+[[tool.importlinter.contracts]]
+name = "Worker carries no web stack"
+type = "forbidden"
+source_modules = ["rs_worker"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi"]
+
+[[tool.importlinter.contracts]]
+name = "Shared domain does not depend on the services"
+type = "forbidden"
+source_modules = ["rs_shared"]
+forbidden_modules = ["rs_api", "rs_worker"]
