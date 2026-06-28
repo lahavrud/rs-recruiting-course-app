@@ -13,7 +13,6 @@ than running twice.
 """
 
 import asyncio
-import base64
 import json
 import logging
 import signal
@@ -29,6 +28,7 @@ from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
 )
+from rs_shared.core.task_contract import TaskName, decode_message
 from rs_shared.core.tasks import TASK_REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -54,24 +54,9 @@ def _configure_logging() -> None:
     root.setLevel(logging.INFO)
 
 
-def _deserialize_message(body: dict) -> tuple[str, dict]:
-    """Extract task name and kwargs from the parsed SQS message body.
-
-    Attachments are base64-encoded strings in transit; decode them back to
-    bytes before passing to send_email_task.
-    """
-    task_name = body.pop("task")
-    if "attachments" in body and body["attachments"]:
-        body["attachments"] = [
-            (name, base64.b64decode(data), mime)
-            for name, data, mime in body["attachments"]
-        ]
-    return task_name, body
-
-
 async def _process_message(raw_body: str) -> str:
     body = json.loads(raw_body)
-    task_name, kwargs = _deserialize_message(body)
+    task_name, kwargs = decode_message(body)
 
     fn = TASK_REGISTRY.get(task_name)
     if fn is None:
@@ -118,7 +103,7 @@ async def run(stop_event: asyncio.Event) -> None:
                         ReceiptHandle=receipt,
                     )
                     delay = settings.email_send_delay_seconds
-                    if task_name == "send_email" and delay > 0:
+                    if task_name == TaskName.SEND_EMAIL and delay > 0:
                         await asyncio.sleep(delay)
                 except Exception:
                     logger.exception(

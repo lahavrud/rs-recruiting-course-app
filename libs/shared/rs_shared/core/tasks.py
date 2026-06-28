@@ -1,15 +1,18 @@
 """Async task definitions and SQS producer.
 
 Tasks are plain async functions — no Arq context arg. They are called
-directly by the SQS worker (src/worker.py) and inline during local dev
+directly by the SQS worker (rs_worker/worker.py) and inline during local dev
 (when SQS_QUEUE_URL is not configured).
+
+The wire format of every message (the ``{"task": ..., ...kwargs}`` envelope and
+its attachment encoding) is defined once in ``rs_shared.core.task_contract`` and
+shared with the worker so the two sides cannot drift.
 
 Public API (unchanged from Arq era — all 10+ call sites still work):
   enqueue_email_task(to, subject, body, ...)  → MessageId | "inline"
   enqueue_data_export_task(user_id)           → MessageId | "inline"
 """
 
-import base64
 import json
 import logging
 import time
@@ -24,6 +27,13 @@ from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.core.matching import embed_job_task, match_candidate_task
 from rs_shared.core.services.email import get_email_provider
 from rs_shared.core.services.email_quota import increment_and_alert
+from rs_shared.core.task_contract import (
+    TaskName,
+    build_data_export_message,
+    build_email_message,
+    build_embed_job_message,
+    build_match_candidate_message,
+)
 from rs_shared.core.utils import mask_email
 
 logger = logging.getLogger(__name__)
@@ -198,23 +208,15 @@ async def enqueue_email_task(
         )
         return "inline"
 
-    serialized_attachments = None
-    if attachments:
-        serialized_attachments = [
-            [name, base64.b64encode(data).decode(), mime]
-            for name, data, mime in attachments
-        ]
-
     message_id = await _sqs_send(
-        {
-            "task": "send_email",
-            "to": to,
-            "subject": subject,
-            "body": body,
-            "html_body": html_body,
-            "attachments": serialized_attachments,
-            "from_email": from_email,
-        }
+        build_email_message(
+            to=to,
+            subject=subject,
+            body=body,
+            html_body=html_body,
+            attachments=attachments,
+            from_email=from_email,
+        )
     )
     logger.info(
         "email_enqueued", extra={"message_id": message_id, "to": mask_email(to)}
@@ -234,7 +236,7 @@ async def enqueue_data_export_task(user_id: int) -> str:
         asyncio.create_task(build_data_export_task(user_id))
         return "inline"
 
-    message_id = await _sqs_send({"task": "build_data_export", "user_id": user_id})
+    message_id = await _sqs_send(build_data_export_message(user_id))
     logger.info(
         "data_export_enqueued", extra={"message_id": message_id, "user_id": user_id}
     )
@@ -249,7 +251,7 @@ async def enqueue_embed_job_task(job_id: int) -> str:
         asyncio.create_task(embed_job_task(job_id))
         return "inline"
 
-    message_id = await _sqs_send({"task": "embed_job", "job_id": job_id})
+    message_id = await _sqs_send(build_embed_job_message(job_id))
     logger.info(
         "embed_job_enqueued", extra={"message_id": message_id, "job_id": job_id}
     )
@@ -264,9 +266,7 @@ async def enqueue_match_candidate_task(candidate_id: int) -> str:
         asyncio.create_task(match_candidate_task(candidate_id))
         return "inline"
 
-    message_id = await _sqs_send(
-        {"task": "match_candidate", "candidate_id": candidate_id}
-    )
+    message_id = await _sqs_send(build_match_candidate_message(candidate_id))
     logger.info(
         "match_candidate_enqueued",
         extra={"message_id": message_id, "candidate_id": candidate_id},
@@ -281,9 +281,9 @@ async def enqueue_match_candidate_task(candidate_id: int) -> str:
 # Maps the "task" field in the SQS message body to the implementing coroutine.
 # Add new tasks here; the worker picks them up without any other changes.
 TASK_REGISTRY: dict = {
-    "send_email": send_email_task,
-    "build_data_export": build_data_export_task,
-    "purge_expired_candidates": purge_expired_candidate_data_task,
-    "embed_job": embed_job_task,
-    "match_candidate": match_candidate_task,
+    TaskName.SEND_EMAIL: send_email_task,
+    TaskName.BUILD_DATA_EXPORT: build_data_export_task,
+    TaskName.PURGE_EXPIRED_CANDIDATES: purge_expired_candidate_data_task,
+    TaskName.EMBED_JOB: embed_job_task,
+    TaskName.MATCH_CANDIDATE: match_candidate_task,
 }
