@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.core.infrastructure.config import settings
-from src.core.services.email import (
+from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.services.email import (
     SESEmailProvider,
     SMTPEmailProvider,
     get_email_provider,
@@ -28,7 +28,7 @@ class TestSMTPEmailProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
+    @patch("rs_shared.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
     async def test_send_email_success(self, mock_send, provider: SMTPEmailProvider):
         """Test successful email sending via SMTP."""
         result = await provider.send_email(
@@ -48,7 +48,7 @@ class TestSMTPEmailProvider:
         assert kwargs["timeout"] == 30
 
     @pytest.mark.asyncio
-    @patch("src.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
+    @patch("rs_shared.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
     async def test_send_email_multiple_recipients(
         self, mock_send, provider: SMTPEmailProvider
     ):
@@ -66,7 +66,7 @@ class TestSMTPEmailProvider:
         assert "recipient2@example.com" in msg["To"]
 
     @pytest.mark.asyncio
-    @patch("src.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
+    @patch("rs_shared.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
     async def test_send_email_without_auth(self, mock_send):
         """Test sending email without authentication."""
         provider = SMTPEmailProvider(
@@ -88,7 +88,7 @@ class TestSMTPEmailProvider:
         assert kwargs["password"] is None
 
     @pytest.mark.asyncio
-    @patch("src.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
+    @patch("rs_shared.core.services.email.aiosmtplib.send", new_callable=AsyncMock)
     async def test_send_email_failure(self, mock_send, provider: SMTPEmailProvider):
         """Test email sending failure."""
         mock_send.side_effect = Exception("SMTP error")

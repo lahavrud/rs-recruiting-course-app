@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.core.infrastructure.config import (
+from rs_shared.core.infrastructure.config import (
     Settings,
     get_jwt_secret_key,
     validate_settings,
@@ -17,7 +17,7 @@ class TestValidateSettings:
 
     def test_validate_settings_valid_jwt_secret_key(self):
         """Test that valid JWT secret key passes validation."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.testing = False
             mock_settings.jwt_secret_key = "a" * 32  # Valid 32+ char key
 
@@ -26,7 +26,7 @@ class TestValidateSettings:
 
     def test_validate_settings_missing_jwt_secret_key(self):
         """Test that missing JWT secret key raises ValueError."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.testing = False
             mock_settings.jwt_secret_key = None
 
@@ -35,7 +35,7 @@ class TestValidateSettings:
 
     def test_validate_settings_short_jwt_secret_key(self):
         """Test that short JWT secret key (< 32 chars) raises ValueError."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.testing = False
             mock_settings.jwt_secret_key = "short"  # Less than 32 chars
 
@@ -44,7 +44,7 @@ class TestValidateSettings:
 
     def test_validate_settings_default_placeholder_jwt_secret_key(self):
         """Test that default/placeholder JWT secret key raises ValueError."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.testing = False
             mock_settings.jwt_secret_key = "your-secret-key-change-in-production"
 
@@ -53,7 +53,7 @@ class TestValidateSettings:
 
     def test_validate_settings_testing_mode_skips_validation(self):
         """Test that testing mode skips validation."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.testing = True
             mock_settings.jwt_secret_key = None  # Invalid, but should be skipped
 
@@ -66,7 +66,7 @@ class TestGetJWTSecretKey:
 
     def test_get_jwt_secret_key_returns_secret_after_validation(self):
         """Test that get_jwt_secret_key returns secret key after validation."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.jwt_secret_key = "a" * 32
             # Validate first
             validate_settings()
@@ -76,7 +76,7 @@ class TestGetJWTSecretKey:
 
     def test_get_jwt_secret_key_raises_assertion_error_if_not_validated(self):
         """Test that get_jwt_secret_key raises AssertionError if not validated."""
-        with patch("src.core.infrastructure.config.settings") as mock_settings:
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
             mock_settings.jwt_secret_key = None
 
             # Should raise AssertionError if jwt_secret_key is None

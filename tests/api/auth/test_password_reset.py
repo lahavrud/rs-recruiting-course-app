@@ -6,13 +6,13 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.core.infrastructure.security import (
+from rs_shared.core.infrastructure.security import (
     get_password_hash,
     hash_token,
     is_password_valid,
 )
-from src.enums import UserRole
-from src.models import PasswordResetToken, RefreshToken, User
+from rs_shared.enums import UserRole
+from rs_shared.models import PasswordResetToken, RefreshToken, User
 
 
 # Pull in the (no-longer-autouse) per-email rate-limit mock for every test in

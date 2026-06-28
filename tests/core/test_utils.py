@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.utils import mask_email
+from rs_shared.core.utils import mask_email
 
 
 @pytest.mark.parametrize(

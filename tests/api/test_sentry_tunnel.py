@@ -7,7 +7,7 @@ import httpx
 import pytest
 from httpx import AsyncClient
 
-from src.core.infrastructure.config import settings
+from rs_shared.core.infrastructure.config import settings
 
 VALID_DSN = "https://abc123@o12345.ingest.sentry.io/4567890"
 
@@ -99,7 +99,7 @@ async def test_forwards_envelope_to_sentry(public_client: AsyncClient, _configur
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
-    with patch("src.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
         resp = await public_client.post("/api/sentry-tunnel", content=body)
 
     assert resp.status_code == 200
@@ -121,7 +121,7 @@ async def test_returns_502_when_upstream_unreachable(
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
-    with patch("src.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
         resp = await public_client.post(
             "/api/sentry-tunnel", content=_envelope(VALID_DSN)
         )
@@ -141,7 +141,7 @@ async def test_relays_upstream_error_status(public_client: AsyncClient, _configu
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
-    with patch("src.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
         resp = await public_client.post(
             "/api/sentry-tunnel", content=_envelope(VALID_DSN)
         )

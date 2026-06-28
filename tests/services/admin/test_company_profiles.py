@@ -4,14 +4,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CompanyProfile
-from src.schemas import CompanyProfileAdminCreate, CompanyProfileAdminUpdate
-from src.services.admin.company_profiles import (
+from rs_shared.models import CompanyProfile
+from rs_shared.schemas import CompanyProfileAdminCreate, CompanyProfileAdminUpdate
+from rs_shared.services.admin.company_profiles import (
     admin_create_company,
     get_company_profile,
     update_company_profile,
 )
-from src.services.exceptions import CompanyNotFoundError
+from rs_shared.services.exceptions import CompanyNotFoundError
 
 
 def _admin_create_payload(name: str = "אדמין-קומפ") -> CompanyProfileAdminCreate:

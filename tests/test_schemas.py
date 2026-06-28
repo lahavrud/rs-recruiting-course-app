@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.schemas import (
+from rs_shared.schemas import (
     CandidateProfileCreate,
     JobAdminCreate,
     JobCreate,

@@ -7,7 +7,7 @@ import httpx
 import pytest
 from httpx import AsyncClient
 
-from src.core.infrastructure.config import settings
+from rs_shared.core.infrastructure.config import settings
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ async def test_forwards_event_to_ga4(public_client: AsyncClient, _configure_ga4)
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
-    with patch("src.api.analytics.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.analytics.httpx.AsyncClient", return_value=mock_client):
         resp = await public_client.post(
             "/api/analytics/collect",
             json=_payload(
@@ -104,7 +104,7 @@ async def test_returns_204_when_upstream_fails(
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
-    with patch("src.api.analytics.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.analytics.httpx.AsyncClient", return_value=mock_client):
         with caplog.at_level(logging.WARNING):
             resp = await public_client.post("/api/analytics/collect", json=_payload())
 
@@ -121,7 +121,7 @@ async def test_accepts_valid_event_names(public_client: AsyncClient, _configure_
     mock_client.__aexit__.return_value = None
 
     names = ("job_view", "apply_start", "apply_submit", "a", "A1_b2")
-    with patch("src.api.analytics.httpx.AsyncClient", return_value=mock_client):
+    with patch("rs_api.api.analytics.httpx.AsyncClient", return_value=mock_client):
         for name in names:
             resp = await public_client.post(
                 "/api/analytics/collect", json=_payload(name=name)

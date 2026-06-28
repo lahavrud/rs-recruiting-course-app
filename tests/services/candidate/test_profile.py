@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.models import CandidateProfile
-from src.schemas import CandidateMeUpdate
-from src.services.candidate.profile import (
+from rs_shared.models import CandidateProfile
+from rs_shared.schemas import CandidateMeUpdate
+from rs_shared.services.candidate.profile import (
     apply_identity_patch,
     remove_resume,
     replace_resume,

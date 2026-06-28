@@ -6,12 +6,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash, hash_token
-from src.enums import UserRole
-from src.models import ActivationToken, CandidateProfile, User
-from src.services.auth.activation import activate_company, activate_user
-from src.services.exceptions import InvalidActivationTokenError
-from src.services.utils.legal import CURRENT_PRIVACY_POLICY_VERSION
+from rs_shared.core.infrastructure.security import get_password_hash, hash_token
+from rs_shared.enums import UserRole
+from rs_shared.models import ActivationToken, CandidateProfile, User
+from rs_shared.services.auth.activation import activate_company, activate_user
+from rs_shared.services.exceptions import InvalidActivationTokenError
+from rs_shared.services.utils.legal import CURRENT_PRIVACY_POLICY_VERSION
 
 
 async def _make_pending_user(

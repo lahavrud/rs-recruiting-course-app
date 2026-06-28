@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.models import CompanyProfile, User
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import CompanyProfile, User
 
 
 @pytest.mark.asyncio

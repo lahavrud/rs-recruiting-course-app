@@ -8,8 +8,8 @@ Resume matching dropped persisted top-N matches in favor of computing both
 directions (candidate->jobs and job->candidates) live with a cosine-distance
 query at read time — one query shape, no staleness to reconcile when a job
 publishes/closes or a candidate's resume changes. See
-``src.services.admin.candidates.get_candidate_job_matches`` and
-``src.services.admin.jobs.get_job_candidate_matches``.
+``rs_shared.services.admin.candidates.get_candidate_job_matches`` and
+``rs_shared.services.admin.jobs.get_job_candidate_matches``.
 
 The ``job.embedding`` / ``candidateprofile.embedding`` columns and the
 ``vector`` extension added by ``db10eb69ce40`` are untouched — only the

@@ -7,12 +7,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_current_candidate
-from src.core.infrastructure.security import get_password_hash, hash_token
-from src.enums import UserRole
-from src.main import app
-from src.models import CandidateProfile, DataExportRequest, User
+from rs_api.infrastructure.dependencies import get_current_candidate
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import get_password_hash, hash_token
+from rs_shared.enums import UserRole
+from rs_shared.models import CandidateProfile, DataExportRequest, User
 from tests.conftest import TestSessionLocal
 
 
@@ -75,7 +75,7 @@ async def test_post_export_enqueues_and_returns_202(test_db):
     _override_candidate(user, profile)
 
     with patch(
-        "src.api.candidate.data_export.enqueue_data_export_task",
+        "rs_api.api.candidate.data_export.enqueue_data_export_task",
         new_callable=AsyncMock,
         return_value="inline",
     ) as mock_enqueue:
@@ -126,7 +126,7 @@ async def test_get_export_streams_zip_and_marks_used(test_db):
     storage.download_file = AsyncMock(return_value=b"PK\x03\x04 fake zip body")
 
     with patch(
-        "src.api.candidate.data_export.get_storage_provider", return_value=storage
+        "rs_api.api.candidate.data_export.get_storage_provider", return_value=storage
     ):
         async with await _client() as client:
             resp = await client.get(f"/api/candidate/me/export/{raw_token}")

@@ -20,9 +20,9 @@ import asyncio
 
 from sqlalchemy import select
 
-from src.core.infrastructure.database import async_session
-from src.core.tasks import enqueue_embed_job_task, enqueue_match_candidate_task
-from src.models import CandidateProfile, Job
+from rs_shared.core.infrastructure.database import async_session
+from rs_shared.core.tasks import enqueue_embed_job_task, enqueue_match_candidate_task
+from rs_shared.models import CandidateProfile, Job
 
 
 async def _collect_ids() -> tuple[list[int], list[int]]:

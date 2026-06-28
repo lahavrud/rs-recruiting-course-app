@@ -32,11 +32,11 @@ from pathlib import Path
 
 from sqlalchemy import delete, select
 
-from src.core.infrastructure.database import async_session, init_db
-from src.core.infrastructure.security import get_password_hash
-from src.core.services.storage import get_storage_provider
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import (
+from rs_shared.core.infrastructure.database import async_session, init_db
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.core.services.storage import get_storage_provider
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import (
     Application,
     AuditLog,
     CandidateProfile,
@@ -45,8 +45,8 @@ from src.models import (
     Job,
     User,
 )
-from src.services.utils.audit import record_audit_event
-from src.services.utils.legal import (
+from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )

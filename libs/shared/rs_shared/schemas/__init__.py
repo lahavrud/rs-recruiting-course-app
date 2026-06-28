@@ -1,0 +1,163 @@
+"""Domain-scoped Pydantic schemas — re-exported for backward compatibility.
+
+Import from the domain modules directly for new code:
+  from rs_shared.schemas.auth import UserRead
+  from rs_shared.schemas.jobs import JobRead
+  ...
+
+All existing ``from rs_shared.schemas import X`` statements continue to work
+through this barrel.
+"""
+
+from rs_shared.schemas.audit import AuditLogRead, CandidateActivityEvent
+from rs_shared.schemas.auth import (
+    AccessTokenResponse,
+    CandidateRegisterRequest,
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    ResendActivationRequest,
+    ResetPasswordRequest,
+    SessionRead,
+    TokenResponse,
+    UserRead,
+    _validate_password_complexity,
+)
+from rs_shared.schemas.candidates import (
+    ApplicationCreate,
+    ApplicationNotesUpdate,
+    ApplicationRead,
+    ApplicationStatusUpdate,
+    ApplicationUpdate,
+    ApplicationWithDetails,
+    CandidateApplicationCompany,
+    CandidateApplicationDetail,
+    CandidateApplicationJobDetail,
+    CandidateApplicationJobSummary,
+    CandidateApplicationListItem,
+    CandidateApplicationMyAnswers,
+    CandidateApplicationResumeMeta,
+    CandidateJobMatchRead,
+    CandidateMeRead,
+    CandidateMeUpdate,
+    CandidateProfileCreate,
+    CandidateProfileRead,
+    GlobalMatchRead,
+    JobCandidateMatchRead,
+    MatchSuggestionActionRequest,
+)
+from rs_shared.schemas.companies import (
+    ActiveCompanyRead,
+    ApprovedCompanyRead,
+    CompanyApplicationCandidateRead,
+    CompanyApplicationRead,
+    CompanyDataExport,
+    CompanyJobRecommendationRead,
+    CompanyProfileAdminCreate,
+    CompanyProfileAdminUpdate,
+    CompanyProfileCreate,
+    CompanyProfileRead,
+    CompanyProfileSelfUpdate,
+    CompanyStats,
+    PendingCompanyRead,
+    UserCreate,
+    UserWithCompanyRead,
+)
+from rs_shared.schemas.invites import (
+    InviteMetadataPublic,
+    InviteTokenCreate,
+    InviteTokenRead,
+)
+from rs_shared.schemas.jobs import (
+    JOB_REQ_MAX_COUNT,
+    JOB_REQ_MIN_COUNT,
+    JOB_REQ_TEXT_MAX,
+    JOB_SHORT_DESC_MAX,
+    JOB_TAG_MAX_COUNT,
+    JOB_TAG_MAX_LEN,
+    JobAdminCreate,
+    JobAdminUpdate,
+    JobContactEmailRequest,
+    JobCreate,
+    JobPublicRead,
+    JobRead,
+    JobRequirementItem,
+    JobUpdate,
+)
+
+__all__ = [
+    # auth
+    "AccessTokenResponse",
+    "CandidateRegisterRequest",
+    "ChangePasswordRequest",
+    "ForgotPasswordRequest",
+    "LoginRequest",
+    "RefreshRequest",
+    "ResendActivationRequest",
+    "ResetPasswordRequest",
+    "SessionRead",
+    "TokenResponse",
+    "UserRead",
+    "_validate_password_complexity",
+    # companies
+    "ActiveCompanyRead",
+    "ApprovedCompanyRead",
+    "CompanyApplicationCandidateRead",
+    "CompanyApplicationRead",
+    "CompanyDataExport",
+    "CompanyJobRecommendationRead",
+    "CompanyProfileAdminCreate",
+    "CompanyProfileAdminUpdate",
+    "CompanyProfileCreate",
+    "CompanyProfileRead",
+    "CompanyProfileSelfUpdate",
+    "CompanyStats",
+    "PendingCompanyRead",
+    "UserCreate",
+    "UserWithCompanyRead",
+    # jobs
+    "JOB_REQ_MAX_COUNT",
+    "JOB_REQ_MIN_COUNT",
+    "JOB_REQ_TEXT_MAX",
+    "JOB_SHORT_DESC_MAX",
+    "JOB_TAG_MAX_COUNT",
+    "JOB_TAG_MAX_LEN",
+    "JobAdminCreate",
+    "JobAdminUpdate",
+    "JobContactEmailRequest",
+    "JobCreate",
+    "JobPublicRead",
+    "JobRead",
+    "JobRequirementItem",
+    "JobUpdate",
+    # candidates
+    "ApplicationCreate",
+    "ApplicationNotesUpdate",
+    "ApplicationRead",
+    "ApplicationStatusUpdate",
+    "ApplicationUpdate",
+    "ApplicationWithDetails",
+    "CandidateApplicationCompany",
+    "CandidateApplicationDetail",
+    "CandidateApplicationJobDetail",
+    "CandidateApplicationJobSummary",
+    "CandidateApplicationListItem",
+    "CandidateApplicationMyAnswers",
+    "CandidateApplicationResumeMeta",
+    "CandidateJobMatchRead",
+    "GlobalMatchRead",
+    "MatchSuggestionActionRequest",
+    "CandidateMeRead",
+    "CandidateMeUpdate",
+    "CandidateProfileCreate",
+    "CandidateProfileRead",
+    "JobCandidateMatchRead",
+    # invites
+    "InviteMetadataPublic",
+    "InviteTokenCreate",
+    "InviteTokenRead",
+    # audit
+    "AuditLogRead",
+    "CandidateActivityEvent",
+]

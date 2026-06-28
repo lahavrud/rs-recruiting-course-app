@@ -9,11 +9,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.main import app
-from src.models import ActivationToken, AuditLog, User
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import ActivationToken, AuditLog, User
 from tests.conftest import TestSessionLocal
 
 
@@ -36,7 +36,7 @@ def _install_session_override():
 @pytest.fixture
 def _patch_enqueue_email():
     with patch(
-        "src.services.auth.candidate_registration.enqueue_email_task",
+        "rs_shared.services.auth.candidate_registration.enqueue_email_task",
         new_callable=AsyncMock,
     ) as p:
         yield p
@@ -45,7 +45,7 @@ def _patch_enqueue_email():
 @pytest.fixture
 def _patch_activation_email():
     with patch(
-        "src.api.auth.activation.enqueue_email_task",
+        "rs_api.api.auth.activation.enqueue_email_task",
         new_callable=AsyncMock,
     ) as p:
         yield p

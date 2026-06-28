@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.exceptions import (
+from rs_shared.services.exceptions import (
     AuthError,
     EmailAlreadyExistsError,
 )

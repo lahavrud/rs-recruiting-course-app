@@ -10,9 +10,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import ApplicationStatus, UserRole
-from src.models import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import ApplicationStatus, UserRole
+from rs_shared.models import (
     Application,
     AuditLog,
     CandidateProfile,
@@ -20,7 +20,7 @@ from src.models import (
     Job,
     User,
 )
-from src.services.candidate.data_export import (
+from rs_shared.services.candidate.data_export import (
     DATA_EXPORT_TTL_HOURS,
     build_and_persist_export,
     has_pending_export,

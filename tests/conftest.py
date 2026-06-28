@@ -27,18 +27,18 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
-from src.core.infrastructure.config import settings
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import (
+from rs_api.infrastructure.dependencies import (
     get_current_admin,
     get_current_company,
     get_current_user,
 )
-from src.core.infrastructure.security import get_password_hash
-from src.core.infrastructure.transactions import transactional
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.main import app
-from src.models import (
+from rs_api.main import app
+from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import (
     ActivationToken,  # noqa: F401  -- force SQLModel registration before create_all
     Application,
     AuditLog,  # noqa: F401
@@ -51,26 +51,26 @@ from src.models import (
     RefreshToken,  # noqa: F401
     User,
 )
-from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import (
+from rs_shared.schemas import CompanyProfileCreate, UserCreate
+from rs_shared.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
 
 _EMAIL_TASK_TARGETS = [
-    "src.services.auth.registration.enqueue_email_task",
-    "src.services.auth.candidate_registration.enqueue_email_task",
-    "src.services.auth.password_reset.enqueue_email_task",
-    "src.services.admin.companies.enqueue_email_task",
-    "src.services.admin.company_approval.enqueue_email_task",
-    "src.services.admin.invites.enqueue_email_task",
-    "src.services.admin._job_close.enqueue_email_task",
-    "src.services.admin.jobs_workflow.enqueue_email_task",
-    "src.services.company.jobs.enqueue_email_task",
-    "src.services.public.applications.enqueue_email_task",
-    "src.services.public._application_helpers.enqueue_email_task",
-    "src.api.admin.applications.enqueue_email_task",
-    "src.api.auth.activation.enqueue_email_task",
+    "rs_shared.services.auth.registration.enqueue_email_task",
+    "rs_shared.services.auth.candidate_registration.enqueue_email_task",
+    "rs_shared.services.auth.password_reset.enqueue_email_task",
+    "rs_shared.services.admin.companies.enqueue_email_task",
+    "rs_shared.services.admin.company_approval.enqueue_email_task",
+    "rs_shared.services.admin.invites.enqueue_email_task",
+    "rs_shared.services.admin._job_close.enqueue_email_task",
+    "rs_shared.services.admin.jobs_workflow.enqueue_email_task",
+    "rs_shared.services.company.jobs.enqueue_email_task",
+    "rs_shared.services.public.applications.enqueue_email_task",
+    "rs_shared.services.public._application_helpers.enqueue_email_task",
+    "rs_api.api.admin.applications.enqueue_email_task",
+    "rs_api.api.auth.activation.enqueue_email_task",
 ]
 
 
@@ -99,7 +99,7 @@ def mock_enqueue_email():
     """Patch enqueue_email_task in every service module for all tests.
 
     Prevents any test from trying to connect to Redis. Each service imports
-    enqueue_email_task with 'from src.core.tasks import ...', creating a local
+    enqueue_email_task with 'from rs_shared.core.tasks import ...', creating a local
     binding, so each module must be patched individually.
     """
     patches = [patch(target, new_callable=AsyncMock) for target in _EMAIL_TASK_TARGETS]
@@ -111,14 +111,14 @@ def mock_enqueue_email():
 
 
 # Resume-matching enqueue bindings. Module-level imports must be patched at
-# their binding site; ``src.services.candidate.profile`` imports lazily inside
-# the function so patching the source in ``src.core.tasks`` covers it.
+# their binding site; ``rs_shared.services.candidate.profile`` imports lazily inside
+# the function so patching the source in ``rs_shared.core.tasks`` covers it.
 _MATCH_EMBED_TASK_TARGETS = [
-    "src.core.tasks.enqueue_match_candidate_task",
-    "src.core.tasks.enqueue_embed_job_task",
-    "src.services.public.applications.enqueue_match_candidate_task",
-    "src.services.admin.jobs.enqueue_embed_job_task",
-    "src.services.admin.jobs_workflow.enqueue_embed_job_task",
+    "rs_shared.core.tasks.enqueue_match_candidate_task",
+    "rs_shared.core.tasks.enqueue_embed_job_task",
+    "rs_shared.services.public.applications.enqueue_match_candidate_task",
+    "rs_shared.services.admin.jobs.enqueue_embed_job_task",
+    "rs_shared.services.admin.jobs_workflow.enqueue_embed_job_task",
 ]
 
 
@@ -178,7 +178,8 @@ def fake_embeddings():
     """
     provider = FakeEmbeddingProvider(dim=settings.embedding_dim)
     with patch(
-        "src.core.services.embeddings.get_embedding_provider", return_value=provider
+        "rs_shared.core.services.embeddings.get_embedding_provider",
+        return_value=provider,
     ):
         yield provider
 
@@ -194,7 +195,7 @@ def _provide_post_commit_hooks_context():
     call in transactional() inside the test body, where mocks are active.
     Tests that don't care whether the hook runs are unaffected.
     """
-    from src.core.infrastructure.transactions import _post_commit_hooks
+    from rs_shared.core.infrastructure.transactions import _post_commit_hooks
 
     token = _post_commit_hooks.set([])
     try:
@@ -217,7 +218,7 @@ def mock_password_reset_rate_limit():
     tests/services/test_password_reset.py).
     """
     with patch(
-        "src.services.auth.password_reset._per_email_rate_limit_ok",
+        "rs_shared.services.auth.password_reset._per_email_rate_limit_ok",
         new_callable=AsyncMock,
         return_value=True,
     ):
@@ -234,11 +235,11 @@ def _mock_lockout_db_writes():
     """
     with (
         patch(
-            "src.services.auth.login._record_failed_attempt",
+            "rs_shared.services.auth.login._record_failed_attempt",
             new_callable=AsyncMock,
         ),
         patch(
-            "src.services.auth.login._clear_failed_attempts",
+            "rs_shared.services.auth.login._clear_failed_attempts",
             new_callable=AsyncMock,
         ),
     ):
@@ -254,11 +255,11 @@ def mock_invite_tokens():
     """
     with (
         patch(
-            "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
+            "rs_api.api.auth.registration.validate_invite_token", new_callable=AsyncMock
         ) as mock_validate,
-        patch("src.api.auth.invites.validate_invite_token", new_callable=AsyncMock),
+        patch("rs_api.api.auth.invites.validate_invite_token", new_callable=AsyncMock),
         patch(
-            "src.services.admin.invites.generate_invite_token",
+            "rs_shared.services.admin.invites.generate_invite_token",
             new_callable=AsyncMock,
             return_value=(
                 "test-invite-token-raw",
@@ -276,7 +277,7 @@ def mock_storage_provider():
     mock = MagicMock()
     mock.upload_file = AsyncMock(return_value="logos/test-logo.png")
     with patch(
-        "src.services.auth.registration.get_storage_provider", return_value=mock
+        "rs_shared.services.auth.registration.get_storage_provider", return_value=mock
     ):
         yield mock
 

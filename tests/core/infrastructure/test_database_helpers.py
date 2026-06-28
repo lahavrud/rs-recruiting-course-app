@@ -4,10 +4,10 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.infrastructure.database_helpers import get_by_id, get_by_id_or_raise
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job
-from src.services.exceptions import JobNotFoundError
+from rs_shared.core.infrastructure.database_helpers import get_by_id, get_by_id_or_raise
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job
+from rs_shared.services.exceptions import JobNotFoundError
 
 
 @pytest.mark.asyncio

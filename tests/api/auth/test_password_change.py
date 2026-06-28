@@ -6,16 +6,16 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_current_user
-from src.core.infrastructure.security import (
+from rs_api.infrastructure.dependencies import get_current_user
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import (
     get_password_hash,
     hash_token,
     is_password_valid,
 )
-from src.enums import UserRole
-from src.main import app
-from src.models import RefreshToken, User
+from rs_shared.enums import UserRole
+from rs_shared.models import RefreshToken, User
 from tests.conftest import TestSessionLocal
 
 

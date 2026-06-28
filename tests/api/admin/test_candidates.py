@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import AuditLog, CandidateProfile
+from rs_shared.models import AuditLog, CandidateProfile
 
 
 @pytest.mark.asyncio
@@ -296,7 +296,9 @@ async def test_delete_candidate_removes_resume_from_storage(
     await session.commit()
     await session.refresh(candidate)
 
-    with patch("src.services.admin.candidates.get_storage_provider") as storage_factory:
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
         delete_mock = AsyncMock(return_value=True)
         storage_factory.return_value.delete_file = delete_mock
 
@@ -335,8 +337,8 @@ async def test_get_candidate_job_matches_ranked(
     fake_embeddings,
 ):
     """Ranks every PUBLISHED, embedded job against the candidate, best score first."""
-    from src.enums import JobStatus
-    from src.models import Job
+    from rs_shared.enums import JobStatus
+    from rs_shared.models import Job
     from tests.conftest import TestSessionLocal
 
     [cand_vec] = await fake_embeddings.embed(["python fastapi backend developer"])
@@ -398,8 +400,8 @@ async def test_get_candidate_job_matches_excludes_closed_job(
     fake_embeddings,
 ):
     """A closed job must drop out of the live ranking even if still embedded."""
-    from src.enums import JobStatus
-    from src.models import Job
+    from rs_shared.enums import JobStatus
+    from rs_shared.models import Job
     from tests.conftest import TestSessionLocal
 
     [vec] = await fake_embeddings.embed(["python fastapi backend"])

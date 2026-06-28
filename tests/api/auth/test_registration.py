@@ -6,12 +6,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.security import is_password_valid
-from src.main import app
-from src.models import AuditLog, CompanyProfile, User
-from src.services.exceptions import InvalidInviteTokenError
-from src.services.utils.legal import (
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import is_password_valid
+from rs_shared.models import AuditLog, CompanyProfile, User
+from rs_shared.services.exceptions import InvalidInviteTokenError
+from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
@@ -31,7 +31,7 @@ async def override_get_session():
 
 @pytest.fixture(scope="function")
 async def client():
-    from src.api.auth import registration
+    from rs_api.api.auth import registration
 
     registration.limiter.enabled = False
 
@@ -234,7 +234,7 @@ async def test_register_missing_token_returns_422(client: AsyncClient):
 async def test_register_invalid_token_returns_400(client: AsyncClient):
     """Test that an invalid/expired invite token returns 400."""
     with patch(
-        "src.api.auth.registration.validate_invite_token",
+        "rs_api.api.auth.registration.validate_invite_token",
         new_callable=AsyncMock,
         side_effect=InvalidInviteTokenError(),
     ):
@@ -251,7 +251,7 @@ async def test_register_invalid_token_returns_400(client: AsyncClient):
 async def test_register_token_validated_on_success(client: AsyncClient):
     """Test that the invite token is validated during registration."""
     with patch(
-        "src.api.auth.registration.validate_invite_token", new_callable=AsyncMock
+        "rs_api.api.auth.registration.validate_invite_token", new_callable=AsyncMock
     ) as mock_validate:
         response = await client.post(
             "/auth/register",

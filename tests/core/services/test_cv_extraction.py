@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from docx import Document
 
-from src.core.services.cv_extraction import extract_text, job_embedding_text
+from rs_shared.core.services.cv_extraction import extract_text, job_embedding_text
 
 
 def _make_docx(text: str) -> bytes:
@@ -40,7 +40,7 @@ def test_extract_text_collapses_whitespace():
     page.extract_text.return_value = "Resume   text\n\n  here"
     reader = MagicMock()
     reader.pages = [page]
-    with patch("src.core.services.cv_extraction.PdfReader", return_value=reader):
+    with patch("rs_shared.core.services.cv_extraction.PdfReader", return_value=reader):
         assert extract_text(b"%PDF-fake", "pdf") == "Resume text here"
 
 

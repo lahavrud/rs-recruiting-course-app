@@ -5,11 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job
-from src.schemas import JobPublicRead  # Use the new restricted schema
-from src.services.exceptions import JobNotFoundError
-from src.services.public.jobs import get_published_job, list_published_jobs
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job
+from rs_shared.schemas import JobPublicRead  # Use the new restricted schema
+from rs_shared.services.exceptions import JobNotFoundError
+from rs_shared.services.public.jobs import get_published_job, list_published_jobs
 
 
 @pytest.mark.asyncio

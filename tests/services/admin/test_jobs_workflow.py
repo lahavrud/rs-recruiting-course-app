@@ -6,16 +6,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.transactions import transactional
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job, User
-from src.services.admin.jobs_workflow import (
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job, User
+from rs_shared.services.admin.jobs_workflow import (
     approve_job,
     contact_job,
     list_pending_jobs,
     reject_job,
 )
-from src.services.exceptions import JobNotFoundError, JobNotPendingError
+from rs_shared.services.exceptions import JobNotFoundError, JobNotPendingError
 
 
 @pytest.fixture
@@ -104,7 +104,7 @@ async def test_list_pending_jobs(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_approve_job_success(
     mock_enqueue_email: AsyncMock,
     session: AsyncSession,
@@ -163,7 +163,7 @@ async def test_approve_job_already_published(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_reject_job_success(
     mock_enqueue_email: AsyncMock,
     session: AsyncSession,
@@ -230,7 +230,7 @@ async def test_contact_job_not_found(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_enqueues_email(
     mock_enqueue: AsyncMock,
     session: AsyncSession,
@@ -250,7 +250,7 @@ async def test_contact_job_enqueues_email(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_works_on_published_job(
     mock_enqueue: AsyncMock,
     session: AsyncSession,

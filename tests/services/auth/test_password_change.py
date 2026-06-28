@@ -6,15 +6,15 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from src.core.infrastructure.security import (
+from rs_shared.core.infrastructure.security import (
     get_password_hash,
     hash_token,
     is_password_valid,
 )
-from src.enums import UserRole
-from src.models import RefreshToken, User
-from src.services.auth.password_change import change_user_password
-from src.services.exceptions import InvalidCredentialsError
+from rs_shared.enums import UserRole
+from rs_shared.models import RefreshToken, User
+from rs_shared.services.auth.password_change import change_user_password
+from rs_shared.services.exceptions import InvalidCredentialsError
 
 
 async def _make_user_with_tokens(

@@ -6,8 +6,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.enums import JobStatus
-from src.models import CandidateProfile, CompanyProfile, Job
+from rs_shared.enums import JobStatus
+from rs_shared.models import CandidateProfile, CompanyProfile, Job
 from tests.conftest import TestSessionLocal
 
 
@@ -100,7 +100,7 @@ async def test_get_pending_jobs_excludes_published_and_closed(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_approve_job_success(
     mock_enqueue_email, admin_client: AsyncClient, pending_job: Job
 ):
@@ -163,7 +163,7 @@ async def test_approve_job_already_published(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_reject_job_success(
     mock_enqueue_email, admin_client: AsyncClient, pending_job: Job
 ):
@@ -224,7 +224,7 @@ async def test_reject_job_already_published(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_success(
     mock_enqueue_email, admin_client: AsyncClient, pending_job: Job
 ):
@@ -239,7 +239,7 @@ async def test_contact_job_success(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_no_note(
     mock_enqueue_email, admin_client: AsyncClient, pending_job: Job
 ):
@@ -254,7 +254,7 @@ async def test_contact_job_no_note(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_no_body(
     mock_enqueue_email, admin_client: AsyncClient, pending_job: Job
 ):
@@ -280,7 +280,7 @@ async def test_contact_job_not_found(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.jobs_workflow.enqueue_email_task")
+@patch("rs_shared.services.admin.jobs_workflow.enqueue_email_task")
 async def test_contact_job_works_for_published_job(
     mock_enqueue_email, admin_client: AsyncClient, company_profile: CompanyProfile
 ):

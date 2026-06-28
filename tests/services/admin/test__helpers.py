@@ -3,10 +3,10 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import UserRole
-from src.models import User
-from src.services.admin._helpers import validate_company_user_pending
-from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
+from rs_shared.enums import UserRole
+from rs_shared.models import User
+from rs_shared.services.admin._helpers import validate_company_user_pending
+from rs_shared.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 
 
 async def _make_user(session: AsyncSession, *, role: UserRole, is_active: bool) -> User:

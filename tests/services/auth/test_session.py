@@ -10,16 +10,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash, hash_token
-from src.enums import InviteTokenStatus, UserRole
-from src.models import InviteToken, RefreshToken, UsedRefreshToken, User
-from src.services.auth.session import (
+from rs_shared.core.infrastructure.security import get_password_hash, hash_token
+from rs_shared.enums import InviteTokenStatus, UserRole
+from rs_shared.models import InviteToken, RefreshToken, UsedRefreshToken, User
+from rs_shared.services.auth.session import (
     create_user_tokens,
     get_invite_by_hash,
     logout_user,
     refresh_user_tokens,
 )
-from src.services.exceptions import InvalidCredentialsError
+from rs_shared.services.exceptions import InvalidCredentialsError
 
 
 def _active_user(email: str = "session-test@example.com") -> User:
@@ -117,7 +117,9 @@ async def test_refresh_user_tokens_rotates_token(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+@patch(
+    "rs_shared.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock
+)
 async def test_refresh_user_tokens_single_use(
     _mock_nuke: AsyncMock,
     session: AsyncSession,
@@ -170,7 +172,7 @@ async def test_refresh_user_tokens_invalid_token(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._delete_refresh_token", new_callable=AsyncMock)
+@patch("rs_shared.services.auth.session._delete_refresh_token", new_callable=AsyncMock)
 async def test_refresh_user_tokens_expired_token(
     mock_delete: AsyncMock,
     session: AsyncSession,
@@ -270,7 +272,9 @@ async def test_refresh_records_used_hash(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+@patch(
+    "rs_shared.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock
+)
 async def test_refresh_replay_detected_nukes_sessions(
     mock_nuke: AsyncMock,
     session: AsyncSession,
@@ -302,7 +306,9 @@ async def test_refresh_replay_detected_nukes_sessions(
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+@patch(
+    "rs_shared.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock
+)
 async def test_refresh_expired_used_hash_no_nuke(
     mock_nuke: AsyncMock,
     session: AsyncSession,
@@ -352,7 +358,9 @@ async def test_logout_records_used_hash(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+@patch(
+    "rs_shared.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock
+)
 async def test_replay_after_logout_nukes_sessions(
     mock_nuke: AsyncMock,
     session: AsyncSession,

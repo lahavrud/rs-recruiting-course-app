@@ -6,8 +6,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import AuditLog
-from src.services.utils.audit import list_audit_events, record_audit_event
+from rs_shared.models import AuditLog
+from rs_shared.services.utils.audit import list_audit_events, record_audit_event
 
 
 @pytest.mark.asyncio

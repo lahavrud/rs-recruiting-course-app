@@ -7,16 +7,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, CompanyProfile, Job
-from src.schemas import JobAdminCreate, JobAdminUpdate
-from src.services.admin.jobs import (
+from rs_shared.enums import ApplicationStatus, JobStatus
+from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job
+from rs_shared.schemas import JobAdminCreate, JobAdminUpdate
+from rs_shared.services.admin.jobs import (
     admin_create_job,
     delete_job,
     list_jobs,
     update_job,
 )
-from src.services.exceptions import (
+from rs_shared.services.exceptions import (
     CompanyNotFoundError,
     InvalidCursorError,
     JobNotFoundError,
@@ -86,12 +86,12 @@ async def test_update_job_not_found(session: AsyncSession):
         await update_job(99999, JobAdminUpdate(title="anything"), session)
 
 
-_PATCH_EMAIL = "src.services.admin._job_close.enqueue_email_task"
-_PATCH_DEFER = "src.services.admin._job_close.defer_after_commit"
+_PATCH_EMAIL = "rs_shared.services.admin._job_close.enqueue_email_task"
+_PATCH_DEFER = "rs_shared.services.admin._job_close.defer_after_commit"
 # Company-notification emails (closure / generic update) are built in the
 # sibling _job_emails module, which holds its own imports of these names.
-_PATCH_NOTIFY_EMAIL = "src.services.admin._job_emails.enqueue_email_task"
-_PATCH_NOTIFY_DEFER = "src.services.admin._job_emails.defer_after_commit"
+_PATCH_NOTIFY_EMAIL = "rs_shared.services.admin._job_emails.enqueue_email_task"
+_PATCH_NOTIFY_DEFER = "rs_shared.services.admin._job_emails.defer_after_commit"
 
 
 @pytest.mark.asyncio
@@ -349,7 +349,7 @@ async def test_close_published_job_sends_candidate_emails(
 async def test_close_published_job_records_audit_events(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
-    from src.models import AuditLog
+    from rs_shared.models import AuditLog
 
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()

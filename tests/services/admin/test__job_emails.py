@@ -2,11 +2,11 @@
 
 from unittest.mock import patch
 
-from src.models import CompanyProfile, Job, User
-from src.services.admin._job_emails import notify_company_of_update
+from rs_shared.models import CompanyProfile, Job, User
+from rs_shared.services.admin._job_emails import notify_company_of_update
 
-_PATCH_EMAIL = "src.services.admin._job_emails.enqueue_email_task"
-_PATCH_DEFER = "src.services.admin._job_emails.defer_after_commit"
+_PATCH_EMAIL = "rs_shared.services.admin._job_emails.enqueue_email_task"
+_PATCH_DEFER = "rs_shared.services.admin._job_emails.defer_after_commit"
 
 
 def _job_with_user(email: str = "company@test.com") -> Job:

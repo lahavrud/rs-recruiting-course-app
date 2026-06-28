@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Validate that services don't import FastAPI or HTTPException.
+"""Validate that the shared domain doesn't import FastAPI or HTTPException.
 
-This script enforces Separation of Concerns by ensuring:
-- Services in src/services/ do NOT import fastapi or HTTPException
-- Core infrastructure (except dependencies.py) does NOT import fastapi
+This script enforces Separation of Concerns by ensuring the shared package
+(installed into both the API and the worker images) stays framework-free:
+- Service logic in libs/shared/rs_shared/services/ does NOT import fastapi or
+  HTTPException
+- Core infrastructure in libs/shared/rs_shared/core/ does NOT import fastapi
+
+The FastAPI-coupled modules (dependencies, error_handling, limiter, middleware)
+now live in the API service (services/api/rs_api/infrastructure/), so there are
+no longer any allowed exceptions here.
 """
 
 import ast
@@ -11,15 +17,11 @@ import sys
 from pathlib import Path
 
 FORBIDDEN_IMPORTS = {
-    "src/services": ["fastapi", "HTTPException"],
-    "src/core/infrastructure": ["fastapi"],  # Except dependencies.py
+    "libs/shared/rs_shared/services": ["fastapi", "HTTPException"],
+    "libs/shared/rs_shared/core": ["fastapi"],
 }
 
-ALLOWED_FILES = {
-    "src/core/infrastructure/dependencies.py",  # Allowed to import FastAPI
-    # Allowed to import FastAPI (converts exceptions to HTTP)
-    "src/core/infrastructure/error_handling.py",
-}
+ALLOWED_FILES: set[str] = set()
 
 
 def check_file(file_path: Path, forbidden: list[str]) -> list[str]:
@@ -71,10 +73,9 @@ def check_file(file_path: Path, forbidden: list[str]) -> list[str]:
 def main():
     """Main validation function."""
     violations = []
-    src_path = Path("src")
 
     for directory, forbidden in FORBIDDEN_IMPORTS.items():
-        dir_path = src_path / directory.replace("src/", "")
+        dir_path = Path(directory)
         if not dir_path.exists():
             continue
 
@@ -97,7 +98,10 @@ def main():
             "Services and core infrastructure should NOT import FastAPI or "
             "HTTPException."
         )
-        print("Use domain exceptions from src/services/exceptions.py instead.\n")
+        print(
+            "Use domain exceptions from "
+            "libs/shared/rs_shared/services/exceptions.py instead.\n"
+        )
         for violation in violations:
             print(f"  {violation}")
         sys.exit(1)

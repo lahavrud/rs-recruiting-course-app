@@ -17,9 +17,9 @@ import sys
 
 # Modules the SQS worker imports, directly or transitively, at runtime.
 _WORKER_SURFACE = [
-    "src.worker",
-    "src.core.tasks",
-    "src.core.matching",
+    "rs_worker.worker",
+    "rs_shared.core.tasks",
+    "rs_shared.core.matching",
 ]
 
 # Packages that must never be imported by the worker surface.

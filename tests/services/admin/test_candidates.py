@@ -7,8 +7,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import (
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import (
     Application,
     AuditLog,
     CandidateProfile,
@@ -16,7 +16,7 @@ from src.models import (
     Job,
     User,
 )
-from src.services.admin.candidates import (
+from rs_shared.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
     delete_candidate,
     get_candidate,
@@ -24,7 +24,7 @@ from src.services.admin.candidates import (
     list_candidates,
     purge_expired_candidates,
 )
-from src.services.exceptions import CandidateNotFoundError, InvalidCursorError
+from rs_shared.services.exceptions import CandidateNotFoundError, InvalidCursorError
 
 
 @pytest.mark.asyncio
@@ -380,7 +380,9 @@ async def test_delete_candidate_cascades_applications(
     )
     await session.commit()
 
-    with patch("src.services.admin.candidates.get_storage_provider") as storage_factory:
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
         # delete_candidate calls get_storage_provider(); make it return a noop.
         storage_factory.return_value.delete_file = AsyncMock()
         await delete_candidate(candidate_profile.id, session)
@@ -412,7 +414,9 @@ async def test_delete_candidate_with_resume_calls_storage(session: AsyncSession)
     await session.commit()
     await session.refresh(candidate)
 
-    with patch("src.services.admin.candidates.get_storage_provider") as storage_factory:
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
         delete_mock = AsyncMock()
         storage_factory.return_value.delete_file = delete_mock
         await delete_candidate(candidate.id, session)
@@ -495,7 +499,9 @@ async def test_purge_removes_old_closed_non_hired(
     )
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
         factory.return_value.delete_file = AsyncMock()
         purged = await purge_expired_candidates(session)
         await session.commit()
@@ -522,7 +528,9 @@ async def test_purge_preserves_hired_candidates(
         session, job=job, candidate=candidate, status=ApplicationStatus.HIRED
     )
 
-    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -537,7 +545,9 @@ async def test_purge_preserves_recently_closed_jobs(
     candidate = await _make_candidate(session, email="recent@test.com")
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -573,7 +583,9 @@ async def test_purge_preserves_candidate_with_any_active_application(
         session, job=active, candidate=candidate, status=ApplicationStatus.NEW
     )
 
-    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -587,7 +599,9 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
     candidate = await _make_candidate(session, email="idem@test.com")
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 1
         await session.commit()
@@ -603,7 +617,7 @@ def _basis_vec(index: int) -> list[float]:
     """A unit vector along one axis — orthogonal to a different index's vector,
     identical to the same index's vector. Gives predictable cosine distances
     (1.0 and 0.0) without needing a real embedding provider."""
-    from src.core.infrastructure.config import settings
+    from rs_shared.core.infrastructure.config import settings
 
     vec = [0.0] * settings.embedding_dim
     vec[index] = 1.0
@@ -615,7 +629,7 @@ async def test_get_candidate_job_matches_orders_by_score_desc(
     session: AsyncSession,
     company_profile,
 ):
-    from src.services.admin.candidates import get_candidate_job_matches
+    from rs_shared.services.admin.candidates import get_candidate_job_matches
 
     candidate = CandidateProfile(
         full_name="Match", email="match@example.com", embedding=_basis_vec(0)
@@ -654,7 +668,7 @@ async def test_get_candidate_job_matches_orders_by_score_desc(
 async def test_get_candidate_job_matches_unknown_candidate_raises(
     session: AsyncSession,
 ):
-    from src.services.admin.candidates import get_candidate_job_matches
+    from rs_shared.services.admin.candidates import get_candidate_job_matches
 
     with pytest.raises(CandidateNotFoundError):
         await get_candidate_job_matches(999999, session)

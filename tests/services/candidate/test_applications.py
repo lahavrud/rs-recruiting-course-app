@@ -3,15 +3,15 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
-from src.services.candidate.applications import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job, User
+from rs_shared.services.candidate.applications import (
     get_application_resume_key,
     get_my_application,
     list_my_applications,
 )
-from src.services.exceptions import ApplicationNotFoundError, InvalidCursorError
+from rs_shared.services.exceptions import ApplicationNotFoundError, InvalidCursorError
 from tests.conftest import TestSessionLocal
 
 

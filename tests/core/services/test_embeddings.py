@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.core.infrastructure.config import settings
-from src.core.services.embeddings import (
+from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.services.embeddings import (
     CohereEmbeddingProvider,
     get_embedding_provider,
 )
@@ -69,7 +69,7 @@ async def test_embed_posts_payload_and_returns_vectors():
     provider = CohereEmbeddingProvider("k", "model-x", 3)
     client_cm, client = _client_returning({"embeddings": {"float": [[0.1, 0.2, 0.3]]}})
     with patch(
-        "src.core.services.embeddings.httpx.AsyncClient", return_value=client_cm
+        "rs_shared.core.services.embeddings.httpx.AsyncClient", return_value=client_cm
     ):
         out = await provider.embed(["hello"], input_type="search_query")
 
@@ -85,7 +85,7 @@ async def test_embed_dimension_mismatch_raises():
     provider = CohereEmbeddingProvider("k", "m", 5)  # expects 5, model returns 3
     client_cm, _ = _client_returning({"embeddings": {"float": [[0.1, 0.2, 0.3]]}})
     with patch(
-        "src.core.services.embeddings.httpx.AsyncClient", return_value=client_cm
+        "rs_shared.core.services.embeddings.httpx.AsyncClient", return_value=client_cm
     ):
         with pytest.raises(ValueError):
             await provider.embed(["hello"])

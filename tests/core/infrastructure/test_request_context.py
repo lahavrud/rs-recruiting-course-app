@@ -2,7 +2,10 @@
 
 import logging
 
-from src.core.infrastructure.request_context import RequestIdFilter, request_id_var
+from rs_shared.core.infrastructure.request_context import (
+    RequestIdFilter,
+    request_id_var,
+)
 
 
 def test_request_id_filter_injects_field():

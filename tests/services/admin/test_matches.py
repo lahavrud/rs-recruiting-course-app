@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.admin.matches import get_global_matches, get_hot_applications
+from rs_shared.services.admin.matches import get_global_matches, get_hot_applications
 
 
 @pytest.mark.asyncio

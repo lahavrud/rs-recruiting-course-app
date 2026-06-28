@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CompanyProfile, Job, User
-from src.services.company.profile import _resolve_url, export_company_data
+from rs_shared.models import CompanyProfile, Job, User
+from rs_shared.services.company.profile import _resolve_url, export_company_data
 
 
 @pytest.mark.asyncio

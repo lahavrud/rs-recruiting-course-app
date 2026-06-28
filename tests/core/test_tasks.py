@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from docx import Document
 
-from src.core.tasks import (
+from rs_shared.core.tasks import (
     TASK_REGISTRY,
     embed_job_task,
     enqueue_data_export_task,
@@ -16,8 +16,8 @@ from src.core.tasks import (
     purge_expired_candidate_data_task,
     send_email_task,
 )
-from src.enums import JobStatus
-from src.models import CandidateProfile, Job
+from rs_shared.enums import JobStatus
+from rs_shared.models import CandidateProfile, Job
 from tests.conftest import TestSessionLocal
 
 # ---------------------------------------------------------------------------
@@ -35,10 +35,10 @@ async def test_send_email_task_success():
     txn_cm.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("src.core.tasks.get_email_provider") as mock_get_provider,
-        patch("src.core.tasks.async_session", return_value=session_cm),
-        patch("src.core.tasks.transactional", return_value=txn_cm),
-        patch("src.core.tasks.increment_and_alert", new_callable=AsyncMock),
+        patch("rs_shared.core.tasks.get_email_provider") as mock_get_provider,
+        patch("rs_shared.core.tasks.async_session", return_value=session_cm),
+        patch("rs_shared.core.tasks.transactional", return_value=txn_cm),
+        patch("rs_shared.core.tasks.increment_and_alert", new_callable=AsyncMock),
     ):
         mock_provider = AsyncMock()
         mock_provider.send_email.return_value = True
@@ -63,7 +63,7 @@ async def test_send_email_task_success():
 
 @pytest.mark.asyncio
 async def test_send_email_task_provider_returns_false_raises():
-    with patch("src.core.tasks.get_email_provider") as mock_get_provider:
+    with patch("rs_shared.core.tasks.get_email_provider") as mock_get_provider:
         mock_provider = AsyncMock()
         mock_provider.send_email.return_value = False
         mock_get_provider.return_value = mock_provider
@@ -74,7 +74,7 @@ async def test_send_email_task_provider_returns_false_raises():
 
 @pytest.mark.asyncio
 async def test_send_email_task_provider_exception_propagates():
-    with patch("src.core.tasks.get_email_provider") as mock_get_provider:
+    with patch("rs_shared.core.tasks.get_email_provider") as mock_get_provider:
         mock_provider = AsyncMock()
         mock_provider.send_email.side_effect = Exception("SMTP connection failed")
         mock_get_provider.return_value = mock_provider
@@ -92,8 +92,10 @@ async def test_send_email_task_provider_exception_propagates():
 async def test_enqueue_email_task_inline_when_no_queue_url():
     """When SQS_QUEUE_URL is empty the task runs inline and returns 'inline'."""
     with (
-        patch("src.core.tasks.settings") as mock_settings,
-        patch("src.core.tasks.send_email_task", new_callable=AsyncMock) as mock_send,
+        patch("rs_shared.core.tasks.settings") as mock_settings,
+        patch(
+            "rs_shared.core.tasks.send_email_task", new_callable=AsyncMock
+        ) as mock_send,
     ):
         mock_settings.sqs_queue_url = ""
         mock_send.return_value = True
@@ -124,8 +126,8 @@ async def test_enqueue_email_task_inline_when_no_queue_url():
 async def test_enqueue_email_task_sends_to_sqs():
     """When SQS_QUEUE_URL is set, a message is sent and the MessageId returned."""
     with (
-        patch("src.core.tasks.settings") as mock_settings,
-        patch("src.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
+        patch("rs_shared.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
     ):
         mock_settings.sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123/queue"
         mock_sqs.return_value = "msg-id-abc"
@@ -149,8 +151,8 @@ async def test_enqueue_email_task_base64_encodes_attachments():
     pdf_bytes = b"%PDF-1.4 fake pdf content"
 
     with (
-        patch("src.core.tasks.settings") as mock_settings,
-        patch("src.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
+        patch("rs_shared.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
     ):
         mock_settings.sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123/queue"
         mock_sqs.return_value = "msg-id-xyz"
@@ -177,8 +179,8 @@ async def test_enqueue_email_task_base64_encodes_attachments():
 @pytest.mark.asyncio
 async def test_enqueue_data_export_task_sends_to_sqs():
     with (
-        patch("src.core.tasks.settings") as mock_settings,
-        patch("src.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
+        patch("rs_shared.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._sqs_send", new_callable=AsyncMock) as mock_sqs,
     ):
         mock_settings.sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123/queue"
         mock_sqs.return_value = "export-msg-id"
@@ -208,7 +210,7 @@ def test_task_registry_contains_expected_tasks():
 
 def _patch_purge_returning(count: int):
     return patch(
-        "src.services.admin.candidates.purge_expired_candidates",
+        "rs_shared.services.admin.candidates.purge_expired_candidates",
         new=AsyncMock(return_value=count),
     )
 
@@ -223,8 +225,8 @@ def _patch_session_noop():
     txn_cm.__aexit__ = AsyncMock(return_value=None)
 
     return (
-        patch("src.core.tasks.async_session", return_value=session_cm),
-        patch("src.core.tasks.transactional", return_value=txn_cm),
+        patch("rs_shared.core.tasks.async_session", return_value=session_cm),
+        patch("rs_shared.core.tasks.transactional", return_value=txn_cm),
     )
 
 
@@ -237,9 +239,9 @@ async def test_purge_task_records_otel_metrics():
         _patch_purge_returning(7),
         s_patch,
         t_patch,
-        patch("src.core.tasks._purged_counter", counter),
-        patch("src.core.tasks._last_purge_ran_gauge", gauge),
-        patch("src.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._purged_counter", counter),
+        patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
+        patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
         mock_settings.environment = "production"
         result = await purge_expired_candidate_data_task()
@@ -260,9 +262,9 @@ async def test_purge_task_records_zero_count():
         _patch_purge_returning(0),
         s_patch,
         t_patch,
-        patch("src.core.tasks._purged_counter", counter),
-        patch("src.core.tasks._last_purge_ran_gauge", gauge),
-        patch("src.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._purged_counter", counter),
+        patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
+        patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
         mock_settings.environment = "production"
         result = await purge_expired_candidate_data_task()
@@ -279,9 +281,9 @@ async def test_purge_task_returns_count_in_all_environments():
         _patch_purge_returning(3),
         s_patch,
         t_patch,
-        patch("src.core.tasks._purged_counter"),
-        patch("src.core.tasks._last_purge_ran_gauge"),
-        patch("src.core.tasks.settings") as mock_settings,
+        patch("rs_shared.core.tasks._purged_counter"),
+        patch("rs_shared.core.tasks._last_purge_ran_gauge"),
+        patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
         mock_settings.environment = "development"
         result = await purge_expired_candidate_data_task()
@@ -346,7 +348,7 @@ async def _make_candidate_with_resume() -> int:
 @pytest.mark.asyncio
 async def test_embed_job_task_sets_embedding(company_profile, fake_embeddings):
     job_id = await _make_published_job(company_profile.id)
-    with patch("src.core.matching.async_session", TestSessionLocal):
+    with patch("rs_shared.core.matching.async_session", TestSessionLocal):
         await embed_job_task(job_id)
 
     async with TestSessionLocal() as s:
@@ -357,7 +359,7 @@ async def test_embed_job_task_sets_embedding(company_profile, fake_embeddings):
 
 @pytest.mark.asyncio
 async def test_embed_job_task_missing_job_is_noop(company_profile, fake_embeddings):
-    with patch("src.core.matching.async_session", TestSessionLocal):
+    with patch("rs_shared.core.matching.async_session", TestSessionLocal):
         await embed_job_task(999999)  # no exception
 
 
@@ -375,8 +377,10 @@ async def test_match_candidate_task_embeds_resume_text(
     storage.download_file = AsyncMock(return_value=resume_bytes)
 
     with (
-        patch("src.core.matching.async_session", TestSessionLocal),
-        patch("src.core.services.storage.get_storage_provider", return_value=storage),
+        patch("rs_shared.core.matching.async_session", TestSessionLocal),
+        patch(
+            "rs_shared.core.services.storage.get_storage_provider", return_value=storage
+        ),
     ):
         await match_candidate_task(candidate_id)
 
@@ -399,8 +403,10 @@ async def test_match_candidate_task_recompute_is_idempotent(
     storage.download_file = AsyncMock(return_value=resume_bytes)
 
     with (
-        patch("src.core.matching.async_session", TestSessionLocal),
-        patch("src.core.services.storage.get_storage_provider", return_value=storage),
+        patch("rs_shared.core.matching.async_session", TestSessionLocal),
+        patch(
+            "rs_shared.core.services.storage.get_storage_provider", return_value=storage
+        ),
     ):
         await match_candidate_task(candidate_id)
         async with TestSessionLocal() as s:
@@ -424,7 +430,7 @@ async def test_match_candidate_task_no_resume_is_noop(test_db, fake_embeddings):
         await s.refresh(c)
         candidate_id = c.id
 
-    with patch("src.core.matching.async_session", TestSessionLocal):
+    with patch("rs_shared.core.matching.async_session", TestSessionLocal):
         await match_candidate_task(candidate_id)  # no resume_path → no-op
 
     async with TestSessionLocal() as s:

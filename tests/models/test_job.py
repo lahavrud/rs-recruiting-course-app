@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job
 
 
 @pytest.mark.asyncio

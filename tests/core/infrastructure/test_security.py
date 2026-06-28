@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 
-from src.core.infrastructure.config import get_jwt_secret_key, settings
-from src.core.infrastructure.security import (
+from rs_shared.core.infrastructure.config import get_jwt_secret_key, settings
+from rs_shared.core.infrastructure.security import (
     create_access_token,
     decode_access_token,
     get_password_hash,

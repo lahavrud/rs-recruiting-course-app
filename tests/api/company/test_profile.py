@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from src.models import CompanyProfile, Job
+from rs_shared.models import CompanyProfile, Job
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_export_my_company_data_returns_full_payload(
     fake_storage.get_file_url.return_value = "https://example.com/presigned"
 
     with patch(
-        "src.api.company.profile.get_storage_provider", return_value=fake_storage
+        "rs_api.api.company.profile.get_storage_provider", return_value=fake_storage
     ):
         response = await company_client.get("/api/companies/me/export")
 
