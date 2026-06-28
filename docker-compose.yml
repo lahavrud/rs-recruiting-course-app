@@ -1,15 +1,21 @@
-# Local development stack: the full split — api + worker + their backing services.
+# Local development stack. Two modes:
 #
-# The api and worker are now separate images built from per-service Dockerfiles,
-# both FROM the shared base image (rs-recruiting-base:local). Compose does not
-# build the shared base, so build the images first, then bring the stack up:
+#   docker compose up -d          # backing services only: db + mailpit + localstack
+#                                 # (pair with `uvicorn rs_api.main:app --reload`
+#                                 #  for the fast backend inner loop)
+#   make up                       # FULL containerized stack — adds the api + worker
+#                                 # images via the `app` profile (builds them first)
 #
-#   make images        # builds base -> api -> worker (via docker buildx)
-#   docker compose up   # or: make up
+# The api + worker carry `profiles: ["app"]`, so they're opt-in: a bare
+# `docker compose up` starts only the backing services. `make up` runs
+# `docker compose --profile app up -d`.
 #
-# Unlike the old "tasks run inline" default, this stack wires SQS_QUEUE_URL on
-# BOTH services and runs LocalStack, so work flows producer (api) -> SQS -> worker
-# end-to-end. The worker sends email via SMTP to Mailpit (UI: http://localhost:8025).
+# Compose does NOT build the shared base image, so `make up` (= `make images` +
+# compose) builds base -> api -> worker via `docker buildx` first.
+#
+# In the full stack, SQS_QUEUE_URL is wired on BOTH services and LocalStack runs,
+# so work flows producer (api) -> SQS -> worker end-to-end; the worker sends email
+# via SMTP to Mailpit (UI: http://localhost:8025).
 
 x-aws-env: &aws-env
   AWS_ACCESS_KEY_ID: test          # pragma: allowlist secret  (LocalStack ignores creds)
@@ -71,6 +77,10 @@ services:
       dockerfile: services/api/Dockerfile
     image: rs-recruiting-api:local
     container_name: rs-recruiting-api
+    # Opt-in: only starts under `--profile app` (i.e. `make up`). A bare
+    # `docker compose up` brings up just the backing services — the right mode
+    # for the `uvicorn --reload` backend inner loop.
+    profiles: ["app"]
     # Uses the image CMD (uvicorn). The schema is built by the app's init_db
     # (SQLModel create_all) on startup — including email_quota now that it's a
     # SQLModel model. NOTE: the alembic chain is not designed to run from an
@@ -111,6 +121,7 @@ services:
       dockerfile: services/worker/Dockerfile
     image: rs-recruiting-worker:local
     container_name: rs-recruiting-worker
+    profiles: ["app"]  # opt-in (see api) — only starts under `--profile app`
     environment:
       <<: *aws-env
       # Hardcoded to the `db` service — NOT ${DATABASE_URL:-...}, which would let

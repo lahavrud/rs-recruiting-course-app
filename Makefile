@@ -14,18 +14,24 @@ IMAGE_TAG ?= local
 BASE_IMAGE ?= rs-recruiting-base:$(IMAGE_TAG)
 BUILD ?= docker buildx build --load
 
-.PHONY: images base api worker up down logs
+.PHONY: images base api worker up services down logs
 
 # Build every service image (base first).
 images: base api worker
 
-# Bring up the full local stack (builds images first, since compose does not
-# build the shared base image).
+# Full containerized stack: backing services + the api + worker images (the
+# `app` profile). Builds images first, since compose doesn't build the base.
 up: images
+	docker compose --profile app up -d
+
+# Backing services only (db + mailpit + localstack) — for the `uvicorn --reload`
+# backend inner loop. No image build needed.
+services:
 	docker compose up -d
 
+# Stops everything (containers in all profiles).
 down:
-	docker compose down
+	docker compose --profile app down
 
 logs:
 	docker compose logs -f api worker

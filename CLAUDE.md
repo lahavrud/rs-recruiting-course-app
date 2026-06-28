@@ -223,17 +223,22 @@ TypeScript type definitions mirroring backend schemas, split by domain: `auth.ts
 members, so all three packages install editable).
 
 ```bash
-# Backend without containers (tasks run inline, SQS_QUEUE_URL unset):
-uv sync && uv run uvicorn rs_api.main:app --reload
+# Backend inner loop (fast): backing services in containers + uvicorn on the host.
+make services            # db + mailpit + localstack (bare `docker compose up -d`)
+uv sync && uv run uvicorn rs_api.main:app --reload   # tasks run inline (SQS unset)
 
-# Full split in containers (api + worker + db + mailpit + LocalStack SQS).
+# Full containerized split: adds the api + worker images (compose `app` profile).
 # `make` builds the shared base then both service images (requires docker buildx):
-make up                 # = make images && docker compose up -d
-make logs               # tail api + worker
-make down
+make up                  # = make images && docker compose --profile app up -d
+make logs                # tail api + worker
+make down                # stops everything
 
-cd frontend && npm run dev                         # frontend
+cd frontend && npm run dev                         # frontend (Vite, :3000)
 ```
+
+The api + worker carry compose `profiles: ["app"]`, so a bare `docker compose up`
+starts only the backing services. Use `make up` for the full stack, `make services`
+(or plain `uvicorn`) for day-to-day backend work.
 
 Adding deps: `uv add <pkg> --package rs-recruiting-{shared,api,worker}` (pick the
 narrowest member — keep the web stack out of `shared`/`worker`). No
