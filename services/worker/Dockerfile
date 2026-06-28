@@ -7,8 +7,10 @@
 #
 # Multi-stage: the builder resolves + installs into a self-contained venv; the
 # runtime copies only that venv, so uv's wheel cache (kept in the builder stage)
-# never bloats the shipped image. Works on the legacy Docker builder — no
-# BuildKit required. Build (after the base), from the repo root:
+# never bloats the shipped image. Requires BuildKit/buildx — the
+# `RUN --mount=type=cache` below is a BuildKit-only feature, so the legacy
+# builder will fail (`make` uses `docker buildx`; in CI use setup-buildx-action).
+# Build (after the base), from the repo root:
 #   docker build -f docker/base.Dockerfile -t rs-recruiting-base:local .
 #   docker build -f services/worker/Dockerfile -t rs-recruiting-worker:local .
 ARG BASE_IMAGE=rs-recruiting-base:local

@@ -81,13 +81,13 @@ include_external_packages = true
 name = "Shared domain is framework-free"
 type = "forbidden"
 source_modules = ["rs_shared"]
-forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi", "sentry_sdk", "markdown"]
 
 [[tool.importlinter.contracts]]
 name = "Worker carries no web stack"
 type = "forbidden"
 source_modules = ["rs_worker"]
-forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi", "sentry_sdk", "markdown"]
 
 [[tool.importlinter.contracts]]
 name = "Shared domain does not depend on the services"
