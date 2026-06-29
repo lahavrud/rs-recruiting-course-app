@@ -118,7 +118,7 @@ jobs:
           SHA="${{ github.sha }}"
           TAG="${{ github.ref_name }}"
           rebuild=false
-          for repo in rs-recruiting/api rs-recruiting/worker; do
+          for repo in rs-recruiting/api rs-recruiting/worker rs-recruiting/alloy; do
             if aws ecr describe-images \
               --repository-name "${repo}" \
               --image-ids imageTag="${SHA}" \
@@ -141,7 +141,7 @@ jobs:
           done
           echo "rebuild=${rebuild}" >> "$GITHUB_OUTPUT"
 
-      - name: Build & push fresh images (base + api + worker)
+      - name: Build & push fresh images (base + api + worker + alloy)
         if: steps.promote.outputs.rebuild == 'true'
         uses: ./.github/actions/build-images
         with:

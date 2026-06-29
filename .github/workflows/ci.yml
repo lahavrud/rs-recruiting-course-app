@@ -70,7 +70,7 @@ jobs:
           if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|frontend/Dockerfile|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh|scripts/validate_deploy_artifacts\.sh)'; then
             deploy=true
           fi
-          if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh)'; then
+          if match '^(services/[^/]+/Dockerfile|docker/(base|alloy)\.Dockerfile|alloy/config\.alloy|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh)'; then
             docker=true
             # docker-build smoke-tests the backend image, so guard it with
             # the same checks the image depends on.
@@ -269,6 +269,14 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f services/worker/Dockerfile \
             --build-arg BASE_IMAGE=rs-recruiting-base:local \
             -t rs-recruiting-worker:test .
+
+      # Build the Alloy sidecar image and validate the baked config so a broken
+      # pipeline fails the PR rather than the first ECS deploy.
+      - name: Build alloy image
+        run: DOCKER_BUILDKIT=1 docker build -f docker/alloy.Dockerfile -t rs-recruiting-alloy:test .
+
+      - name: Validate alloy config
+        run: docker run --rm rs-recruiting-alloy:test validate /etc/alloy/config.alloy
 
       - name: Start test network and postgres
         run: |
