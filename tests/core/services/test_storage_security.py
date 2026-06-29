@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.core.services.storage_local import LocalStorageProvider
+from rs_shared.core.services.storage_local import LocalStorageProvider
 
 
 class TestLocalStorageProviderSecurity:

@@ -2,21 +2,24 @@
 
 ## Hard constraints
 - **No network calls anywhere in `tests/`** — use the fixtures and fakes defined in `tests/conftest.py`
-- **No cross-test imports** — tests import from `src/`, never from other test files
-- **1:1 source mapping** — every `src/` module must have a corresponding test file (CI script enforces this)
+- **No cross-test imports** — tests import from the workspace packages (`rs_shared` / `rs_api` / `rs_worker`), never from other test files
+- **1:1 source mapping** — every source module must have a corresponding test file (CI script `scripts/validate_test_files.py` enforces it). The mapping spans the workspace members; web-infra modules (`rs_api/infrastructure/`) map to `tests/api/infrastructure/`.
 
 ## Structure
+A single top-level `tests/` tree covers all three workspace members:
 ```
 tests/
 ├── models/           # ORM model validation
-├── services/         # Business logic (auth, admin, company, public, candidate)
+├── services/         # Business logic (rs_shared/services: auth, admin, company, public, candidate)
 │   └── utils/        # Audit log, contract PDF generation
-├── api/              # Endpoint tests (SEO, rate limiting, request handling)
+├── api/              # rs_api endpoint tests (SEO, rate limiting, request handling)
+│   └── infrastructure/  # rs_api/infrastructure: dependencies, error_handling, limiter, middleware
 ├── templates/        # Email template rendering
 ├── conftest.py       # Shared fixtures, fakes (storage/email/SQS mocks), model factories
+├── test_domain_is_framework_free.py  # guard: worker surface imports no web stack
 └── core/
-    ├── services/     # Email, storage, file validation
-    └── infrastructure/  # DB, config, security, transactions, rate limiting
+    ├── services/     # Email, storage, file validation, embeddings, cv_extraction
+    └── infrastructure/  # DB, config, security, transactions, request_context
 ```
 
 ## Execution

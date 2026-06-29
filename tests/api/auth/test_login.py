@@ -7,9 +7,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from src.core.infrastructure.database import get_session
-from src.main import app
-from src.models import User
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.models import User
 from tests.conftest import FAKE_PNG, TestSessionLocal
 from tests.conftest import FAKE_SIG_B64 as _FAKE_SIG_B64
 
@@ -26,7 +26,7 @@ async def override_get_session():
 
 @pytest.fixture(scope="function")
 async def client():
-    from src.api.auth import login as auth
+    from rs_api.api.auth import login as auth
 
     auth.limiter.enabled = False
     if hasattr(app.state, "limiter"):
@@ -190,7 +190,9 @@ async def test_refresh_returns_new_tokens(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock)
+@patch(
+    "rs_shared.services.auth.session._nuke_user_refresh_tokens", new_callable=AsyncMock
+)
 async def test_refresh_token_is_single_use(_mock_nuke: AsyncMock, client: AsyncClient):
     """Test that an already-rotated refresh token is rejected."""
     await _create_active_user(client, "singleuse@example.com")
@@ -247,7 +249,7 @@ async def test_account_lockout_after_failed_attempts(client: AsyncClient):
         user.is_active = True
         await session.commit()
 
-    from src.services.exceptions import AccountLockedError
+    from rs_shared.services.exceptions import AccountLockedError
 
     attempt_count = 0
 
@@ -258,7 +260,7 @@ async def test_account_lockout_after_failed_attempts(client: AsyncClient):
             raise AccountLockedError(minutes_remaining=15)
 
     with patch(
-        "src.services.auth.login._check_lockout",
+        "rs_shared.services.auth.login._check_lockout",
         side_effect=fake_check_lockout,
     ):
         for _ in range(5):
@@ -304,7 +306,7 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
         user.is_active = True
         await session.commit()
 
-    _login_logger = logging.getLogger("src.services.auth.login")
+    _login_logger = logging.getLogger("rs_shared.services.auth.login")
 
     async def _stub_record_failed(
         user_id: int, email: str, client_ip: str | None = None
@@ -316,10 +318,10 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
 
     with (
         patch(
-            "src.services.auth.login._record_failed_attempt",
+            "rs_shared.services.auth.login._record_failed_attempt",
             side_effect=_stub_record_failed,
         ),
-        caplog.at_level(logging.WARNING, logger="src.services.auth.login"),
+        caplog.at_level(logging.WARNING, logger="rs_shared.services.auth.login"),
     ):
         await client.post(
             "/auth/login",

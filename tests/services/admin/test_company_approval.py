@@ -10,16 +10,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.models import CompanyProfile, User
-from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.admin.company_approval import approve_company
-from src.services.auth.registration import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import CompanyProfile, User
+from rs_shared.schemas import CompanyProfileCreate, UserCreate
+from rs_shared.services.admin.company_approval import approve_company
+from rs_shared.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
-from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
+from rs_shared.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 from tests.conftest import FAKE_LOGO as _LOGO
 from tests.conftest import FAKE_SIG_B64 as _SIG
 
@@ -54,9 +54,9 @@ async def _register(data: UserCreate, session: AsyncSession) -> User:
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.company_approval.enqueue_email_task")
-@patch("src.services.admin.company_approval.generate_signed_contract")
-@patch("src.services.admin.company_approval.get_storage_provider")
+@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.generate_signed_contract")
+@patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_uploads_contract(
     mock_storage, mock_pdf, mock_email, session: AsyncSession
 ):
@@ -77,9 +77,9 @@ async def test_approve_company_uploads_contract(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.company_approval.enqueue_email_task")
-@patch("src.services.admin.company_approval.generate_signed_contract")
-@patch("src.services.admin.company_approval.get_storage_provider")
+@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.generate_signed_contract")
+@patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_does_not_auto_activate_user(
     mock_storage, mock_pdf, mock_email, session: AsyncSession
 ):
@@ -104,9 +104,9 @@ async def test_approve_company_does_not_auto_activate_user(
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.company_approval.enqueue_email_task")
-@patch("src.services.admin.company_approval.generate_signed_contract")
-@patch("src.services.admin.company_approval.get_storage_provider")
+@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.generate_signed_contract")
+@patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_updates_contract_pdf_url(
     mock_storage, mock_pdf, mock_email, session: AsyncSession
 ):
@@ -138,7 +138,7 @@ async def test_approve_company_not_found(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.enqueue_email_task")
 async def test_approve_company_already_approved(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(
@@ -170,14 +170,14 @@ async def test_approve_company_wrong_role(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("src.services.admin.company_approval.enqueue_email_task")
-@patch("src.services.admin.company_approval.generate_signed_contract")
-@patch("src.services.admin.company_approval.get_storage_provider")
+@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.generate_signed_contract")
+@patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_writes_audit_row(
     mock_storage, mock_pdf, mock_email, session: AsyncSession
 ):
     """The approve flow must record a `company.approve` audit event."""
-    from src.models import AuditLog
+    from rs_shared.models import AuditLog
 
     mock_email.return_value = "job-id"
     mock_pdf.return_value = None

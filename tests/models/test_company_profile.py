@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CompanyProfile
+from rs_shared.models import CompanyProfile
 
 
 def _required_fields() -> dict:

@@ -7,12 +7,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_current_candidate, get_current_user
-from src.core.infrastructure.security import get_password_hash
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.main import app
-from src.models import (
+from rs_api.infrastructure.dependencies import get_current_candidate, get_current_user
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import (
     Application,
     CandidateProfile,
     CompanyProfile,
@@ -379,9 +379,10 @@ async def test_resume_streams_snapshot_bytes(test_db, tmp_path):
     _override_user(user.id, user.email)
 
     with (
-        patch("src.api._resume_streaming.settings.storage_provider", "local"),
+        patch("rs_api.api._resume_streaming.settings.storage_provider", "local"),
         patch(
-            "src.api._resume_streaming.settings.local_storage_path", str(storage_root)
+            "rs_api.api._resume_streaming.settings.local_storage_path",
+            str(storage_root),
         ),
     ):
         async with await _client() as client:
@@ -517,11 +518,11 @@ async def test_patch_with_resume_replaces_snapshot(test_db):
 
     with (
         patch(
-            "src.services.candidate.applications.validate_and_upload_resume",
+            "rs_shared.services.candidate.applications.validate_and_upload_resume",
             return_value=("resumes/new.pdf", "abc123"),
         ),
         patch(
-            "src.api.candidate.applications.get_storage_provider",
+            "rs_api.api.candidate.applications.get_storage_provider",
             return_value=mock_storage,
         ),
     ):
@@ -654,7 +655,7 @@ async def test_patch_invalid_resume_mime_returns_400(test_db):
     _override_user(user.id, user.email)
 
     with patch(
-        "src.core.services.file_validation.is_valid_document_magic_bytes",
+        "rs_shared.core.services.file_validation.is_valid_document_magic_bytes",
         return_value=False,
     ):
         async with await _client() as client:

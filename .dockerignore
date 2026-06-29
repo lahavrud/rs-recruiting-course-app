@@ -5,3 +5,6 @@ __pycache__
 .ruff_cache
 *.pyc
 .env
+# Frontend build artifacts — the API image only needs frontend/src/content/articles.
+frontend/node_modules
+frontend/dist

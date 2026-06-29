@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.core.infrastructure.storage_helpers import delete_file_best_effort
+from rs_shared.core.infrastructure.storage_helpers import delete_file_best_effort
 
 
 @pytest.mark.asyncio

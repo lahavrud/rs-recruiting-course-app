@@ -3,7 +3,7 @@ import logging
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from src.main import _HealthCheckLogFilter, app
+from rs_api.main import _HealthCheckLogFilter, app
 
 
 @pytest.mark.asyncio

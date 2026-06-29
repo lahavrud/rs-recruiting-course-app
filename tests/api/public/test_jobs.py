@@ -3,9 +3,9 @@
 import pytest
 from httpx import AsyncClient
 
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job
-from src.schemas import JobPublicRead
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job
+from rs_shared.schemas import JobPublicRead
 from tests.conftest import TestSessionLocal
 
 
@@ -216,9 +216,12 @@ async def test_get_public_job_my_application_for_candidate_with_new_app(
     public_client: AsyncClient, published_job: Job, test_db
 ):
     """Authed candidate with a NEW application sees `my_application.editable=true`."""
-    from src.core.infrastructure.security import create_access_token, get_password_hash
-    from src.enums import ApplicationStatus, UserRole
-    from src.models import Application, CandidateProfile, User
+    from rs_shared.core.infrastructure.security import (
+        create_access_token,
+        get_password_hash,
+    )
+    from rs_shared.enums import ApplicationStatus, UserRole
+    from rs_shared.models import Application, CandidateProfile, User
 
     async with TestSessionLocal() as session:
         user = User(
@@ -270,9 +273,12 @@ async def test_get_public_job_my_application_for_candidate_with_locked_app(
     public_client: AsyncClient, published_job: Job, test_db
 ):
     """Authed candidate whose application is past NEW sees `editable=false`."""
-    from src.core.infrastructure.security import create_access_token, get_password_hash
-    from src.enums import ApplicationStatus, UserRole
-    from src.models import Application, CandidateProfile, User
+    from rs_shared.core.infrastructure.security import (
+        create_access_token,
+        get_password_hash,
+    )
+    from rs_shared.enums import ApplicationStatus, UserRole
+    from rs_shared.models import Application, CandidateProfile, User
 
     async with TestSessionLocal() as session:
         user = User(
@@ -322,9 +328,12 @@ async def test_get_public_job_my_application_withdrawn_is_hidden(
     public_client: AsyncClient, published_job: Job, test_db
 ):
     """Withdrawn applications are invisible — `my_application` is null."""
-    from src.core.infrastructure.security import create_access_token, get_password_hash
-    from src.enums import ApplicationStatus, UserRole
-    from src.models import Application, CandidateProfile, User
+    from rs_shared.core.infrastructure.security import (
+        create_access_token,
+        get_password_hash,
+    )
+    from rs_shared.enums import ApplicationStatus, UserRole
+    from rs_shared.models import Application, CandidateProfile, User
 
     async with TestSessionLocal() as session:
         user = User(

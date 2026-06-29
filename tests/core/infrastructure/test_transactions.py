@@ -3,12 +3,12 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.transactions import (
+from rs_shared.core.infrastructure.transactions import (
     _post_commit_hooks,
     defer_after_commit,
     transactional,
 )
-from src.models import User
+from rs_shared.models import User
 
 
 @pytest.mark.asyncio

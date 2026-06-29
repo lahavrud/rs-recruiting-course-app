@@ -7,21 +7,21 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import (
+from rs_shared.core.infrastructure.security import (
     get_password_hash,
     hash_token,
     is_password_valid,
 )
-from src.core.infrastructure.transactions import transactional
-from src.enums import UserRole
-from src.models import PasswordResetToken, RefreshToken, User
-from src.services.auth.password_reset import (
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.enums import UserRole
+from rs_shared.models import PasswordResetToken, RefreshToken, User
+from rs_shared.services.auth.password_reset import (
     _EMAIL_RATE_LIMIT_MAX,
     request_password_reset,
     reset_password,
     validate_password_reset_token,
 )
-from src.services.exceptions import InvalidPasswordResetTokenError
+from rs_shared.services.exceptions import InvalidPasswordResetTokenError
 
 
 # Pull in the (no-longer-autouse) per-email rate-limit mock for every test in
@@ -102,7 +102,7 @@ async def test_per_email_rate_limit_skips_token_after_max_known_requests(
         return calls["n"] <= _EMAIL_RATE_LIMIT_MAX
 
     with patch(
-        "src.services.auth.password_reset._per_email_rate_limit_ok",
+        "rs_shared.services.auth.password_reset._per_email_rate_limit_ok",
         side_effect=fake_limit,
     ):
         for _ in range(_EMAIL_RATE_LIMIT_MAX + 1):
@@ -193,7 +193,7 @@ async def test_reset_password_clears_lockout_state(session: AsyncSession):
     await session.commit()
 
     with patch(
-        "src.services.auth.password_reset._clear_failed_attempts",
+        "rs_shared.services.auth.password_reset._clear_failed_attempts",
         new_callable=AsyncMock,
     ) as mock_clear:
         async with transactional(session):

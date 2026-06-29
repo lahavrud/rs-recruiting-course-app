@@ -77,6 +77,7 @@ jobs:
         with:
           ref: ${{ steps.tag.outputs.tag }}
           instance-id: ${{ secrets.EC2_INSTANCE_ID }}
+          ecr-registry: ${{ secrets.OPS_ECR_REGISTRY }}
 
   # ── Failure notification ──────────────────────────────────────────────────
 

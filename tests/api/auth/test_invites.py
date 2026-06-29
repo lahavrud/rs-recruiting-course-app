@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from src.core.infrastructure.security import hash_token
-from src.enums import InviteTokenStatus
-from src.models import InviteToken, User
-from src.services.exceptions import InvalidInviteTokenError
+from rs_shared.core.infrastructure.security import hash_token
+from rs_shared.enums import InviteTokenStatus
+from rs_shared.models import InviteToken, User
+from rs_shared.services.exceptions import InvalidInviteTokenError
 from tests.conftest import TestSessionLocal
 
 _EXPIRES_FAR_FUTURE = datetime(2099, 1, 1, tzinfo=timezone.utc)
@@ -83,7 +83,7 @@ async def test_get_invite_metadata_invalid_token_returns_error(
 ):
     """Expired or invalid token returns 400."""
     with patch(
-        "src.api.auth.invites.validate_invite_token",
+        "rs_api.api.auth.invites.validate_invite_token",
         new_callable=AsyncMock,
         side_effect=InvalidInviteTokenError(),
     ):

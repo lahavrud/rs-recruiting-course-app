@@ -3,8 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
-from src.enums import JobStatus
-from src.models import Job
+from rs_shared.enums import JobStatus
+from rs_shared.models import Job
 
 
 @pytest.mark.asyncio

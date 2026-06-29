@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.core.infrastructure.config import settings
-from src.core.services.storage import get_storage_provider
-from src.core.services.storage_local import LocalStorageProvider
-from src.core.services.storage_s3 import S3StorageProvider
+from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.services.storage import get_storage_provider
+from rs_shared.core.services.storage_local import LocalStorageProvider
+from rs_shared.core.services.storage_s3 import S3StorageProvider
 
 
 class TestLocalStorageProvider:

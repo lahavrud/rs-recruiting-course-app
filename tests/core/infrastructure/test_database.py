@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-import src.core.infrastructure.database as database_module
-from src.core.infrastructure.database import engine, init_db
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
+import rs_shared.core.infrastructure.database as database_module
+from rs_shared.core.infrastructure.database import engine, init_db
+from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job, User
 
 TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -90,8 +90,8 @@ class TestInitDB:
 
         # Create a test user and verify we can query it
         async with test_session_factory() as session:
-            from src.core.infrastructure.security import get_password_hash
-            from src.enums import UserRole
+            from rs_shared.core.infrastructure.security import get_password_hash
+            from rs_shared.enums import UserRole
 
             user = User(
                 email="test@example.com",
@@ -151,7 +151,7 @@ class TestEngineConfiguration:
 
     def test_engine_pool_uses_configured_settings(self):
         """Engine pool reflects db_pool_* settings, not SQLAlchemy defaults (5+10)."""
-        from src.core.infrastructure.config import settings
+        from rs_shared.core.infrastructure.config import settings
 
         # QueuePool exposes size() (configured pool_size) and overflow capacity
         # via internal _max_overflow. Verify configured values made it through.
@@ -162,7 +162,7 @@ class TestEngineConfiguration:
 
     def test_pool_settings_have_sensible_defaults(self):
         """Defaults must beat SQLAlchemy's 5+10 to handle modest production load."""
-        from src.core.infrastructure.config import Settings
+        from rs_shared.core.infrastructure.config import Settings
 
         defaults = Settings.model_fields
         assert defaults["db_pool_size"].default >= 10
@@ -176,7 +176,7 @@ class TestSessionFactory:
 
     def test_session_factory_creates_async_sessions(self):
         """Test that session factory creates async sessions."""
-        from src.core.infrastructure.database import async_session
+        from rs_shared.core.infrastructure.database import async_session
 
         # Verify async_session is a sessionmaker
         assert async_session is not None
@@ -184,7 +184,7 @@ class TestSessionFactory:
 
     def test_session_factory_configuration(self):
         """Test that session factory configuration is correct."""
-        from src.core.infrastructure.database import async_session
+        from rs_shared.core.infrastructure.database import async_session
 
         # Verify session factory is configured for async
         # The class_ is passed as a keyword argument during creation

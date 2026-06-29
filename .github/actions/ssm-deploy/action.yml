@@ -16,6 +16,10 @@ inputs:
     description: "Deploy script to fetch from the bucket and run on the box"
     required: false
     default: deploy_ec2.sh
+  ecr-registry:
+    description: "ECR registry to pull images from (ops account). Passed through to the deploy script; if empty it falls back to the instance's own account."
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -27,9 +31,10 @@ runs:
         REF="${{ inputs.ref }}"
         ENV="${{ inputs.environment }}"
         SCRIPT="${{ inputs.script-name }}"
+        ECR_REGISTRY="${{ inputs.ecr-registry }}"
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         S3_BUCKET="rs-recruiting-deploy-${ENV}-${ACCOUNT_ID}"
-        DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${REF}/${SCRIPT} /tmp/deploy_${REF}.sh && ENVIRONMENT=${ENV} IMAGE_TAG=${REF} bash /tmp/deploy_${REF}.sh"
+        DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${REF}/${SCRIPT} /tmp/deploy_${REF}.sh && ENVIRONMENT=${ENV} IMAGE_TAG=${REF} ECR_REGISTRY=${ECR_REGISTRY} bash /tmp/deploy_${REF}.sh"
         PARAMS=$(jq -n --arg cmd "$DEPLOY_CMD" '{commands: [$cmd]}')
         COMMAND_ID=$(aws ssm send-command \
           --instance-ids "${{ inputs.instance-id }}" \

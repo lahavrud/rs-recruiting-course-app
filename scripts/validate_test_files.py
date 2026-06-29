@@ -12,12 +12,16 @@ is renamed, split, or deleted.
 import sys
 from pathlib import Path
 
-# Mapping of source directories to test directories
+# Mapping of source directories to test directories. Sources live in the uv
+# workspace members (libs/shared, services/api); tests stay in a single
+# top-level tests/ tree. Order matters: the API's infrastructure mapping must
+# precede the broader rs_api/api mapping so it wins for that subtree.
 SOURCE_TO_TEST_MAPPING = {
-    "src/services": "tests/services",
-    "src/api": "tests/api",
-    "src/core/infrastructure": "tests/core/infrastructure",
-    "src/templates": "tests/templates",
+    "libs/shared/rs_shared/services": "tests/services",
+    "libs/shared/rs_shared/core/infrastructure": "tests/core/infrastructure",
+    "libs/shared/rs_shared/templates": "tests/templates",
+    "services/api/rs_api/infrastructure": "tests/api/infrastructure",
+    "services/api/rs_api/api": "tests/api",
 }
 
 # Source files that don't require tests (exceptions, simple factories, etc.)
@@ -27,40 +31,45 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     # cover every path through the package via real HTTP responses. Per-module
     # unit tests would duplicate the integration coverage; the package was split
     # only to satisfy the 200-line file cap, not for test isolation.
-    "src/api/seo/_articles.py",
-    "src/api/seo/_content.py",
-    "src/api/seo/_jsonld.py",
-    "src/api/seo/_pages.py",
-    "src/api/seo/_render.py",
-    "src/api/seo/_routes.py",
-    "src/api/seo/_sitemap.py",
+    "services/api/rs_api/api/seo/_articles.py",
+    "services/api/rs_api/api/seo/_content.py",
+    "services/api/rs_api/api/seo/_jsonld.py",
+    "services/api/rs_api/api/seo/_pages.py",
+    "services/api/rs_api/api/seo/_render.py",
+    "services/api/rs_api/api/seo/_routes.py",
+    "services/api/rs_api/api/seo/_sitemap.py",
     # Two version-string constants (no logic to test).
-    "src/services/utils/legal.py",
+    "libs/shared/rs_shared/services/utils/legal.py",
     # Sprint 11 / #606 — helper modules split out of applications.py to
     # satisfy file-size caps. Exercised end-to-end via
     # tests/services/public/test_applications.py and
     # tests/api/public/test_applications.py respectively.
-    "src/services/public/_application_helpers.py",
-    "src/api/public/_apply_handler.py",
+    "libs/shared/rs_shared/services/public/_application_helpers.py",
+    "services/api/rs_api/api/public/_apply_handler.py",
+    # HTTP upload guard (UploadFile → bytes, MIME/size checks). A thin FastAPI
+    # wrapper split out of core/services/file_validation.py to keep the domain
+    # framework-free; exercised end-to-end via the four upload-endpoint tests
+    # (auth registration, candidate profile, candidate + public applications).
+    "services/api/rs_api/api/uploads.py",
     # Sprint 11 / #609 — shared resume-streaming helper imported by both
     # the admin (src/api/company/resumes.py) and candidate-facing
     # (src/api/candidate/applications.py) resume endpoints. Exercised
     # end-to-end via the consumer endpoints' tests.
-    "src/api/_resume_streaming.py",
+    "services/api/rs_api/api/_resume_streaming.py",
     # Helper modules split out of admin service files to satisfy the 300-line
     # file cap. Exercised end-to-end via tests/services/admin/test_candidates.py,
     # test_applications.py, and test_jobs.py respectively.
-    "src/services/admin/_candidates_purge.py",
-    "src/services/admin/_application_status.py",
-    "src/services/admin/_job_close.py",
+    "libs/shared/rs_shared/services/admin/_candidates_purge.py",
+    "libs/shared/rs_shared/services/admin/_application_status.py",
+    "libs/shared/rs_shared/services/admin/_job_close.py",
     # Helper modules split out of src/services/company/jobs.py to satisfy the
     # 300-line file cap. Exercised end-to-end via tests/services/company/test_jobs.py.
-    "src/services/company/_jobs_applications.py",
-    "src/services/company/_jobs_recommendations.py",
+    "libs/shared/rs_shared/services/company/_jobs_applications.py",
+    "libs/shared/rs_shared/services/company/_jobs_recommendations.py",
     # OTel SDK initialisation — thin wrappers around TracerProvider,
     # MeterProvider, and LoggerProvider. No domain logic; exercised
     # end-to-end by every request/task that emits telemetry in prod.
-    "src/core/infrastructure/telemetry.py",
+    "libs/shared/rs_shared/core/infrastructure/telemetry.py",
 }
 
 # Test files allowed to exist without a matching source file.
@@ -109,10 +118,6 @@ def get_expected_source_file(test_file: Path) -> Path | None:
 def check_missing_test_files() -> list[str]:
     """Find source files without a matching test file."""
     violations: list[str] = []
-    src_path = Path("src")
-
-    if not src_path.exists():
-        return [f"Source directory '{src_path}' not found"]
 
     for source_dir in SOURCE_TO_TEST_MAPPING:
         dir_path = Path(source_dir)

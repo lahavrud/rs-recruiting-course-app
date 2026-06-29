@@ -14,21 +14,21 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.models import ActivationToken, User
-from src.services.auth.candidate_registration import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import ActivationToken, User
+from rs_shared.services.auth.candidate_registration import (
     _CANDIDATE_ACTIVATION_TTL_HOURS,
     register_candidate,
     resend_candidate_activation,
 )
-from src.services.exceptions import EmailAlreadyExistsError
+from rs_shared.services.exceptions import EmailAlreadyExistsError
 
 
 @pytest.fixture
 def _patch_email():
     with patch(
-        "src.services.auth.candidate_registration.enqueue_email_task",
+        "rs_shared.services.auth.candidate_registration.enqueue_email_task",
         new_callable=AsyncMock,
     ) as p:
         yield p
@@ -74,7 +74,7 @@ async def test_resend_carries_full_name_from_prior_token(
     session: AsyncSession, _patch_email
 ):
     """A resend after the original token was lost must reuse the same name."""
-    from src.services.auth.candidate_registration import (
+    from rs_shared.services.auth.candidate_registration import (
         resend_candidate_activation,
     )
 

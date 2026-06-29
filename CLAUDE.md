@@ -6,7 +6,13 @@ Use `sigmap` MCP tools to navigate and search the codebase instead of reading fi
 
 ## Plan mode
 
-Use plan mode before starting any change that touches `alembic/`, `src/services/auth/`, `.github/workflows/`, or `src/models.py`. These areas have non-obvious invariants and hard-to-reverse consequences.
+Use plan mode before starting any change that touches `alembic/`, `libs/shared/rs_shared/services/auth/`, `.github/workflows/`, or `libs/shared/rs_shared/models.py`. These areas have non-obvious invariants and hard-to-reverse consequences.
+
+> **Backend layout (uv workspace).** The backend is split into three workspace
+> members: `libs/shared` (`rs_shared` — the framework-free domain), `services/api`
+> (`rs_api` — FastAPI routers + web infra), and `services/worker` (`rs_worker` —
+> the SQS consumer). Import roots are `rs_shared` / `rs_api` / `rs_worker` (no more
+> top-level `src.`). See `docs/service-data-ownership.md`.
 
 ## Path-scoped rules
 
@@ -15,9 +21,9 @@ Load the relevant rule file before planning changes in these areas:
 - **Frontend** (design system, components, i18n, linting): `.claude/rules/frontend.md`  
   → any change touching `frontend/`
 - **Auth** (JWT, activation flows, rate limiting): `.claude/rules/auth.md`  
-  → any change touching `src/services/auth/` or `src/api/auth/`
+  → any change touching `libs/shared/rs_shared/services/auth/` or `services/api/rs_api/api/auth/`
 - **Migrations & data model** (alembic, SQLModel, N+1): `.claude/rules/migrations.md`  
-  → any change touching `alembic/` or `src/models.py`
+  → any change touching `alembic/` or `libs/shared/rs_shared/models.py`
 - **Tests** (conventions, fixtures, CI): `.claude/rules/tests.md`  
   → any change touching `tests/`
 - **Infrastructure & CI/CD** (OIDC, SSM, CI workflows, deploy safety): `.claude/rules/infra.md`  
@@ -38,16 +44,9 @@ Load the relevant rule file before planning changes in these areas:
 ### Directory layout
 
 ```
-src/
-├── api/
-│   ├── auth/         login.py, registration.py, candidate_registration.py, activation.py,
-│   │                 password_reset.py, password_change.py, invites.py
-│   ├── admin/        companies.py, invites.py, jobs.py, applications.py, candidates.py, audit.py
-│   ├── company/      jobs.py, profile.py, resumes.py
-│   ├── public/       jobs.py (board), applications.py (apply flow)
-│   ├── seo/          (prerender package)
-│   └── sentry_tunnel.py
-├── services/
+libs/shared/rs_shared/          # framework-free domain (installed into BOTH images)
+├── models.py  enums.py  schemas/  templates/  assets/
+├── services/                    # business logic (used by api + worker)
 │   ├── auth/         session.py, registration.py, activation.py, password_reset.py
 │   ├── admin/        companies.py, company_approval.py, company_profiles.py, invites.py,
 │   │                 jobs.py (CRUD), jobs_workflow.py (approve/reject/contact),
@@ -56,8 +55,24 @@ src/
 │   ├── public/       jobs.py, applications.py
 │   ├── utils/        audit.py, contract_pdf.py, legal.py
 │   └── exceptions.py (flat — imported by 15+ files)
-├── core/             tasks.py, worker.py, infrastructure/, services/ — see "Backend core systems" below
-└── worker.py         SQS worker entry point — see "Backend core systems" below
+└── core/             tasks.py (producer + TASK_REGISTRY), matching.py, task_contract.py,
+                      infrastructure/, services/ — see "Backend core systems" below
+
+services/api/rs_api/             # FastAPI service (web stack: fastapi, uvicorn, slowapi)
+├── main.py
+├── infrastructure/   dependencies.py, error_handling.py, limiter.py, middleware.py  (web-only)
+└── api/
+    ├── auth/         login.py, registration.py, candidate_registration.py, activation.py,
+    │                 password_reset.py, password_change.py, invites.py
+    ├── admin/        companies.py, invites.py, jobs.py, applications.py, candidates.py, audit.py
+    ├── company/      jobs.py, profile.py, resumes.py
+    ├── public/       jobs.py (board), applications.py (apply flow)
+    ├── seo/          (prerender package)
+    ├── uploads.py    (UploadFile guard — FastAPI wrapper over file_validation)
+    └── sentry_tunnel.py
+
+services/worker/rs_worker/
+└── worker.py         SQS worker entry point (console script: rs-worker) — see below
 
 frontend/src/
 ├── components/
@@ -123,34 +138,37 @@ frontend/src/
 
 ## Backend core systems
 
-### `src/core/tasks.py` + `src/worker.py` — async task queue
+### `rs_shared/core/tasks.py` (+ `task_contract.py`) + `rs_worker/worker.py` — async task queue
 
-Plain async functions (no Arq-style context arg) registered in `TASK_REGISTRY` and dispatched by the SQS worker. `enqueue_*` functions in `tasks.py` are the producer side: they push a JSON message to SQS, or — when `SQS_QUEUE_URL` is unset (local dev) — run the task inline/in-process instead. Tasks:
+Plain async functions (no Arq-style context arg) registered in `TASK_REGISTRY` and dispatched by the SQS worker. `enqueue_*` functions in `tasks.py` are the producer side: they push a JSON message to SQS, or — when `SQS_QUEUE_URL` is unset (local dev) — run the task inline/in-process instead. The message wire format is defined once in `rs_shared/core/task_contract.py` (`TaskName` constants + `build_*_message` / `decode_message`) and shared by both the producer (api) and consumer (worker) so they can't drift. Tasks:
 
 - `send_email_task` — sends via the configured email provider, then bumps the daily quota counter
 - `build_data_export_task` — builds a candidate's GDPR data export ZIP and emails the download link (idempotent — a pending export makes it a no-op, since SQS is at-least-once)
 - `purge_expired_candidate_data_task` — nightly retention purge of candidates past the 12-month window (triggered by EventBridge Scheduler → SQS)
+- `embed_job_task` / `match_candidate_task` — resume-matching embeddings (live in `rs_shared/core/matching.py`)
 
-`src/worker.py` is the queue consumer entry point (`python -m src.worker`): long-polls SQS, dispatches each message's `task` field through `TASK_REGISTRY`, deletes the message on success, and leaves it for SQS redelivery (eventually the DLQ) on failure. Handles `SIGTERM` gracefully — finishes the in-flight batch before exiting.
+`rs_worker/worker.py` is the queue consumer entry point (console script `rs-worker`, i.e. `python -m rs_worker.worker`): long-polls SQS, dispatches each message's `task` field through `TASK_REGISTRY`, deletes the message on success, and leaves it for SQS redelivery (eventually the DLQ) on failure. Handles `SIGTERM` gracefully — finishes the in-flight batch before exiting. The worker depends only on `rs_shared` — no web stack (enforced by import-linter + `tests/test_domain_is_framework_free.py`).
 
-### `src/core/infrastructure/` — cross-cutting backend plumbing
+### `rs_shared/core/infrastructure/` — cross-cutting backend plumbing
 
 | File | Purpose |
 |---|---|
 | `config.py` | App settings (env-driven, pydantic) |
 | `database.py` | Async engine/session setup |
 | `database_helpers.py` | Query helpers to cut boilerplate in service functions |
-| `dependencies.py` | FastAPI auth/authorization dependencies |
-| `error_handling.py` | Maps service exceptions → HTTP exceptions via opaque error codes (never leaks raw exception text/PII to clients) |
 | `invite_tokens.py` | DB-backed invite tokens for gated company registration |
-| `limiter.py` | slowapi rate-limiter configuration |
-| `middleware.py` | Request correlation IDs + APM latency logging |
 | `pagination.py` | Cursor-based keyset pagination for admin list endpoints |
+| `request_context.py` | `request_id` ContextVar + `RequestIdFilter` (framework-free; used by both services for log correlation) |
 | `security.py` | Password hashing + JWT helpers |
 | `telemetry.py` | OpenTelemetry SDK init (traces/metrics/logs), shared by `main.py` and `worker.py` |
 | `transactions.py` | Async transaction context manager for write endpoints |
 
-### `src/core/services/` — provider abstractions
+The FastAPI/slowapi-coupled plumbing lives in the **api** member, not here, so
+`rs_shared` stays framework-free: `rs_api/infrastructure/` holds `dependencies.py`
+(auth deps), `error_handling.py` (exception → HTTP mapping), `limiter.py` (slowapi),
+and `middleware.py` (`RequestMiddleware`).
+
+### `rs_shared/core/services/` — provider abstractions
 
 | File | Purpose |
 |---|---|
@@ -201,12 +219,33 @@ TypeScript type definitions mirroring backend schemas, split by domain: `auth.ts
 
 ## Running Locally
 
+`uv sync` provisions the whole workspace (the root depends on the api + worker
+members, so all three packages install editable).
+
 ```bash
-uv sync && uv run uvicorn src.main:app --reload   # backend
-cd frontend && npm run dev                         # frontend
+# Backend inner loop (fast): backing services in containers + uvicorn on the host.
+make services            # db + mailpit + localstack (bare `docker compose up -d`)
+uv sync && uv run uvicorn rs_api.main:app --reload   # tasks run inline (SQS unset)
+
+# Full containerized split: adds the api + worker images (compose `app` profile).
+# `make` builds the shared base then both service images (requires docker buildx):
+make up                  # = make images && docker compose --profile app up -d
+make logs                # tail api + worker
+make down                # stops everything
+
+cd frontend && npm run dev                         # frontend (Vite, :3000)
 ```
 
-No `requirements.txt` — use `uv add <pkg>`. Always commit `uv.lock` after touching `pyproject.toml`.
+The api + worker carry compose `profiles: ["app"]`, so a bare `docker compose up`
+starts only the backing services. Use `make up` for the full stack, `make services`
+(or plain `uvicorn`) for day-to-day backend work.
+
+Adding deps: `uv add <pkg> --package rs-recruiting-{shared,api,worker}` (pick the
+narrowest member — keep the web stack out of `shared`/`worker`). No
+`requirements.txt`. Always commit `uv.lock` after touching any `pyproject.toml`.
+
+Per-member dependency boundaries are enforced by `uv run lint-imports`
+(import-linter) and `tests/test_domain_is_framework_free.py`.
 
 ---
 

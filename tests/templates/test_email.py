@@ -1,6 +1,6 @@
 """Tests for HTML email template builders."""
 
-from src.templates.email import build_approval_html, build_invite_html
+from rs_shared.templates.email import build_approval_html, build_invite_html
 
 
 def test_build_invite_html_contains_url():

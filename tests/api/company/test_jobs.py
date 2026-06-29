@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 from httpx import AsyncClient
 
-from src.enums import JobStatus
-from src.models import CompanyProfile, Job
+from rs_shared.enums import JobStatus
+from rs_shared.models import CompanyProfile, Job
 from tests.conftest import TestSessionLocal
 
 
@@ -98,8 +98,8 @@ async def test_job_read_endpoints_require_auth(unauthenticated_client: AsyncClie
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_success(
     mock_get_admin_emails,
     mock_enqueue_email,
@@ -142,8 +142,8 @@ async def test_create_job_success(
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_success(
     mock_get_admin_emails,
     mock_enqueue_email,
@@ -269,8 +269,8 @@ async def test_job_write_endpoints_require_auth(unauthenticated_client: AsyncCli
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_with_salary(
     mock_get_admin_emails,
     mock_enqueue_email,
@@ -303,8 +303,8 @@ async def test_create_job_with_salary(
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_salary(
     mock_get_admin_emails,
     mock_enqueue_email,

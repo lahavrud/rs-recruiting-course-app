@@ -22,7 +22,9 @@ if [[ -z "${IMAGE_TAG:-}" ]]; then
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+# Images are built once in the ops account and pulled cross-account; CI passes
+# its registry in ECR_REGISTRY. Fall back to this box's own account otherwise.
+export ECR_REGISTRY="${ECR_REGISTRY:-${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com}"
 S3_BUCKET="rs-recruiting-deploy-${ENVIRONMENT}-${ACCOUNT_ID}"
 export IMAGE_TAG
 

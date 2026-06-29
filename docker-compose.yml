@@ -1,4 +1,28 @@
-version: '3.8'
+# Local development stack. Two modes:
+#
+#   docker compose up -d          # backing services only: db + mailpit + localstack
+#                                 # (pair with `uvicorn rs_api.main:app --reload`
+#                                 #  for the fast backend inner loop)
+#   make up                       # FULL containerized stack — adds the api + worker
+#                                 # images via the `app` profile (builds them first)
+#
+# The api + worker carry `profiles: ["app"]`, so they're opt-in: a bare
+# `docker compose up` starts only the backing services. `make up` runs
+# `docker compose --profile app up -d`.
+#
+# Compose does NOT build the shared base image, so `make up` (= `make images` +
+# compose) builds base -> api -> worker via `docker buildx` first.
+#
+# In the full stack, SQS_QUEUE_URL is wired on BOTH services and LocalStack runs,
+# so work flows producer (api) -> SQS -> worker end-to-end; the worker sends email
+# via SMTP to Mailpit (UI: http://localhost:8025).
+
+x-aws-env: &aws-env
+  AWS_ACCESS_KEY_ID: test          # pragma: allowlist secret  (LocalStack ignores creds)
+  AWS_SECRET_ACCESS_KEY: test      # pragma: allowlist secret
+  AWS_REGION: us-east-1
+  SQS_QUEUE_URL: http://localstack:4566/000000000000/rs-recruiting-tasks
+  SQS_ENDPOINT_URL: http://localstack:4566
 
 services:
   db:
@@ -25,33 +49,63 @@ services:
     image: axllent/mailpit:latest
     container_name: rs-recruiting-mailpit
     ports:
-      - "1025:1025"   # SMTP — app sends here
+      - "1025:1025"   # SMTP — the worker sends here
       - "8025:8025"   # Web UI — http://localhost:8025
+    restart: unless-stopped
+
+  localstack:
+    # Local SQS so the producer -> queue -> worker path runs end-to-end in dev.
+    image: localstack/localstack:2026.06
+    container_name: rs-recruiting-localstack
+    environment:
+      - SERVICES=sqs
+    ports:
+      - "4566:4566"
+    volumes:
+      # ready.d/*.sh runs once SQS is up — creates the rs-recruiting-tasks queue.
+      - ./docker/localstack/ready.d:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name rs-recruiting-tasks || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: services/api/Dockerfile
+    image: rs-recruiting-api:local
     container_name: rs-recruiting-api
+    # Opt-in: only starts under `--profile app` (i.e. `make up`). A bare
+    # `docker compose up` brings up just the backing services — the right mode
+    # for the `uvicorn --reload` backend inner loop.
+    profiles: ["app"]
+    # Uses the image CMD (uvicorn). The schema is built by the app's init_db
+    # (SQLModel create_all) on startup — including email_quota now that it's a
+    # SQLModel model. NOTE: the alembic chain is not designed to run from an
+    # empty DB (it assumes create_all built the base schema), so we don't run
+    # migrations here.
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/rs_recruitment}
-      # WARNING: JWT_SECRET_KEY must be set to a secure value (min 32 chars)
-      # Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-      # If not set, validation will fail at startup (by design for security)
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
-      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
-      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-10}
-      # CORS Configuration: Comma-separated list of allowed origins
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
-      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
-      # SQS_QUEUE_URL is intentionally absent — tasks run inline in local dev
-      # Set TESTING=true to disable rate limiting in local dev
-      - TESTING=${TESTING:-false}
+      <<: *aws-env
+      # Hardcoded to the `db` service — NOT ${DATABASE_URL:-...}, which would let
+      # a host .env (e.g. a localhost URL for running the backend on the host)
+      # leak in and make the container target an unreachable 127.0.0.1.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/rs_recruitment
+      # Local-dev only secret (min 32 chars). NEVER use this anywhere real —
+      # production reads JWT_SECRET_KEY from SSM. Override via env to change it.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-insecure-jwt-secret-change-me-0123456789}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-10}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      TESTING: ${TESTING:-false}
     depends_on:
       db:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
@@ -61,31 +115,34 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Worker is only needed in production (SQS). In local dev tasks run inline
-  # inside the API process (SQS_QUEUE_URL is unset). To run the worker locally
-  # point SQS_QUEUE_URL at a LocalStack endpoint and uncomment below.
-  #
-  # worker:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: rs-recruiting-worker
-  #   environment:
-  #     - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/rs_recruitment}
-  #     - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
-  #     - SQS_QUEUE_URL=${SQS_QUEUE_URL}
-  #     - EMAIL_PROVIDER=smtp
-  #     - SMTP_HOST=mailpit
-  #     - SMTP_PORT=1025
-  #     - SMTP_USER=
-  #     - SMTP_PASSWORD=
-  #     - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@rsrecruit.local}
-  #     - SMTP_USE_TLS=false
-  #   depends_on:
-  #     - db
-  #     - mailpit
-  #   command: ["python", "-m", "src.worker"]
-  #   restart: unless-stopped
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    image: rs-recruiting-worker:local
+    container_name: rs-recruiting-worker
+    profiles: ["app"]  # opt-in (see api) — only starts under `--profile app`
+    environment:
+      <<: *aws-env
+      # Hardcoded to the `db` service — NOT ${DATABASE_URL:-...}, which would let
+      # a host .env (e.g. a localhost URL for running the backend on the host)
+      # leak in and make the container target an unreachable 127.0.0.1.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/rs_recruitment
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-insecure-jwt-secret-change-me-0123456789}
+      # Worker sends email; point the SMTP provider at Mailpit.
+      EMAIL_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USE_TLS: "false"
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@rsrecruit.local}
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   postgres-data:

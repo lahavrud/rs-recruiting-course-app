@@ -1,40 +1,26 @@
 [project]
 name = "rs-recruiting"
 version = "0.1.0"
-description = "RS Recruitment backend"
+description = "RS Recruitment backend — uv workspace root (api + worker + shared)"
 requires-python = ">=3.12"
+# The root is a virtual workspace project (not built/installed). It depends on
+# the deployable services so `uv sync` provisions the whole stack for dev/test;
+# per-service images use `uv sync --package <member>` to install a lean subset.
 dependencies = [
-    "fastapi>=0.138.0",
-    "uvicorn>=0.49.0",
-    "sqlmodel>=0.0.22",
-    "sqlalchemy>=2.0.51,<2.1",
-    "alembic>=1.14.0",
-    "asyncpg>=0.30.0",
-    "pydantic[email]>=2.13.4",
-    "pydantic-settings>=2.14.2",
-    "bcrypt>=5.0.0,<6",
-    "python-multipart>=0.0.32,<1",
-    "boto3>=1.35.0,<2",
-    "aioboto3>=15.5.0,<16",
-    "slowapi>=0.1.10",
-    "pymupdf>=1.24.0,<2",
-    "sentry-sdk[fastapi]>=2.63.0,<3",
-    "aiosmtplib>=5.1.2,<6",
-    "httpx>=0.27.2",
-    "markdown>=3.10.2",
-    "pyjwt>=2.13.0",
-    "python-json-logger>=4.1.0",
-    "opentelemetry-sdk>=1.42.0,<2",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.42.0,<2",
-    "opentelemetry-instrumentation-fastapi>=0.63b0,<1",
-    "opentelemetry-instrumentation-sqlalchemy>=0.63b0,<1",
-    "opentelemetry-instrumentation-logging>=0.63b0,<1",
-    "premailer>=3.10.0",
-    "jinja2>=3.1.0",
-    "pgvector>=0.4.2",
-    "pypdf>=6.14.2",
-    "python-docx>=1.2.0",
+    "rs-recruiting-api",
+    "rs-recruiting-worker",
 ]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["libs/shared", "services/api", "services/worker"]
+
+[tool.uv.sources]
+rs-recruiting-shared = { workspace = true }
+rs-recruiting-api = { workspace = true }
+rs-recruiting-worker = { workspace = true }
 
 [dependency-groups]
 test = [
@@ -48,6 +34,7 @@ dev = [
     "ruff>=0.15.18",
     "pre-commit>=4.0.0",
     "aiosmtpd>=1.4.6,<2",
+    "import-linter>=2.0",
     {include-group = "test"},
 ]
 
@@ -61,6 +48,9 @@ line-length = 88
 select = ["E", "F", "I"]
 
 ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["rs_shared", "rs_api", "rs_worker"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*.py" = ["E501"]
@@ -78,3 +68,29 @@ asyncio_default_fixture_loop_scope = "function"
 # that occur with __init__.py-based package imports in xdist workers.
 addopts = "--durations=20"
 filterwarnings = []
+
+# import-linter — structural guard behind the lean images. Run with
+# `uv run lint-imports`. Keeps the web stack out of the shared domain and the
+# worker so their images never re-acquire FastAPI/uvicorn/slowapi/starlette,
+# and stops the shared layer from depending on the services.
+[tool.importlinter]
+root_packages = ["rs_shared", "rs_api", "rs_worker"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Shared domain is framework-free"
+type = "forbidden"
+source_modules = ["rs_shared"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi", "sentry_sdk", "markdown"]
+
+[[tool.importlinter.contracts]]
+name = "Worker carries no web stack"
+type = "forbidden"
+source_modules = ["rs_worker"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "slowapi", "sentry_sdk", "markdown"]
+
+[[tool.importlinter.contracts]]
+name = "Shared domain does not depend on the services"
+type = "forbidden"
+source_modules = ["rs_shared"]
+forbidden_modules = ["rs_api", "rs_worker"]

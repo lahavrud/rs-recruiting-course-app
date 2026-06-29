@@ -3,9 +3,9 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CandidateProfile
-from src.schemas import CandidateProfileCreate
-from src.services.company.candidates import (
+from rs_shared.models import CandidateProfile
+from rs_shared.schemas import CandidateProfileCreate
+from rs_shared.services.company.candidates import (
     find_candidate_by_email,
     update_candidate_profile,
 )

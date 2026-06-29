@@ -1,0 +1,23 @@
+[project]
+name = "rs-recruiting-worker"
+version = "0.1.0"
+description = "RS Recruitment SQS worker — consumes the task queue, dispatches via TASK_REGISTRY"
+requires-python = ">=3.12"
+# Depends ONLY on the shared domain — no web framework. This is what keeps the
+# worker image lean (see tests/test_domain_is_framework_free.py).
+dependencies = [
+    "rs-recruiting-shared",
+]
+
+[project.scripts]
+rs-worker = "rs_worker.worker:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rs_worker"]
+
+[tool.uv.sources]
+rs-recruiting-shared = { workspace = true }

@@ -7,17 +7,17 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import InviteTokenStatus, UserRole
-from src.models import InviteToken, User
-from src.schemas import InviteTokenCreate
-from src.services.admin.invites import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import InviteTokenStatus, UserRole
+from rs_shared.models import InviteToken, User
+from rs_shared.schemas import InviteTokenCreate
+from rs_shared.services.admin.invites import (
     create_invite,
     list_invites,
     resend_invite,
     revoke_invite,
 )
-from src.services.exceptions import (
+from rs_shared.services.exceptions import (
     EmailAlreadyExistsError,
     InviteAlreadyRevokedError,
     InviteNotFoundError,
@@ -110,7 +110,7 @@ async def test_list_invites_returns_all(session: AsyncSession):
     _exp = datetime(2099, 1, 1, tzinfo=timezone.utc)
     tokens = [("raw-aaa", "hash-aaa", _exp), ("raw-bbb", "hash-bbb", _exp)]
     with patch(
-        "src.services.admin.invites.generate_invite_token",
+        "rs_shared.services.admin.invites.generate_invite_token",
         new_callable=AsyncMock,
         side_effect=tokens,
     ):
@@ -179,7 +179,7 @@ async def test_resend_invite_success(session: AsyncSession):
     admin_id = await _make_admin(session)
     _exp = datetime(2099, 1, 1, tzinfo=timezone.utc)
     with patch(
-        "src.services.admin.invites.generate_invite_token",
+        "rs_shared.services.admin.invites.generate_invite_token",
         new_callable=AsyncMock,
         side_effect=[
             ("original-raw", "original-hash", _exp),

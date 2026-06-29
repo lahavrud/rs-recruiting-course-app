@@ -3,8 +3,8 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Application
-from src.services.admin.overview import get_overview
+from rs_shared.models import Application
+from rs_shared.services.admin.overview import get_overview
 
 
 @pytest.mark.asyncio

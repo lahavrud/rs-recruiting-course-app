@@ -1,5 +1,19 @@
 # Migrations & Data Model Rules
 
+## How the schema is built (important invariant)
+
+Dev/test/local-compose build the schema from **`SQLModel.metadata.create_all`**
+(`init_db`), NOT by running migrations. The Alembic chain is **not** designed to
+run from an empty database (some migrations reference tables that `create_all`
+already created), so `alembic upgrade head` against a fresh DB will fail — don't
+wire it into local startup. Production applies migrations on top of an existing
+schema.
+
+Consequence: **every table needs both a SQLModel model AND a migration.** A
+migration-only table is invisible to `create_all` and silently absent in dev
+(this bit us with `email_quota`, now modeled as `EmailQuota`). When you add a
+table via migration, add its model too.
+
 ## Alembic safety
 
 **Always preview before applying:**
@@ -36,4 +50,4 @@ All DB calls must be `await`ed. Never use sync SQLAlchemy sessions in async rout
 2. Review the generated file — autogenerate misses some things (constraints, indexes, enum changes)
 3. Run `uv run alembic upgrade --sql head` and read the output
 4. Apply: `uv run alembic upgrade head`
-5. Update `src/models.py` if the migration adds/removes columns
+5. Update `libs/shared/rs_shared/models.py` if the migration adds/removes columns

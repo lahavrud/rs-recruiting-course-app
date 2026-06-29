@@ -5,15 +5,15 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.invite_tokens import (
+from rs_shared.core.infrastructure.invite_tokens import (
     TOKEN_TTL_SECONDS,
     generate_invite_token,
     validate_invite_token,
 )
-from src.core.infrastructure.security import hash_token
-from src.enums import InviteTokenStatus
-from src.models import InviteToken
-from src.services.exceptions import InvalidInviteTokenError
+from rs_shared.core.infrastructure.security import hash_token
+from rs_shared.enums import InviteTokenStatus
+from rs_shared.models import InviteToken
+from rs_shared.services.exceptions import InvalidInviteTokenError
 
 
 class TestGenerateInviteToken:

@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import Column, DateTime, Integer, String, select
 from sqlalchemy.orm import declarative_base
 
-from src.core.infrastructure.pagination import (
+from rs_shared.core.infrastructure.pagination import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
     CursorPage,
@@ -16,7 +16,7 @@ from src.core.infrastructure.pagination import (
     decode_cursor,
     encode_cursor,
 )
-from src.services.exceptions import InvalidCursorError
+from rs_shared.services.exceptions import InvalidCursorError
 
 _Base = declarative_base()
 

@@ -18,7 +18,7 @@
 
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.31-alpine
     ports:
       - "80:80"
     volumes:
@@ -57,8 +57,10 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ${ECR_REGISTRY}/rs-recruiting/api:${IMAGE_TAG}
-    command: ["python", "-m", "src.worker"]
+    # INFRA FOLLOW-UP: worker is now a separate, lean image — CI must build &
+    # push rs-recruiting/worker (+ the shared base). See services/worker/Dockerfile.
+    image: ${ECR_REGISTRY}/rs-recruiting/worker:${IMAGE_TAG}
+    command: ["rs-worker"]
     environment:
       - ENVIRONMENT=staging
       - SENTRY_RELEASE=${IMAGE_TAG}

@@ -5,17 +5,23 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, AuditLog, CandidateProfile, CompanyProfile, Job
-from src.schemas import ApplicationRead, ApplicationWithDetails
-from src.services.admin.applications import (
+from rs_shared.enums import ApplicationStatus, JobStatus
+from rs_shared.models import (
+    Application,
+    AuditLog,
+    CandidateProfile,
+    CompanyProfile,
+    Job,
+)
+from rs_shared.schemas import ApplicationRead, ApplicationWithDetails
+from rs_shared.services.admin.applications import (
     get_application,
     get_application_activity,
     list_applications,
     update_application_notes,
     update_application_status,
 )
-from src.services.exceptions import ApplicationNotFoundError, InvalidCursorError
+from rs_shared.services.exceptions import ApplicationNotFoundError, InvalidCursorError
 
 # ==================== Helpers ====================
 

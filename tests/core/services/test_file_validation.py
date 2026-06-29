@@ -1,6 +1,6 @@
 """Tests for magic byte file validation."""
 
-from src.core.services.file_validation import (
+from rs_shared.core.services.file_validation import (
     is_valid_document_magic_bytes,
     is_valid_image_magic_bytes,
 )

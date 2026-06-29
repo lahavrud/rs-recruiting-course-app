@@ -3,8 +3,8 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job, User
 
 
 @pytest.fixture

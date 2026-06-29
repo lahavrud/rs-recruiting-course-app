@@ -3,8 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
-from src.enums import ApplicationStatus
-from src.models import Application, CandidateProfile, Job
+from rs_shared.enums import ApplicationStatus
+from rs_shared.models import Application, CandidateProfile, Job
 from tests.conftest import TestSessionLocal
 
 # ==================== GET /api/admin/applications ====================

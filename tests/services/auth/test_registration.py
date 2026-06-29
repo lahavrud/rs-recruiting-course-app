@@ -9,13 +9,13 @@ import base64
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.enums import UserRole
-from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import (
+from rs_shared.enums import UserRole
+from rs_shared.schemas import CompanyProfileCreate, UserCreate
+from rs_shared.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
-from src.services.exceptions import EmailAlreadyExistsError
+from rs_shared.services.exceptions import EmailAlreadyExistsError
 from tests.conftest import FAKE_LOGO
 from tests.conftest import FAKE_SIG_B64 as FAKE_SIGNATURE_B64
 
@@ -43,8 +43,8 @@ async def test_register_company_user_full_data(session: AsyncSession):
     """Test successful company user registration with all fields."""
     from sqlalchemy import select
 
-    from src.core.infrastructure.security import is_password_valid
-    from src.models import CompanyProfile, User
+    from rs_shared.core.infrastructure.security import is_password_valid
+    from rs_shared.models import CompanyProfile, User
 
     user_data = _make_user_create()
     result = await register_company_user(

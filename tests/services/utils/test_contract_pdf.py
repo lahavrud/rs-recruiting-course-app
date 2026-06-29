@@ -26,12 +26,12 @@ async def test_generate_signed_contract_returns_pdf_bytes():
 
     with (
         patch(
-            "src.services.utils.contract_pdf._fetch_asset",
+            "rs_shared.services.utils.contract_pdf._fetch_asset",
             new_callable=AsyncMock,
             side_effect=[pdf_bytes, fake_sig_png],
         ),
     ):
-        from src.services.utils.contract_pdf import generate_signed_contract
+        from rs_shared.services.utils.contract_pdf import generate_signed_contract
 
         result = await generate_signed_contract(
             company_name="חברת בדיקה",

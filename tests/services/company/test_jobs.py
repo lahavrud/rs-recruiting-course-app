@@ -5,18 +5,18 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.transactions import transactional
-from src.enums import JobStatus, UserRole
-from src.models import CompanyProfile, Job, User
-from src.schemas import JobCreate, JobUpdate
-from src.services.company.jobs import (
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.enums import JobStatus, UserRole
+from rs_shared.models import CompanyProfile, Job, User
+from rs_shared.schemas import JobCreate, JobUpdate
+from rs_shared.services.company.jobs import (
     create_job,
     delete_job,
     get_job,
     list_company_jobs,
     update_job,
 )
-from src.services.exceptions import (
+from rs_shared.services.exceptions import (
     CompanyNotFoundError,
     JobCannotBeDeletedError,
     JobCannotBeUpdatedError,
@@ -67,8 +67,8 @@ async def job(session: AsyncSession, company_with_user: CompanyProfile) -> Job:
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_success(
     mock_get_admin_emails: AsyncMock,
     mock_enqueue_email: AsyncMock,
@@ -185,8 +185,8 @@ async def test_list_company_jobs(
 
 
 @pytest.mark.asyncio
-@patch("src.services.company.jobs.enqueue_email_task")
-@patch("src.services.company.jobs.get_all_admin_emails")
+@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_success(
     mock_get_admin_emails: AsyncMock,
     mock_enqueue_email: AsyncMock,

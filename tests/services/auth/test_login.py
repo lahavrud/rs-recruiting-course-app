@@ -4,16 +4,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.models import User
-from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.login import authenticate_user
-from src.services.auth.registration import (
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import User
+from rs_shared.schemas import CompanyProfileCreate, UserCreate
+from rs_shared.services.auth.login import authenticate_user
+from rs_shared.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
-from src.services.exceptions import (
+from rs_shared.services.exceptions import (
     InvalidCredentialsError,
     PendingApprovalError,
 )

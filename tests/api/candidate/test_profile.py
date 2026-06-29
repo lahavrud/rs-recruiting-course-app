@@ -6,12 +6,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_current_candidate, get_current_user
-from src.core.infrastructure.security import get_password_hash
-from src.enums import UserRole
-from src.main import app
-from src.models import CandidateProfile, User
+from rs_api.infrastructure.dependencies import get_current_candidate, get_current_user
+from rs_api.main import app
+from rs_shared.core.infrastructure.database import get_session
+from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.enums import UserRole
+from rs_shared.models import CandidateProfile, User
 from tests.conftest import TestSessionLocal
 
 
@@ -61,7 +61,7 @@ def _override_user(user_id: int, email: str):
     runs against the request's session (avoids cross-session attach errors)."""
 
     async def _resolver() -> User:
-        from src.enums import UserRole as _UR
+        from rs_shared.enums import UserRole as _UR
 
         # Minimal stub — enough for get_current_candidate to verify role and
         # filter the profile lookup by user_id.
@@ -161,7 +161,7 @@ async def test_resume_upload_then_delete_roundtrip(test_db):
     pdf_bytes = b"%PDF-1.4" + b"\x00" * 100
 
     with patch(
-        "src.api.candidate.profile.get_storage_provider", return_value=mock_storage
+        "rs_api.api.candidate.profile.get_storage_provider", return_value=mock_storage
     ):
         async with await _client() as client:
             up = await client.post(
@@ -185,7 +185,7 @@ async def test_resume_upload_rejects_wrong_extension(test_db):
 
     mock_storage = AsyncMock()
     with patch(
-        "src.api.candidate.profile.get_storage_provider", return_value=mock_storage
+        "rs_api.api.candidate.profile.get_storage_provider", return_value=mock_storage
     ):
         async with await _client() as client:
             resp = await client.post(
@@ -207,7 +207,7 @@ async def test_resume_upload_rejects_oversized_file(test_db):
     mock_storage = AsyncMock()
     large_content = b"%PDF-1.4" + b"x" * (11 * 1024 * 1024)
     with patch(
-        "src.api.candidate.profile.get_storage_provider", return_value=mock_storage
+        "rs_api.api.candidate.profile.get_storage_provider", return_value=mock_storage
     ):
         async with await _client() as client:
             resp = await client.post(

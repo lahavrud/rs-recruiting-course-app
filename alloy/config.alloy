@@ -1,13 +1,23 @@
-// Grafana Alloy pipeline — rs-recruiting production
+// Grafana Alloy pipeline — rs-recruiting (ECS Fargate sidecar)
 //
-// Env vars injected at container start by docker-compose (sourced from SSM
-// by deploy_ec2.sh before `docker compose up`):
-//   GRAFANA_LOKI_URL        GRAFANA_LOKI_USER
+// Runs as a sidecar container in each ECS task (api + worker). The task
+// definition (tofu ecs-service module) injects:
+//   GRAFANA_LOKI_URL        GRAFANA_LOKI_USER       (from SSM, per-env)
 //   GRAFANA_TEMPO_URL       GRAFANA_TEMPO_USER
 //   GRAFANA_PROMETHEUS_URL  GRAFANA_PROMETHEUS_USER
 //   GRAFANA_API_TOKEN
+//   ENVIRONMENT             (prod|staging — the external label below)
+//
+// prod and staging share one Grafana Cloud stack; ENVIRONMENT is stamped onto
+// every metric/log so prod alert rules and the ops dashboard can scope by it.
+//
+// This file is the OTLP pipeline, loaded by every sidecar. The AWS CloudWatch
+// scrape lives in cloudwatch.alloy and is loaded ONLY by the single web task
+// (which loads the whole /etc/alloy directory) to avoid duplicate series — see
+// the ecs-service module. Alloy merges all *.alloy files in a directory, so
+// cloudwatch.alloy resolves prometheus.remote_write.mimir from here.
 
-// ── 1. OTLP receiver — accepts traces, metrics, and logs from API + worker ──
+// ── 1. OTLP receiver — traces, metrics, logs from the app container ───────────
 
 otelcol.receiver.otlp "app" {
   grpc {
@@ -23,13 +33,28 @@ otelcol.receiver.otlp "app" {
 
 otelcol.processor.batch "default" {
   output {
-    traces  = [otelcol.exporter.otlp.tempo.input]
+    traces  = [otelcol.processor.attributes.add_env.input]
     metrics = [otelcol.exporter.prometheus.mimir.input]
     logs    = [otelcol.exporter.loki.app.input]
   }
 }
 
-// ── 2. Traces → Grafana Cloud Tempo ──────────────────────────────────────
+// Stamp environment on spans too (metrics use remote_write external_labels and
+// logs use loki static labels; traces carry it as a span attribute so Tempo can
+// filter prod vs staging on the shared stack).
+otelcol.processor.attributes "add_env" {
+  action {
+    key    = "environment"
+    value  = sys.env("ENVIRONMENT")
+    action = "upsert"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// ── 2. Traces → Grafana Cloud Tempo ──────────────────────────────────────────
 
 otelcol.exporter.otlp "tempo" {
   client {
@@ -47,13 +72,19 @@ otelcol.auth.basic "tempo" {
   password = sys.env("GRAFANA_API_TOKEN")
 }
 
-// ── 3. App metrics → Grafana Cloud Mimir (via Prometheus remote_write) ───
+// ── 3. App metrics → Grafana Cloud Mimir (via Prometheus remote_write) ────────
 
 otelcol.exporter.prometheus "mimir" {
   forward_to = [prometheus.remote_write.mimir.receiver]
 }
 
 prometheus.remote_write "mimir" {
+  // Stamps every series — OTLP app metrics AND the CloudWatch metrics in
+  // section 5 — with the environment label the prod alert rules filter on.
+  external_labels = {
+    environment = sys.env("ENVIRONMENT"),
+  }
+
   endpoint {
     url = sys.env("GRAFANA_PROMETHEUS_URL")
 
@@ -64,47 +95,25 @@ prometheus.remote_write "mimir" {
   }
 }
 
-// ── 4. App logs (OTLP path) → Grafana Cloud Loki ─────────────────────────
+// ── 4. App logs (OTLP path) → Grafana Cloud Loki ─────────────────────────────
+// No nginx / docker socket in Fargate, so the old container-tailing path is
+// gone — app logs arrive only via OTLP (and CloudWatch via the awslogs driver).
+// loki.process stamps the environment stream label so log alerts (e.g.
+// auth-login-failed-spike) can scope to prod.
 
 otelcol.exporter.loki "app" {
+  forward_to = [loki.process.add_env.receiver]
+}
+
+loki.process "add_env" {
+  stage.static_labels {
+    values = {
+      environment = sys.env("ENVIRONMENT"),
+    }
+  }
+
   forward_to = [loki.write.grafana_cloud.receiver]
 }
-
-// ── 5. nginx container log tailing → Loki ────────────────────────────────
-// Only nginx is tailed here. API and worker logs arrive via OTLP (section 1)
-// — tailing them would double-ingest. Worker also ships to CloudWatch via
-// awslogs driver (compliance log group, 400d retention).
-//
-// Container name follows Docker Compose v2 convention: <project>_<service>_1
-// where project = directory name of the app dir on EC2 ("app").
-// If the actual name differs, check with `docker ps` on first deploy.
-
-discovery.docker "nginx" {
-  host = "unix:///var/run/docker.sock"
-
-  filter {
-    name   = "name"
-    values = ["app-nginx-1"]
-  }
-}
-
-discovery.relabel "nginx" {
-  targets = discovery.docker.nginx.targets
-
-  rule {
-    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    target_label  = "service"
-  }
-}
-
-loki.source.docker "nginx" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.relabel.nginx.output
-  labels     = { app = "rs-recruiting", component = "nginx" }
-  forward_to = [loki.write.grafana_cloud.receiver]
-}
-
-// ── 6. Loki write endpoint ────────────────────────────────────────────────
 
 loki.write "grafana_cloud" {
   endpoint {
@@ -116,77 +125,9 @@ loki.write "grafana_cloud" {
     }
   }
 
-  // Persist queued-but-unsent entries to disk (under --storage.path, which
-  // is bind-mounted to a named volume in docker-compose.deploy.yml) so a
-  // hard reboot or container restart doesn't drop logs that haven't been
-  // pushed to Grafana Cloud yet.
+  // Persist queued-but-unsent entries to disk (--storage.path) so a task
+  // restart doesn't drop logs not yet pushed to Grafana Cloud.
   wal {
     enabled = true
   }
-}
-
-// ── 7. AWS CloudWatch metrics scraping → Mimir ───────────────────────────
-// Scrapes native AWS metrics (EC2, RDS, SQS) and forwards to Mimir.
-// The EC2 IAM role has cloudwatch:GetMetricData + cloudwatch:ListMetrics.
-// Uptime monitoring is handled by Grafana Synthetic Monitoring (not CloudWatch).
-
-prometheus.exporter.cloudwatch "aws" {
-  sts_region = "us-east-1"
-
-  discovery {
-    type    = "AWS/EC2"
-    regions = ["us-east-1"]
-    metric {
-      name       = "CPUUtilization"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "NetworkIn"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-
-  discovery {
-    type    = "AWS/RDS"
-    regions = ["us-east-1"]
-    metric {
-      name       = "CPUUtilization"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "DatabaseConnections"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "FreeStorageSpace"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-
-  discovery {
-    type    = "AWS/SQS"
-    regions = ["us-east-1"]
-    metric {
-      name       = "NumberOfMessagesSent"
-      statistics = ["Sum"]
-      period     = "5m"
-    }
-    metric {
-      name       = "ApproximateNumberOfMessagesVisible"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-
-}
-
-prometheus.scrape "cloudwatch" {
-  targets         = prometheus.exporter.cloudwatch.aws.targets
-  forward_to      = [prometheus.remote_write.mimir.receiver]
-  scrape_interval = "5m"
 }

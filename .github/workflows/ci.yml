@@ -61,16 +61,16 @@ jobs:
           if match '^\.github/workflows/'; then
             backend=true; frontend=true; deploy=true; docker=true
           fi
-          if match '^(src/|tests/|scripts/.*\.py|pyproject\.toml|uv\.lock)'; then
+          if match '^(libs/|services/|tests/|alembic/|scripts/.*\.py|pyproject\.toml|uv\.lock)'; then
             backend=true
           fi
           if match '^frontend/'; then
             frontend=true
           fi
-          if match '^(Dockerfile|frontend/Dockerfile|docker-compose.*\.yml|scripts/deploy_ec2\.sh|scripts/validate_deploy_artifacts\.sh)'; then
+          if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|frontend/Dockerfile|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh|scripts/validate_deploy_artifacts\.sh)'; then
             deploy=true
           fi
-          if match '^(Dockerfile|frontend/Dockerfile|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml|scripts/deploy_ec2\.sh|src/main\.py)'; then
+          if match '^(services/[^/]+/Dockerfile|docker/(base|alloy)\.Dockerfile|alloy/[^/]+\.alloy|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh)'; then
             docker=true
             # docker-build smoke-tests the backend image, so guard it with
             # the same checks the image depends on.
@@ -132,7 +132,7 @@ jobs:
         if: needs.detect-changes.outputs.backend == 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Cache uv dependencies
         if: needs.detect-changes.outputs.backend == 'true'
@@ -250,18 +250,36 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      # Build the three images the split produces, in dependency order. Daemon
+      # BuildKit (default on the runner) resolves the local `FROM` base and
+      # honours the Dockerfiles' `--mount=type=cache` — no buildx registry/local
+      # base-sharing dance needed for a smoke build. Building the worker proves
+      # the lean image compiles; only the api is run + health-checked.
+      - name: Build shared base image
+        run: DOCKER_BUILDKIT=1 docker build -f docker/base.Dockerfile -t rs-recruiting-base:local .
 
-      - name: Build Docker image with cache
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: .
-          push: false
-          tags: rs-recruiting:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          load: true
+      - name: Build api image
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f services/api/Dockerfile \
+            --build-arg BASE_IMAGE=rs-recruiting-base:local \
+            -t rs-recruiting-api:test .
+
+      - name: Build worker image
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f services/worker/Dockerfile \
+            --build-arg BASE_IMAGE=rs-recruiting-base:local \
+            -t rs-recruiting-worker:test .
+
+      # Build the Alloy sidecar image and validate the baked config so a broken
+      # pipeline fails the PR rather than the first ECS deploy.
+      - name: Build alloy image
+        run: DOCKER_BUILDKIT=1 docker build -f docker/alloy.Dockerfile -t rs-recruiting-alloy:test .
+
+      - name: Validate alloy config
+        run: |
+          # worker scope (OTLP only) and web scope (whole dir = OTLP + cloudwatch)
+          docker run --rm rs-recruiting-alloy:test validate /etc/alloy/config.alloy
+          docker run --rm rs-recruiting-alloy:test validate /etc/alloy
 
       - name: Start test network and postgres
         run: |
@@ -271,7 +289,7 @@ jobs:
             -e POSTGRES_USER=test \
             -e POSTGRES_PASSWORD="$PG_TEST_PASSWORD" \
             pgvector/pgvector:pg16
-          docker run -d --name test-redis --network test-net redis:7-alpine
+          docker run -d --name test-redis --network test-net redis:8-alpine
           for i in {1..10}; do
             docker exec test-db pg_isready -U test && break || sleep 2
           done
@@ -285,7 +303,7 @@ jobs:
             -e DATABASE_URL="$TEST_DB_URL" \
             -e JWT_SECRET_KEY="$JWT_SECRET_KEY" \
             -e REDIS_URL="redis://test-redis:6379/0" \
-            rs-recruiting:test
+            rs-recruiting-api:test
 
       - name: Wait for service to be ready
         run: |

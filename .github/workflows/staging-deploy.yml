@@ -71,6 +71,7 @@ jobs:
           instance-id: ${{ env.INSTANCE_ID }}
           environment: staging
           script-name: deploy_ec2_staging.sh
+          ecr-registry: ${{ secrets.OPS_ECR_REGISTRY }}
 
       - name: Summary
         run: |

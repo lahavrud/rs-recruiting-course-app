@@ -16,7 +16,10 @@ APP_DIR="/home/ec2-user/app"
 REGION="us-east-1"
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+# Images are built once in the ops account and pulled cross-account; CI passes
+# its registry in ECR_REGISTRY. Fall back to this instance's own account so a
+# manual same-account rerun still works.
+export ECR_REGISTRY="${ECR_REGISTRY:-${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com}"
 S3_BUCKET="rs-recruiting-deploy-${ENVIRONMENT}-${ACCOUNT_ID}"
 
 OLD_CURRENT=$(aws ssm get-parameter \
@@ -148,7 +151,7 @@ aws ssm put-parameter \
 
 echo "==> Pruning old images (keep newest 3)"
 KEEP_IMAGES=3
-for repo in "${ECR_REGISTRY}/rs-recruiting/api"; do
+for repo in "${ECR_REGISTRY}/rs-recruiting/api" "${ECR_REGISTRY}/rs-recruiting/worker"; do
   docker images "$repo" --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' \
     | sort -r \
     | awk -F'|' -v keep="$KEEP_IMAGES" 'NR > keep {print $2}' \
