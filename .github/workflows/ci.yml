@@ -270,13 +270,15 @@ jobs:
             --build-arg BASE_IMAGE=rs-recruiting-base:local \
             -t rs-recruiting-worker:test .
 
-      # Build the Alloy sidecar image and validate the baked config so a broken
-      # pipeline fails the PR rather than the first ECS deploy.
+      # Build the Alloy sidecar image and syntax-check the baked config so a
+      # broken pipeline fails the PR rather than the first ECS deploy. `alloy fmt`
+      # performs syntactic validation and exists in every version (the `validate`
+      # subcommand is newer than our pinned image).
       - name: Build alloy image
         run: DOCKER_BUILDKIT=1 docker build -f docker/alloy.Dockerfile -t rs-recruiting-alloy:test .
 
-      - name: Validate alloy config
-        run: docker run --rm rs-recruiting-alloy:test validate /etc/alloy/config.alloy
+      - name: Syntax-check alloy config
+        run: docker run --rm rs-recruiting-alloy:test fmt /etc/alloy/config.alloy > /dev/null
 
       - name: Start test network and postgres
         run: |
