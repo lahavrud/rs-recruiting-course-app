@@ -28,9 +28,24 @@ otelcol.receiver.otlp "app" {
 
 otelcol.processor.batch "default" {
   output {
-    traces  = [otelcol.exporter.otlp.tempo.input]
+    traces  = [otelcol.processor.attributes.add_env.input]
     metrics = [otelcol.exporter.prometheus.mimir.input]
     logs    = [otelcol.exporter.loki.app.input]
+  }
+}
+
+// Stamp environment on spans too (metrics use remote_write external_labels and
+// logs use loki static labels; traces carry it as a span attribute so Tempo can
+// filter prod vs staging on the shared stack).
+otelcol.processor.attributes "add_env" {
+  action {
+    key    = "environment"
+    value  = sys.env("ENVIRONMENT")
+    action = "upsert"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
   }
 }
 
