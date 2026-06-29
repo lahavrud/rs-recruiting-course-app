@@ -1,0 +1,71 @@
+// AWS CloudWatch scrape — loaded ONLY by the single web task (which runs Alloy
+// against the whole /etc/alloy directory). Worker sidecars load just
+// config.alloy, so they don't run this — that keeps these series single-sourced
+// (a sidecar runs in every task; scraping CloudWatch from each would duplicate).
+//
+// Alloy merges all *.alloy files in a directory into one config, so this file
+// reuses prometheus.remote_write.mimir (defined in config.alloy), whose
+// external_labels stamp the environment label onto these metrics too.
+//
+// aws_ecs_cpuutilization_average backs the ecs-cpu-high alert; EC2 is gone. The
+// ECS task role grants cloudwatch:GetMetricData + ListMetrics.
+
+prometheus.exporter.cloudwatch "aws" {
+  sts_region = "us-east-1"
+
+  discovery {
+    type    = "AWS/ECS"
+    regions = ["us-east-1"]
+    metric {
+      name       = "CPUUtilization"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "MemoryUtilization"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+  }
+
+  discovery {
+    type    = "AWS/RDS"
+    regions = ["us-east-1"]
+    metric {
+      name       = "CPUUtilization"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "DatabaseConnections"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "FreeStorageSpace"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+  }
+
+  discovery {
+    type    = "AWS/SQS"
+    regions = ["us-east-1"]
+    metric {
+      name       = "NumberOfMessagesSent"
+      statistics = ["Sum"]
+      period     = "5m"
+    }
+    metric {
+      name       = "ApproximateNumberOfMessagesVisible"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+  }
+}
+
+prometheus.scrape "cloudwatch" {
+  targets         = prometheus.exporter.cloudwatch.aws.targets
+  forward_to      = [prometheus.remote_write.mimir.receiver]
+  scrape_interval = "5m"
+}

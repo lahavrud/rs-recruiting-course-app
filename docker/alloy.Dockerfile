@@ -14,4 +14,9 @@
 
 FROM grafana/alloy:v1.17.0
 
+# config.alloy = OTLP pipeline (loaded by every sidecar).
+# cloudwatch.alloy = the AWS CloudWatch scrape, loaded only when Alloy runs
+# against the whole /etc/alloy directory — the ecs-service module does that on
+# the single web task; worker sidecars point at config.alloy alone.
 COPY alloy/config.alloy /etc/alloy/config.alloy
+COPY alloy/cloudwatch.alloy /etc/alloy/cloudwatch.alloy

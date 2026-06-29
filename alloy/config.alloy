@@ -7,10 +7,15 @@
 //   GRAFANA_PROMETHEUS_URL  GRAFANA_PROMETHEUS_USER
 //   GRAFANA_API_TOKEN
 //   ENVIRONMENT             (prod|staging — the external label below)
-//   ALLOY_SCRAPE_CLOUDWATCH (true only on the web task; see section 5)
 //
 // prod and staging share one Grafana Cloud stack; ENVIRONMENT is stamped onto
 // every metric/log so prod alert rules and the ops dashboard can scope by it.
+//
+// This file is the OTLP pipeline, loaded by every sidecar. The AWS CloudWatch
+// scrape lives in cloudwatch.alloy and is loaded ONLY by the single web task
+// (which loads the whole /etc/alloy directory) to avoid duplicate series — see
+// the ecs-service module. Alloy merges all *.alloy files in a directory, so
+// cloudwatch.alloy resolves prometheus.remote_write.mimir from here.
 
 // ── 1. OTLP receiver — traces, metrics, logs from the app container ───────────
 
@@ -125,76 +130,4 @@ loki.write "grafana_cloud" {
   wal {
     enabled = true
   }
-}
-
-// ── 5. AWS CloudWatch metrics → Mimir ────────────────────────────────────────
-// Native ECS/RDS/SQS metrics. aws_ecs_cpuutilization_average backs the
-// ecs-cpu-high alert; EC2 is gone. The task role grants cloudwatch:GetMetricData
-// + ListMetrics. external_labels on the remote_write above tags these with the
-// environment too.
-//
-// A sidecar runs in every task, so this would double-scrape if every Alloy did
-// it. The scrape is gated to the single (non-autoscaled) web task via
-// ALLOY_SCRAPE_CLOUDWATCH; everywhere else the scrape has no targets and is a
-// no-op. The exporter is always declared (idle until scraped).
-
-prometheus.exporter.cloudwatch "aws" {
-  sts_region = "us-east-1"
-
-  discovery {
-    type    = "AWS/ECS"
-    regions = ["us-east-1"]
-    metric {
-      name       = "CPUUtilization"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "MemoryUtilization"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-
-  discovery {
-    type    = "AWS/RDS"
-    regions = ["us-east-1"]
-    metric {
-      name       = "CPUUtilization"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "DatabaseConnections"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-    metric {
-      name       = "FreeStorageSpace"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-
-  discovery {
-    type    = "AWS/SQS"
-    regions = ["us-east-1"]
-    metric {
-      name       = "NumberOfMessagesSent"
-      statistics = ["Sum"]
-      period     = "5m"
-    }
-    metric {
-      name       = "ApproximateNumberOfMessagesVisible"
-      statistics = ["Average"]
-      period     = "5m"
-    }
-  }
-}
-
-prometheus.scrape "cloudwatch" {
-  // Empty targets when not the designated scraper → scrape is a no-op.
-  targets         = sys.env("ALLOY_SCRAPE_CLOUDWATCH") == "true" ? prometheus.exporter.cloudwatch.aws.targets : []
-  forward_to      = [prometheus.remote_write.mimir.receiver]
-  scrape_interval = "5m"
 }
