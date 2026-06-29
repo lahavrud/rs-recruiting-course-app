@@ -132,7 +132,7 @@ jobs:
         if: needs.detect-changes.outputs.backend == 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Cache uv dependencies
         if: needs.detect-changes.outputs.backend == 'true'
@@ -270,15 +270,13 @@ jobs:
             --build-arg BASE_IMAGE=rs-recruiting-base:local \
             -t rs-recruiting-worker:test .
 
-      # Build the Alloy sidecar image and syntax-check the baked config so a
-      # broken pipeline fails the PR rather than the first ECS deploy. `alloy fmt`
-      # performs syntactic validation and exists in every version (the `validate`
-      # subcommand is newer than our pinned image).
+      # Build the Alloy sidecar image and validate the baked config so a broken
+      # pipeline fails the PR rather than the first ECS deploy.
       - name: Build alloy image
         run: DOCKER_BUILDKIT=1 docker build -f docker/alloy.Dockerfile -t rs-recruiting-alloy:test .
 
-      - name: Syntax-check alloy config
-        run: docker run --rm rs-recruiting-alloy:test fmt /etc/alloy/config.alloy > /dev/null
+      - name: Validate alloy config
+        run: docker run --rm rs-recruiting-alloy:test validate /etc/alloy/config.alloy
 
       - name: Start test network and postgres
         run: |
@@ -288,7 +286,7 @@ jobs:
             -e POSTGRES_USER=test \
             -e POSTGRES_PASSWORD="$PG_TEST_PASSWORD" \
             pgvector/pgvector:pg16
-          docker run -d --name test-redis --network test-net redis:7-alpine
+          docker run -d --name test-redis --network test-net redis:8-alpine
           for i in {1..10}; do
             docker exec test-db pg_isready -U test && break || sleep 2
           done

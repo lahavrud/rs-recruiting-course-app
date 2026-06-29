@@ -22,7 +22,7 @@
 
 services:
   grafana-alloy:
-    image: grafana/alloy:v1.5.1
+    image: grafana/alloy:v1.17.0
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -54,7 +54,7 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.31-alpine
     ports:
       - "80:80"
     volumes:

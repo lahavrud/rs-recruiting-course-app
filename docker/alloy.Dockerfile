@@ -12,6 +12,6 @@
 # of alloy/config.alloy. The default grafana/alloy entrypoint runs
 # `/etc/alloy/config.alloy`.
 
-FROM grafana/alloy:v1.5.1
+FROM grafana/alloy:v1.17.0
 
 COPY alloy/config.alloy /etc/alloy/config.alloy

@@ -13,10 +13,10 @@
 #
 # Build first, from the repo root:
 #   docker build -f docker/base.Dockerfile -t rs-recruiting-base:local .
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # uv for dependency management (pinned; matches the tooling behind uv.lock).
-COPY --from=ghcr.io/astral-sh/uv:0.11.24 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /usr/local/bin/uv
 
 # gosu lets the entrypoint drop from root to the app user with correct signal
 # forwarding (needed for the worker's graceful SIGTERM handling).
