@@ -5,7 +5,7 @@ preventing extension-spoofing attacks (e.g. renaming malware.exe to resume.pdf).
 
 Pure, framework-free functions over bytes — no FastAPI. The HTTP-facing upload
 guard (`UploadFile` → bytes, size/MIME checks raising `HTTPException`) lives in
-`src/api/uploads.py` so the worker never imports the web stack.
+`services/api/rs_api/api/uploads.py` so the worker never imports the web stack.
 """
 
 _JPEG = b"\xff\xd8\xff"

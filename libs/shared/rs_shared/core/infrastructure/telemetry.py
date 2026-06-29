@@ -1,7 +1,7 @@
 """OpenTelemetry SDK initialisation — traces, metrics, and logs.
 
 Call configure_telemetry() once per process before any instrumentation
-libraries activate. Both src/main.py (API) and src/worker.py use this
+libraries activate. Both rs_api/main.py (API) and rs_worker/worker.py use this
 module so the configuration is identical across processes.
 
 OTLP endpoint is read from the OTEL_EXPORTER_OTLP_ENDPOINT env var
