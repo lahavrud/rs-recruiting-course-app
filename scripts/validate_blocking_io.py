@@ -158,18 +158,25 @@ def check_blocking_io(file_path: Path) -> list[str]:
 def main() -> None:
     """Main validation function."""
     violations = []
-    src_path = Path("src")
+    # uv workspace layout: package source lives under each member, not src/.
+    source_roots = [Path("libs"), Path("services")]
+    existing_roots = [p for p in source_roots if p.exists()]
 
-    if not src_path.exists():
-        print(f"❌ Source directory '{src_path}' not found")
+    if not existing_roots:
+        looked = ", ".join(str(p) for p in source_roots)
+        print(f"❌ No source directories found (looked for: {looked})")
         sys.exit(1)
 
-    for py_file in src_path.rglob("*.py"):
-        if py_file.name == "__init__.py":
-            continue
+    for root in existing_roots:
+        for py_file in root.rglob("*.py"):
+            if py_file.name == "__init__.py":
+                continue
+            # Skip tests — only package code is checked, as before.
+            if "tests" in py_file.parts or py_file.name.startswith("test_"):
+                continue
 
-        file_violations = check_blocking_io(py_file)
-        violations.extend(file_violations)
+            file_violations = check_blocking_io(py_file)
+            violations.extend(file_violations)
 
     if violations:
         print("❌ Blocking I/O violations detected in async functions:")
