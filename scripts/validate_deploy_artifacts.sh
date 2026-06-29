@@ -15,6 +15,7 @@ NGINX_CONF="${ROOT}/nginx/nginx.conf"
 COMPOSE="${ROOT}/docker-compose.deploy.yml"
 DEPLOY_SH="${ROOT}/scripts/deploy_ec2.sh"
 ALLOY_CONF="${ROOT}/alloy/config.alloy"
+CLOUDWATCH_CONF="${ROOT}/alloy/cloudwatch.alloy"
 
 fail=0
 
@@ -53,7 +54,7 @@ check "alloy port lo-only (not exposed to CloudFront)" grep_q '127.0.0.1:4317'  
 echo "alloy/config.alloy"
 check "OTLP gRPC receiver on 4317"                    grep_q  '4317'                                       "${ALLOY_CONF}"
 check "uses sys.env for API token"                    grep_q  'sys.env("GRAFANA_API_TOKEN")'               "${ALLOY_CONF}"
-check "CloudWatch exporter present"                   grep_q  'prometheus.exporter.cloudwatch'             "${ALLOY_CONF}"
+check "CloudWatch exporter present"                   grep_q  'prometheus.exporter.cloudwatch'             "${CLOUDWATCH_CONF}"
 
 echo "scripts/deploy_ec2.sh"
 check "fetches nginx.conf from S3"                    grep_q  '/deploy/${IMAGE_TAG}/nginx.conf'            "${DEPLOY_SH}"

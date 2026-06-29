@@ -24,15 +24,19 @@ services:
   grafana-alloy:
     image: grafana/alloy:v1.17.0
     volumes:
-      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Persists the loki.write WAL (see alloy/config.alloy) across container
-      # restarts and EC2 reboots — the EBS root volume backs Docker's volume
-      # storage, so this survives a reboot unlike the container's writable layer.
+      # Mount the whole dir so Alloy loads config.alloy + cloudwatch.alloy (the
+      # CloudWatch scrape now lives in its own file; see alloy/cloudwatch.alloy).
+      - ./alloy:/etc/alloy:ro
+      # Persists the loki.write WAL across container restarts and EC2 reboots —
+      # the EBS root volume backs Docker's volume storage, so this survives a
+      # reboot unlike the container's writable layer.
       - alloy-data:/var/lib/alloy/data
     ports:
       - "127.0.0.1:4317:4317"
     environment:
+      # environment external label — keeps EC2 metrics consistent with the ECS
+      # stack and the env-scoped Grafana alerts.
+      - ENVIRONMENT=prod
       - GRAFANA_LOKI_URL=${GRAFANA_LOKI_URL}
       - GRAFANA_LOKI_USER=${GRAFANA_LOKI_USER}
       - GRAFANA_TEMPO_URL=${GRAFANA_TEMPO_URL}
@@ -42,7 +46,7 @@ services:
       - GRAFANA_API_TOKEN=${GRAFANA_API_TOKEN}
     command:
       - run
-      - /etc/alloy/config.alloy
+      - /etc/alloy
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
     networks:
