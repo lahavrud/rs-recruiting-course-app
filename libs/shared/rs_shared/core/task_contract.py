@@ -96,7 +96,7 @@ def decode_attachments(
 ) -> Optional[list[Attachment]]:
     """Inverse of :func:`encode_attachments` — back to ``(name, bytes, mime)``."""
     if not wire:
-        return wire  # None or [] passes through unchanged
+        return None
     return [(name, base64.b64decode(data), mime) for name, data, mime in wire]
 
 
