@@ -218,7 +218,12 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        if os.environ.get("ENVIRONMENT") in ("prod", "staging"):
+        # DISABLE_SSM_SETTINGS opts out of the SSM source for deployments
+        # where an external mechanism (e.g. External Secrets Operator) already
+        # injects the full configuration as environment variables.
+        if os.environ.get("ENVIRONMENT") in ("prod", "staging") and not os.environ.get(
+            "DISABLE_SSM_SETTINGS"
+        ):
             return (
                 init_settings,
                 SsmSettingsSource(settings_cls, _ssm_path_prefix()),
