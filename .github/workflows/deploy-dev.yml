@@ -43,7 +43,7 @@ jobs:
           role-to-assume: ${{ env.ECR_PUSH_ROLE }}
           aws-region: eu-central-1
 
-      - uses: aws-actions/amazon-ecr-login@d5dd66d53b1c382907f186e34865f4c337ce41a3 # v3
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
         id: ecr
 
       - uses: ./.github/actions/build-images
