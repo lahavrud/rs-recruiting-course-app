@@ -16,6 +16,7 @@ async def test_health_endpoint_returns_200_with_json_status():
     assert response.json() == {
         "status": "ok",
         "environment": "dev",
+        "version": "unknown",
     }
 
 

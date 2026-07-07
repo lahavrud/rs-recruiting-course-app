@@ -1,0 +1,66 @@
+# Label-gated dev deploys: put the `deploy` label on a PR and every push to
+# it builds pr-<num>-<sha> images and points the dev namespace at them (via
+# the gitops repo — ArgoCD does the actual rollout; CI never touches the
+# cluster). Remove the label to stop shipping the PR to dev.
+
+name: Deploy to dev
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+
+# One dev deploy at a time — dev is a single shared namespace, so a newer
+# run superseding an older one is exactly what we want.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+env:
+  OPS_ECR_REGISTRY: 883627150418.dkr.ecr.eu-central-1.amazonaws.com
+  ECR_PUSH_ROLE: arn:aws:iam::883627150418:role/rs-course-ci-ecr-push
+
+jobs:
+  build-and-deploy:
+    if: contains(github.event.pull_request.labels.*.name, 'deploy')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for the ECR push role
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          short=$(git rev-parse --short=7 HEAD)
+          echo "tag=pr-${{ github.event.pull_request.number }}-${short}" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ env.ECR_PUSH_ROLE }}
+          aws-region: eu-central-1
+
+      - uses: aws-actions/amazon-ecr-login@d5dd66d53b1c382907f186e34865f4c337ce41a3 # v3
+        id: ecr
+
+      - uses: ./.github/actions/build-images
+        with:
+          registry: ${{ env.OPS_ECR_REGISTRY }}
+          image-tag: ${{ steps.tag.outputs.tag }}
+
+      - uses: ./.github/actions/bump-gitops
+        with:
+          environment: dev
+          image-tag: ${{ steps.tag.outputs.tag }}
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed to dev"
+            echo '`${{ steps.tag.outputs.tag }}` pushed; ArgoCD will roll the dev namespace within ~3 minutes.'
+          } >> "$GITHUB_STEP_SUMMARY"

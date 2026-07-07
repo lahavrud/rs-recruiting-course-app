@@ -1,21 +1,17 @@
 name: Build & push images
 description: >-
-  Build the shared base image then the api + worker images, plus the Alloy
-  sidecar image, and push them all to ECR. The base is pushed first so the
-  per-service buildx builds resolve it as their FROM from the registry (sharing a
-  locally-built base across separate buildx invocations is unreliable). Alloy is
-  independent (FROM grafana/alloy). Assumes the caller has already logged in to
-  the target registry (aws-actions/amazon-ecr-login).
+  Build the shared base image then the api + worker images and push them to
+  the ops-account ECR. The base is pushed first so the per-service buildx
+  builds resolve it as their FROM from the registry (sharing a locally-built
+  base across separate buildx invocations is unreliable). Assumes the caller
+  has already logged in to the registry (aws-actions/amazon-ecr-login).
 
 inputs:
   registry:
-    description: "ECR registry host, e.g. <ops-account>.dkr.ecr.us-east-1.amazonaws.com"
+    description: "ECR registry host, e.g. <ops-account>.dkr.ecr.eu-central-1.amazonaws.com"
     required: true
   image-tag:
-    description: "Primary image tag — the git ref name (rc tag or final version)"
-    required: true
-  sha:
-    description: "Commit SHA, applied as an additional immutable tag (and the base tag)"
+    description: "Tag for the api + worker images (and the base image)"
     required: true
 
 runs:
@@ -31,7 +27,7 @@ runs:
         push: true
         provenance: false
         sbom: false
-        tags: ${{ inputs.registry }}/rs-recruiting/base:${{ inputs.sha }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
         cache-from: type=gha,scope=base
         cache-to: type=gha,mode=max,scope=base
 
@@ -41,13 +37,11 @@ runs:
         context: .
         file: services/api/Dockerfile
         build-args: |
-          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting/base:${{ inputs.sha }}
+          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
         push: true
         provenance: false
         sbom: false
-        tags: |
-          ${{ inputs.registry }}/rs-recruiting/api:${{ inputs.image-tag }}
-          ${{ inputs.registry }}/rs-recruiting/api:${{ inputs.sha }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/api:${{ inputs.image-tag }}
         cache-from: type=gha,scope=api
         cache-to: type=gha,mode=max,scope=api
 
@@ -57,26 +51,10 @@ runs:
         context: .
         file: services/worker/Dockerfile
         build-args: |
-          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting/base:${{ inputs.sha }}
+          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
         push: true
         provenance: false
         sbom: false
-        tags: |
-          ${{ inputs.registry }}/rs-recruiting/worker:${{ inputs.image-tag }}
-          ${{ inputs.registry }}/rs-recruiting/worker:${{ inputs.sha }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/worker:${{ inputs.image-tag }}
         cache-from: type=gha,scope=worker
         cache-to: type=gha,mode=max,scope=worker
-
-    - name: Build & push alloy sidecar
-      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-      with:
-        context: .
-        file: docker/alloy.Dockerfile
-        push: true
-        provenance: false
-        sbom: false
-        tags: |
-          ${{ inputs.registry }}/rs-recruiting/alloy:${{ inputs.image-tag }}
-          ${{ inputs.registry }}/rs-recruiting/alloy:${{ inputs.sha }}
-        cache-from: type=gha,scope=alloy
-        cache-to: type=gha,mode=max,scope=alloy

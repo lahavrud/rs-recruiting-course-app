@@ -231,4 +231,5 @@ async def health_check() -> dict[str, str]:
     return {
         "status": "ok",
         "environment": settings.environment,
+        "version": settings.app_version,
     }

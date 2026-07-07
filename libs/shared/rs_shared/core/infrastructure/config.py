@@ -184,6 +184,10 @@ class Settings(BaseSettings):
     # plain-HTTP ingress forces a difference (see _is_refresh_cookie_secure).
     environment: Literal["dev", "staging", "prod"] = "dev"
 
+    # Build identifier (image tag) surfaced by /health so deploy pipelines can
+    # poll until the version they shipped is actually the one serving traffic.
+    app_version: str = "unknown"
+
     # Trusted reverse-proxy IPs/CIDRs.
     # Comma-separated list of IP addresses or CIDR ranges whose X-Forwarded-For
     # headers are accepted as authoritative.  Empty = no proxy trust (dev/test);

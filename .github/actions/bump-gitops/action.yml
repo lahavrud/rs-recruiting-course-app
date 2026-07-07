@@ -1,0 +1,67 @@
+name: Bump gitops image tags
+description: >-
+  Point one environment at a new image tag by committing to the gitops repo —
+  the ONLY way anything reaches a cluster (strict GitOps: CI has no cluster
+  credentials; ArgoCD pulls the change). Auth is a short-lived GitHub App
+  installation token (app rs-course-ci-bot, Contents R/W on the gitops repo
+  only), not a PAT.
+
+inputs:
+  environment:
+    description: "Target env directory under environments/ (dev | stage | prod)"
+    required: true
+  image-tag:
+    description: "New tag for the api + worker images"
+    required: true
+  app-id:
+    description: "GitHub App id (CI_BOT_APP_ID secret)"
+    required: true
+  private-key:
+    description: "GitHub App private key (CI_BOT_PRIVATE_KEY secret)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Mint installation token
+      id: app-token
+      uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: lahavrud
+        repositories: rs-recruiting-course-gitops
+
+    - name: Commit tag bump
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        ENV_NAME: ${{ inputs.environment }}
+        TAG: ${{ inputs.image-tag }}
+      run: |
+        set -euo pipefail
+        git clone --depth 1 \
+          "https://x-access-token:${GH_TOKEN}@github.com/lahavrud/rs-recruiting-course-gitops.git" gitops
+        cd gitops
+        git config user.name "rs-course-ci-bot[bot]"
+        git config user.email "rs-course-ci-bot[bot]@users.noreply.github.com"
+
+        # Retry the push: concurrent pipeline runs may race on the same branch.
+        for attempt in 1 2 3; do
+          yq -i '.image.tag = strenv(TAG)' "environments/${ENV_NAME}/api.yaml"
+          yq -i '.image.tag = strenv(TAG)' "environments/${ENV_NAME}/worker.yaml"
+          if git diff --quiet; then
+            echo "environments/${ENV_NAME} already at ${TAG} — nothing to do"
+            exit 0
+          fi
+          git add "environments/${ENV_NAME}"
+          git commit -m "deploy(${ENV_NAME}): api+worker -> ${TAG}"
+          if git push origin main; then
+            exit 0
+          fi
+          echo "push raced (attempt ${attempt}), rebasing"
+          git fetch origin main
+          git reset --hard origin/main
+        done
+        echo "failed to push after 3 attempts" >&2
+        exit 1

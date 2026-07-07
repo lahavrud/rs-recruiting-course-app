@@ -1,0 +1,49 @@
+name: Smoke check
+description: >-
+  Black-box post-deploy verification through the env's public domain. First
+  polls /health until the reported version equals the tag this pipeline
+  shipped (ArgoCD polls the gitops repo every ~3m, then rolls the deployment),
+  then asserts a real API endpoint answers. No cluster access — if ArgoCD
+  never converges, this times out and fails the run.
+
+inputs:
+  domain:
+    description: "CloudFront domain of the env"
+    required: true
+  expected-version:
+    description: "Image tag that must be live before checks run"
+    required: true
+  timeout-seconds:
+    description: "Max seconds to wait for the version to go live"
+    required: false
+    default: "900"
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for the shipped version to serve
+      shell: bash
+      run: |
+        set -euo pipefail
+        deadline=$(( $(date +%s) + ${{ inputs.timeout-seconds }} ))
+        while true; do
+          live=$(curl -sf "https://${{ inputs.domain }}/health" | jq -r .version || echo "unreachable")
+          if [ "$live" = "${{ inputs.expected-version }}" ]; then
+            echo "version ${live} is live"
+            break
+          fi
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "timed out: live version is '${live}', expected '${{ inputs.expected-version }}'" >&2
+            exit 1
+          fi
+          echo "live='${live}', waiting for '${{ inputs.expected-version }}'…"
+          sleep 15
+        done
+
+    - name: API answers
+      shell: bash
+      run: |
+        set -euo pipefail
+        code=$(curl -s -o /dev/null -w '%{http_code}' "https://${{ inputs.domain }}/api/public/jobs")
+        [ "$code" = "200" ] || { echo "GET /api/public/jobs returned $code" >&2; exit 1; }
+        echo "smoke passed"

@@ -2,7 +2,7 @@ name: CI Pipeline
 
 # Cancel in-flight runs only for PRs — saves Actions minutes on rapid push
 # cycles (typo fixes, force-pushes). Pushes to main are never cancelled: a
-# green CI run on main is what triggers deliver.yml (continuous delivery), so
+# green CI run on main is what triggers cd.yml (continuous delivery), so
 # cancelling it would silently skip a deploy.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,7 +64,7 @@ jobs:
           if match '^frontend/'; then
             frontend=true
           fi
-          if match '^(services/[^/]+/Dockerfile|docker/(base|alloy)\.Dockerfile|alloy/[^/]+\.alloy|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml)'; then
+          if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|docker-compose.*\.yml)'; then
             docker=true
             # docker-build smoke-tests the backend image, so guard it with
             # the same checks the image depends on.
@@ -226,7 +226,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    # Skip on push to main (deliver.yml builds and pushes the real images), on
+    # Skip on push to main (cd.yml builds and pushes the real images), on
     # draft PRs, and when no Docker-relevant files changed (see detect-changes).
     needs: [detect-changes, backend-checks]
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect-changes.outputs.docker == 'true'
@@ -258,17 +258,6 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f services/worker/Dockerfile \
             --build-arg BASE_IMAGE=rs-recruiting-base:local \
             -t rs-recruiting-worker:test .
-
-      # Build the Alloy sidecar image and validate the baked config so a broken
-      # pipeline fails the PR rather than the first ECS deploy.
-      - name: Build alloy image
-        run: DOCKER_BUILDKIT=1 docker build -f docker/alloy.Dockerfile -t rs-recruiting-alloy:test .
-
-      - name: Validate alloy config
-        run: |
-          # worker scope (OTLP only) and web scope (whole dir = OTLP + cloudwatch)
-          docker run --rm rs-recruiting-alloy:test validate /etc/alloy/config.alloy
-          docker run --rm rs-recruiting-alloy:test validate /etc/alloy
 
       - name: Start test network and postgres
         run: |
