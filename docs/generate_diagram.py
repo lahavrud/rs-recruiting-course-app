@@ -1,13 +1,15 @@
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import ECR, ECS, Lambda
+from diagrams.aws.compute import ECR, EKS
 from diagrams.aws.database import RDS
-from diagrams.aws.integration import SNS, SQS
-from diagrams.aws.management import SSM, Cloudwatch
-from diagrams.aws.network import CloudFront
+from diagrams.aws.integration import Eventbridge, SQS
+from diagrams.aws.management import SystemsManagerParameterStore
+from diagrams.aws.network import CloudFront, Route53
 from diagrams.aws.storage import S3
-from diagrams.generic.network import Firewall
+from diagrams.k8s.compute import Deploy
 from diagrams.onprem.ci import GithubActions
 from diagrams.onprem.client import Users
+from diagrams.onprem.gitops import ArgoCD
+from diagrams.onprem.monitoring import Grafana
 
 graph_attr = {
     "fontsize": "14",
@@ -25,7 +27,7 @@ node_attr = {
 }
 
 with Diagram(
-    "RS Recruiting — AWS Architecture",
+    "RS Recruiting — EKS Architecture",
     filename="docs/screenshots/aws-architecture",
     outformat="png",
     show=False,
@@ -35,49 +37,53 @@ with Diagram(
 ):
     # ── Left: ingress ──────────────────────────────────────────
     users = Users("Users")
-    cloudflare = Firewall("Cloudflare\nDNS only")
+    dns = Route53("Route 53")
 
-    with Cluster("AWS  us-east-1"):
+    with Cluster("AWS  eu-central-1"):
         # CDN layer
-        cf = CloudFront("CloudFront\nCDN + TLS\nACM cert")
-        le = Lambda("Lambda@Edge\nbot detection")
+        cf = CloudFront("CloudFront\nSPA + /api origin")
 
         # Serving layer
         s3_fe = S3("S3 Frontend\nSPA bundle")
-        ecs = ECS("ECS Fargate\nweb · worker")
+
+        with Cluster("EKS cluster"):
+            api = Deploy("api\nFastAPI")
+            worker = Deploy("worker\nSQS consumer")
+            argo = ArgoCD("ArgoCD")
+            grafana = Grafana("kube-prometheus\nGrafana · Loki")
 
         # Data layer
-        rds = RDS("RDS\nPostgreSQL 16")
+        rds = RDS("RDS\nPostgreSQL (pgvector)")
         sqs = SQS("SQS\ntask queue")
+        sched = Eventbridge("EventBridge\nnightly purge")
         s3_app = S3("S3\nuploads")
-        ssm = SSM("SSM\nParameter Store")
+        ssm = SystemsManagerParameterStore("SSM\nParameter Store")
 
         # CI / CD
-        with Cluster("CI / CD"):
+        with Cluster("CI / CD (ops account)"):
             github = GithubActions("GitHub Actions")
-            ecr = ECR("ECR (ops acct)")
-
-        # Observability
-        with Cluster("Observability"):
-            cw = Cloudwatch("CloudWatch\n9 alarms")
-            sns = SNS("SNS\nops-alerts")
+            ecr = ECR("ECR")
 
     # ── Request path ──────────────────────────────────────────
-    users >> cloudflare >> cf
-    cf >> le
+    users >> dns >> cf
     cf >> Edge(label="SPA") >> s3_fe
-    cf >> Edge(label="/api /auth") >> ecs
-    ecs >> rds
-    ecs >> sqs
-    ecs >> s3_app
-    ecs >> Edge(style="dashed", label="secrets") >> ssm
+    cf >> Edge(label="/api /auth  (NLB → Envoy)") >> api
+    api >> rds
+    api >> sqs
+    api >> s3_app
+    sched >> Edge(label="cron") >> sqs
+    sqs >> worker
+    worker >> rds
+    worker >> s3_app
+    api >> Edge(style="dashed", label="External Secrets") >> ssm
 
-    # ── CI / CD ───────────────────────────────────────────────
-    github >> ecr >> Edge(label="pull") >> ecs
+    # ── GitOps CI / CD ────────────────────────────────────────
+    github >> Edge(label="push images") >> ecr
     github >> Edge(label="bundle") >> s3_fe
-    github >> Edge(label="deploy") >> ecs
+    github >> Edge(label="tag bump") >> argo
+    argo >> Edge(label="reconcile") >> api
+    ecr >> Edge(label="pull") >> api
 
     # ── Observability ─────────────────────────────────────────
-    ecs >> Edge(style="dashed", color="lightgray") >> cw
-    rds >> Edge(style="dashed", color="lightgray") >> cw
-    cw >> sns
+    api >> Edge(style="dashed", color="lightgray") >> grafana
+    worker >> Edge(style="dashed", color="lightgray") >> grafana

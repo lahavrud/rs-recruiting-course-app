@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Compute the next vX.Y.Z release tag from Conventional Commits since the last
-# final tag. Used by deliver.yml's tag-release job after a production deploy is
-# approved — there are no -rc series and no hand-cut tags any more, the tag is a
-# record of what shipped.
+# final tag. Manual helper: run it to pick the version to publish as a GitHub
+# Release (release.yml promotes that tag's stage-tested images to prod). There
+# are no -rc series and no hand-cut interim tags.
 #
 # Bump rules (highest wins) over commits in (LAST_FINAL..HEAD]:
 #   - a `!` breaking marker or a `BREAKING CHANGE:` footer -> MAJOR

@@ -75,15 +75,15 @@ These principles guide all architectural decisions:
 - **Local Volume Mount** – Only for development, not production
 
 **Chosen Solution:** Storage abstraction layer with provider abstraction interface
-- **Local Storage** – For development and tests (`src/core/services/storage.py::LocalStorageProvider`)
-- **S3/MinIO Storage** – For production (`src/core/services/storage.py::S3StorageProvider`)
+- **Local Storage** – For development and tests (`libs/shared/rs_shared/core/services/storage.py::LocalStorageProvider`)
+- **S3/MinIO Storage** – For production (`libs/shared/rs_shared/core/services/storage.py::S3StorageProvider`)
 - Provider selection via `STORAGE_PROVIDER` environment variable (`local` or `s3`)
 
 **Implementation:**
-- Abstract base class: `StorageProvider` in `src/core/services/storage.py`
+- Abstract base class: `StorageProvider` in `libs/shared/rs_shared/core/services/storage.py`
 - Methods: `upload_file()`, `get_file_url()`, `delete_file()`
 - File validation: Size limits and file type checking
-- Configuration: `src/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
 
 **Related Issues:**
 - [#43](https://github.com/lahavrud/rs-recruiting/issues/43) - feat(infra): Implement storage abstraction layer for file uploads (S3/MinIO/Local) ✅ CLOSED
@@ -108,17 +108,17 @@ These principles guide all architectural decisions:
 **Chosen Solution:** Email abstraction layer with SQS-based async task queue
 - **Development:** SMTP to Mailpit (`docker-compose` service on port 1025; web UI at http://localhost:8025) — no provider account needed
 - **Production:** Resend via SMTP relay (`EMAIL_PROVIDER=smtp`; `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` loaded from SSM). AWS SES was considered but sandbox migration to production was blocked.
-- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `src/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
-- **Task Queue:** AWS SQS → `src/worker.py` worker process (`src/core/tasks.py`)
+- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `libs/shared/rs_shared/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
+- **Task Queue:** AWS SQS → `services/worker/rs_worker/worker.py` worker process (`libs/shared/rs_shared/core/tasks.py`)
 - **Retry Logic:** SQS at-least-once delivery; tasks are idempotent; DLQ captures failures
 - Local dev: tasks run inline when `SQS_QUEUE_URL` is not set (no queue needed)
 
 **Implementation:**
-- Abstract base class: `EmailProvider` in `src/core/services/email.py`
+- Abstract base class: `EmailProvider` in `libs/shared/rs_shared/core/services/email.py`
 - Implementations: `SESEmailProvider`, `SMTPEmailProvider`
-- Task producer: `enqueue_email_task()` in `src/core/tasks.py` — call sites unchanged from Arq era
-- Worker: `src/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
-- Configuration: `src/core/infrastructure/config.py`
+- Task producer: `enqueue_email_task()` in `libs/shared/rs_shared/core/tasks.py`
+- Worker: `services/worker/rs_worker/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py`
 
 **Notification Triggers (all implemented):**
 - Candidate applies → email admin + confirmation email to candidate
@@ -170,9 +170,9 @@ These principles guide all architectural decisions:
 3. If multiple worker instances are ever needed, the sleep-based throttle no longer gives a global rate limit — replace it with a Redis token bucket shared across workers (each worker acquires a token before sending, with a refill rate of `1 / EMAIL_SEND_DELAY_SECONDS` tokens/s). The `email_quota` counter logic is already multi-instance safe because it uses a Postgres upsert (`ON CONFLICT DO UPDATE`) — no change needed there.
 
 **Implementation:**
-- `src/core/services/email_quota.py` — `increment_and_alert(session)`
-- `src/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
-- `src/worker.py` — sleep after `delete_message` for `send_email` tasks only
+- `libs/shared/rs_shared/core/services/email_quota.py` — `increment_and_alert(session)`
+- `libs/shared/rs_shared/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
+- `services/worker/rs_worker/worker.py` — sleep after `delete_message` for `send_email` tasks only
 - `alembic/versions/e03b8aa073a3_add_email_quota_table.py` — creates `email_quota`
 
 **Status:** ✅ Implemented
@@ -187,12 +187,12 @@ These principles guide all architectural decisions:
 
 **Chosen Solution:**
 - **Broker:** AWS SQS (managed, durable, at-least-once delivery; visibility timeout = 300 s)
-- **Worker:** `src/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
+- **Worker:** `services/worker/rs_worker/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
 - **Cron:** Nightly purge triggered by EventBridge Scheduler → SQS (not a cron inside the worker process)
 
 **Implementation:**
-- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `src/core/tasks.py`.
-- **Worker Process:** Separate Docker container (`worker`) runs `python -m src.worker` to consume from SQS.
+- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `libs/shared/rs_shared/core/tasks.py`.
+- **Worker Process:** Separate Docker container (`worker`) runs the `rs-worker` console script to consume from SQS.
 - **API Integration:** Service layer calls `enqueue_*_task()` via `defer_after_commit()` — tasks enqueue after the DB transaction commits, preventing phantom messages on rollback. Endpoints return their normal status codes immediately.
 - **Local Dev:** `SQS_QUEUE_URL` unset → tasks run inline (no queue needed).
 - **Resilience:** SQS at-least-once delivery; tasks are written to be idempotent. Dead-letter queue captures repeated failures.
@@ -224,17 +224,18 @@ These principles guide all architectural decisions:
 
 **Problem:** Need automated quality checks, testing against a production-identical database, and safe deployment on every merge to main.
 
-**Decision:** GitHub Actions with OIDC-based AWS authentication, a PostgreSQL service container for tests, and **continuous delivery to ECS** with a manual production gate. See [`release-process.md`](./release-process.md).
+**Decision:** GitHub Actions with OIDC-based AWS authentication, a PostgreSQL service container for tests, and **GitOps continuous delivery** — CI builds images and commits image-tag bumps to the gitops repo; each cluster's ArgoCD reconciles the change. CI has no cluster credentials. See [`release-process.md`](./release-process.md).
 
 **Implementation:**
-- **Workflows:** `.github/workflows/ci.yml` (checks) + `deliver.yml` / `_deploy.yml` / `rollback.yml` (delivery)
+- **Workflows:** `.github/workflows/ci.yml` (checks) + `cd.yml` (stage) / `release.yml` (prod) / `deploy-dev.yml` (label-gated dev) delivery
 - **On pull_request to main:**
   - `lint`: Ruff linter + formatter + 5 custom validation scripts
   - `test`: Pytest against a PostgreSQL 16 service container (dialect parity with production)
   - `docker-build`: Build image and verify `/health` endpoint
-- **On merge to main (after CI passes):** `deliver.yml` fires off CI completion → builds base+api+worker+alloy by SHA into the ops-account ECR → **pauses for manual approval** → deploys prod (`_deploy.yml`: gated migrate → roll web+worker → frontend) → auto-tags `vX.Y.Z` + creates the GitHub Release. _(Staging is retired for cost; the staging stage is preserved commented in `deliver.yml`.)_
-- **Authentication:** GitHub Actions OIDC — per-environment deploy roles (no stored AWS credentials)
-- **Deploy mechanism:** `_deploy.yml` rolls each ECS service via the `ecs-roll` action (render the live task-def with the new image → `aws-actions/amazon-ecs-deploy-task-definition` → wait for stability, circuit breaker armed). Terraform owns the task-def shape; CI owns only the image tag.
+- **On merge to main (after CI passes):** `cd.yml` fires off CI completion → builds base + api + worker by SHA into the ops-account ECR → `bump-gitops` points the gitops **stage** env at the new tag → stage ArgoCD reconciles → `deploy-frontend` (S3 + CloudFront) → `smoke-check`.
+- **Production:** promoted by publishing a GitHub Release (`vX.Y.Z`). `release.yml` re-tags the exact stage-tested images with the version (no rebuild), bumps the gitops **prod** env, deploys the frontend, and smoke-checks.
+- **Authentication:** GitHub Actions OIDC — per-environment deploy roles, ref-locked (stage from `main`, prod from `v*` tags); no stored AWS credentials.
+- **Deploy mechanism:** `bump-gitops` mints a short-lived GitHub App token and commits the tag bump to the gitops repo — the only path to a cluster. ArgoCD (polling the gitops repo) rolls the Deployments; the api Helm chart's pre-upgrade Job runs the migration. Terragrunt (infra repo) owns the cluster/topology; the gitops charts own the workload; CI owns only the image tag.
 - **Validation Scripts:**
   - `validate_imports.py` - SOC enforcement (separation of concerns)
   - `check_file_sizes.py` - File size limits
@@ -398,7 +399,7 @@ frontend/
 **Decision:** Extract business logic into a dedicated service layer, keeping routers thin.
 
 **Implementation:**
-- **Structure:** `src/services/` directory with domain-specific services
+- **Structure:** `libs/shared/rs_shared/services/` directory with domain-specific services
 - **Pattern:** Routers delegate to services, services contain business logic
 - **Benefits:** Better testability, separation of concerns, reusable business logic
 
@@ -433,7 +434,7 @@ src/
 **Decision:** Use SQLModel (SQLAlchemy + Pydantic) for database models with Alembic for migrations.
 
 **Implementation:**
-- **Models:** `src/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
+- **Models:** `libs/shared/rs_shared/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
 - **Enums:** `src/enums.py` with UserRole, JobStatus, ApplicationStatus
 - **Schemas:** `src/schemas.py` with Pydantic schemas for API validation
 - **Migrations:** Alembic for database schema versioning
@@ -456,7 +457,7 @@ src/
 **Implementation:**
 - **Transaction Rollback:** Explicit `session.rollback()` on all error paths
 - **IntegrityError Handling:** Catch database constraint violations and convert to domain exceptions
-- **Error Types:** Custom exceptions in `src/services/exceptions.py`
+- **Error Types:** Custom exceptions in `libs/shared/rs_shared/services/exceptions.py`
 
 **Related Issues:**
 - [#47](https://github.com/lahavrud/rs-recruiting/issues/47) - fix(auth): Handle race condition in user registration (TOCTOU) ✅ CLOSED
@@ -606,70 +607,71 @@ erDiagram
 
 ### 2. Production Infrastructure
 
-**Decision:** ECS Fargate services (web + worker) behind CloudFront, with managed RDS PostgreSQL. _(Originally a single EC2 host running Docker Compose; migrated to ECS Fargate on 2026-06-30 — see the INFRASTRUCTURE.md decisions log. Exact resource IDs for the ECS layer live in the infra repo / live AWS; this section is the higher-level shape.)_
+**Decision:** The app runs on **Amazon EKS**, delivered by ArgoCD from the gitops repo, with managed RDS PostgreSQL (pgvector). The cluster, add-ons, and AWS resources are provisioned by Terragrunt in the sibling infra repo — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative topology.
 
 **Architecture:**
 
 ```
 Internet (HTTPS)
       │
-Cloudflare (DNS only, grey-cloud — no proxy)
-      │
-CloudFront distribution (d2ghcom3efd3zg.cloudfront.net)
-  ├── Lambda@Edge viewer-request  ← bot/crawler detection → FastAPI OG prerender
-  ├── Default behavior            ← S3 origin (frontend SPA bundle, 3-day lifecycle)
-  └── /api/* /auth/* /health      ← ECS web service origin
+Route 53  →  CloudFront distribution
+  ├── Default behavior   ← S3 origin (frontend SPA bundle)
+  └── /api/* /auth/*      ← NLB origin
         │
-ECS Fargate (cluster rs-recruiting-prod, us-east-1)
-  ├── web service     ← FastAPI + alloy sidecar (image from ops-account ECR)
-  └── worker service  ← SQS worker, same image family (python -m rs_worker.worker)
+Network Load Balancer (AWS LB Controller)
         │
-RDS PostgreSQL db.t3.micro  ← private subnets, encrypted at rest
-S3 rs-recruiting-app       ← file uploads
-S3 rs-recruiting-frontend  ← SPA bundle (CloudFront default origin)
+Envoy Gateway (Gateway API, terminates TLS via cert-manager)
+        │
+EKS cluster (eu-central-1)
+  ├── api Deployment      ← FastAPI (image from ops-account ECR)
+  ├── worker Deployment   ← SQS consumer, same image family (rs-worker)
+  └── add-ons             ← ArgoCD, External Secrets, Karpenter, kube-prometheus-stack
+        │
+RDS PostgreSQL (pgvector)  ← private subnets, encrypted at rest
+S3 (uploads bucket)        ← file uploads (resumes)
+S3 (frontend bucket)       ← SPA bundle (CloudFront default origin)
 ECR (ops account)          ← Docker image registry, pulled cross-account
-AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, retention purge)
+SQS (+ DLQ)                ← async task queue (email, data exports, retention purge)
+EventBridge Scheduler      ← nightly retention-purge trigger → SQS
 ```
 
-**AWS Resources:** (conceptual — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative inventory, which is pending its post-ECS audit pass)
+**AWS resources:** provisioned by Terragrunt (infra repo) — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative inventory.
 
-| Resource | Identifier | Purpose |
-|---|---|---|
-| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + ECS origins |
-| ACM | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-…` | TLS cert for rs-recruiting.com + www |
-| ECS Fargate | cluster `rs-recruiting-prod` (`-web` / `-worker` services) | API + worker, behind CloudFront |
-| RDS | `rs-recruiting-prod-db` | PostgreSQL 16, private subnets |
-| S3 | `<APP_BUCKET>` + `rs-recruiting-frontend` | Uploads + frontend bundle |
-| ECR (ops account) | `rs-recruiting/{api,worker,alloy}` | Docker images, pulled cross-account |
-| SQS | `rs-recruiting-tasks` | Async task queue for worker |
-| IAM Role (CI) | per-environment OIDC deploy roles | ECR push (ops), ECS deploy, S3/CloudFront |
+| Resource | Purpose |
+|---|---|
+| CloudFront + Route 53 | CDN + DNS; S3 (SPA) default origin + NLB (`/api/*`) origin |
+| EKS cluster | API + worker Deployments, cluster add-ons |
+| Envoy Gateway + NLB | Ingress; TLS terminates at Envoy (cert-manager, Let's Encrypt DNS-01) |
+| RDS PostgreSQL (pgvector) | Primary datastore, private subnets |
+| S3 (uploads + frontend) | Resume uploads + SPA bundle |
+| ECR (ops account) | `rs-recruiting-course/{base,api,worker}` images, pulled cross-account |
+| SQS + DLQ | Async task queue for the worker |
+| EventBridge Scheduler | Nightly retention-purge trigger → SQS |
+| IRSA roles | Per-workload pod IAM (S3, SQS) via OIDC — no node-wide credentials |
+| CI OIDC roles | ECR push (ops), per-env frontend deploy (S3 + CloudFront) — ref-locked |
 
-**Domain:** `rs-recruiting.com` — DNS in Cloudflare (grey-cloud, DNS only). TLS terminates at CloudFront via ACM certificate (`us-east-1`). Cloudflare proxying intentionally disabled — CloudFront handles CDN and certificate.
+**Configuration:** runtime secrets live in AWS SSM Parameter Store under `/rs-course/<env>/app/*` (published by the infra `app-config` unit) and are synced into the cluster as a Kubernetes Secret by **External Secrets**; pods read it via `envFrom`. No `.env` is materialized anywhere.
 
-**Configuration:** Runtime secrets in AWS SSM Parameter Store under `/rs-recruiting/prod/`, read by the ECS task at startup (no `.env` materialized on a host). Non-secret config rides the task definition.
-
-**Related Issues:**
-
-* [#97](https://github.com/lahavrud/rs-recruiting/issues/97) - deploy1: Production Deployment ✅ CLOSED
-
-**Status:** ✅ Live at https://rs-recruiting.com
+**Status:** ✅ Delivered to EKS via ArgoCD (dev / stage / prod).
 
 ---
 
 ### 3. Environment Deployment Strategy
 
-**Decision:** Trunk-based **continuous delivery** (since 2026-06-30). CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and promotes it to **production** behind a single manual approval (`production` GitHub Environment required reviewer). See [`release-process.md`](./release-process.md).
+**Decision:** Trunk-based **GitOps continuous delivery**. CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and ships it to **stage** automatically, and **prod** is promoted by publishing a GitHub Release. See [`release-process.md`](./release-process.md).
 
 **Environments:**
 
-1. **Development** – Local Docker Compose (`docker-compose.yml`) with PostgreSQL
-2. **Production** – Live at `https://rs-recruiting.com`, deployed from the SHA-tagged image after manual approval (see Production Infrastructure above)
+1. **Local** – `make services` (PostgreSQL + Mailpit + LocalStack) with `uvicorn` on the host; tasks run inline
+2. **Dev** – shared EKS namespace; label a PR `deploy` to ship `pr-<num>-<sha>` images on demand (`deploy-dev.yml`)
+3. **Stage** – EKS namespace; every green `main` ships here automatically (`cd.yml`)
+4. **Prod** – EKS namespace; promoted by publishing a GitHub Release, which re-tags the exact stage-tested images (`release.yml`)
 
-**Staging:** retired for cost (was an on-demand scale-to-zero ECS env). The staging stage is preserved (commented) in `deliver.yml` and `_deploy.yml` is environment-agnostic, so it can be re-enabled later; pre-prod risk is covered by CI + the prod approval gate + fast `rollback.yml`.
+Dev + stage live in the non-prod account/cluster; prod is its own account/cluster. Each env's desired state is a directory in the gitops repo that its ArgoCD reconciles.
 
-**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before the build/deliver pipeline runs.
+**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before the delivery pipeline runs.
 
-**Status:** ✅ Production live · 🧊 Staging deferred (infra + workflow preserved)
+**Status:** ✅ dev / stage / prod live on EKS via ArgoCD
 
 ---
 

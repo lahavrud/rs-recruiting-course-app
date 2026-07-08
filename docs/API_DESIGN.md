@@ -366,7 +366,7 @@ In-session password change (role-agnostic). Distinct from forgot-password
   the one carrying the current request's session cookie.
 
 ### `POST /api/candidate/me/export`
-Request the GDPR data export. Enqueues an Arq background task that
+Request the GDPR data export. Enqueues an SQS background task that
 assembles a ZIP (profile JSON + per-application resume snapshots),
 uploads it to storage, mints a 24h signed download token, and emails
 the candidate a single-use link.
@@ -420,7 +420,7 @@ Stream the snapshotted resume from `Application.resume_path`.
 * **Response:** `200` with the file bytes (inline for PDFs, attachment
   otherwise). `404` if the application is foreign, `WITHDRAWN`, or has no
   snapshot. Reuses the storage-streaming helper at
-  `src/api/_resume_streaming.py` shared with the admin endpoint.
+  `services/api/rs_api/api/_resume_streaming.py` shared with the admin endpoint.
 
 ### `PATCH /api/candidate/me/applications/{id}`
 Partially update text answers and/or replace the resume snapshot. Sprint 11 / #610.

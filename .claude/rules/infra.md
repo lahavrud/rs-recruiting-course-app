@@ -1,46 +1,51 @@
 # AWS & Infrastructure Rules
 
+This repo ships to Kubernetes via **strict GitOps**: CI has no cluster credentials —
+it builds images and commits image-tag bumps to the sibling **gitops** repo, and each
+cluster's ArgoCD pulls the change. Nothing in this repo ever `kubectl`s a cluster.
+
 ## Auth model
-CI/CD uses OIDC — there are no stored AWS credentials anywhere in this repo. Never add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to GitHub secrets, `.env`, or any config file.
+CI/CD uses OIDC — there are no stored AWS credentials anywhere in this repo. Never add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to GitHub secrets, `.env`, or any config file. The deploy IAM roles are **hardcoded ARNs in each workflow's `env:`** (not secrets): the ops-account ECR push role (`rs-course-ci-ecr-push`) and the per-env frontend-deploy roles, whose OIDC trust is **ref-locked** — stage's role only matches `refs/heads/main`, prod's only matches `refs/tags/v*`.
 
 ## Secrets
-All secrets live in SSM Parameter Store as SecureStrings. To read a parameter locally:
+Runtime config + app secrets live in SSM Parameter Store as SecureStrings under `/rs-course/<env>/app/*` (published by the infra repo's `app-config` unit, synced into the cluster by External Secrets — never read by CI). To read a parameter locally:
 ```bash
-aws ssm get-parameter --name "/rs-recruiting/<param>" --with-decryption
+aws ssm get-parameter --name "/rs-course/<env>/app/<param>" --with-decryption
 ```
-Never hardcode a value that should be in SSM. Never commit `.env` files that contain real credentials.
+The only **GitHub** secrets the pipeline uses: `CI_BOT_APP_ID` + `CI_BOT_PRIVATE_KEY` (the `rs-course-ci-bot` GitHub App — Contents R/W on the gitops repo **only**, used to commit tag bumps), and `SLACK_WEBHOOK_NONPROD` / `SLACK_WEBHOOK_PROD` (failure alerts). Never hardcode a value that belongs in SSM; never commit `.env` files with real credentials.
 
 ## Production safety
-- Never run `alembic upgrade head` directly against the production database — the `_deploy.yml` migrate gate runs it as a one-off ECS task on the released image
-- Production deploys only happen through `deliver.yml`'s **manual approval gate** (the `production` GitHub Environment's required reviewer), or a manual `rollback.yml` run. See `docs/release-process.md` for the full flow.
-- An ECS rollback restores previous **app code only** — it does not undo a migration. Migrations must stay backward-compatible (expand now, contract a release later).
+- Never run `alembic upgrade head` directly against the production database — the gitops **api chart's migrate Job** (a pre-install/pre-upgrade Helm hook) handles schema: it bootstraps a fresh DB with `create_all` + `alembic stamp head`, and upgrades an existing one with `alembic upgrade head`. (This honors the invariant that the alembic chain can't run on an empty DB — see `.claude/rules/migrations.md`.)
+- Production is deployed **only** by publishing a GitHub Release (`release.yml`, tag `vX.Y.Z`). This promotes the **exact** stage-tested images — they are re-tagged with the version, never rebuilt. See `docs/release-process.md`.
+- **Rollback = revert in gitops**, not in this repo: revert the offending tag-bump commit in the gitops repo (or point the env at a prior tag) and ArgoCD reconciles back. That restores **app code only** — it does not undo a migration, so migrations must stay backward-compatible (expand now, contract a release later). `redeploy-frontend.yml` is the frontend-only equivalent (S3 + CloudFront respin).
 
 ## CI/CD workflows (`.github/workflows/`)
 
-Trunk-based **continuous delivery**: merge to `main` → CI green → build (by SHA) → staging → ⏸ manual approval → prod → tag `vX.Y.Z` + Release. `main` is the only long-lived branch (no `develop`).
+Trunk-based **continuous delivery**: merge to `main` → CI green → build (by SHA) → gitops **stage** bump → ArgoCD syncs → smoke. Prod is a separate manual act (publish a Release). `main` is the only long-lived branch (no `develop`).
 
-- `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend). A green run on a `push` to `main` is what triggers delivery.
-- `deliver.yml` — triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success`. Builds base + api + worker + alloy (tagged by SHA, pushed to ops ECR), deploys staging, gates prod behind the approval, then tags + creates the GitHub Release. Triggering off CI completion (not raw push) means a commit only ships after its own tests pass.
-- `_deploy.yml` — reusable (`workflow_call`), called by `deliver.yml` once per environment. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
-- `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild.
+- `ci.yml` — lint, test, docker-build (change-aware via the `detect-changes` job: docs-only PRs skip backend). A green run on a `push` to `main` is what triggers delivery. Never cancel in-flight runs on `main` (only PRs) — cancelling would silently skip the deploy.
+- `cd.yml` — **stage** delivery. Triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success` (so a commit ships only after its own tests pass). Builds base + api + worker (tagged by short SHA → ops ECR) → `bump-gitops` stage → `deploy-frontend` → `smoke-check`. Serialized (`concurrency: cd-stage`, never cancelled). **Prod is not deployed here.**
+- `deploy-dev.yml` — label-gated dev deploys. Put the `deploy` label on a PR and every push builds `pr-<num>-<sha>` images and bumps the gitops **dev** env; remove the label to stop. Dev is one shared namespace, so newer runs supersede older (`concurrency: deploy-dev`, cancel-in-progress).
+- `release.yml` — **prod** promotion, on `release: published`. Validates the tag is `vX.Y.Z`, **re-tags** the commit's existing stage images with the version (no rebuild — byte-identical to what was smoked), `bump-gitops` prod → `deploy-frontend` prod → `smoke-check`. The prod frontend role's OIDC trust matches only `refs/tags/v*`, so it cannot run from a branch.
+- `redeploy-frontend.yml` — manual (`workflow_dispatch`), frontend-only S3 + CloudFront respin for a recreated bucket. Ref-locked: stage from `main`, prod from a `vX.Y.Z` tag.
 - `security-audit.yml` — weekly pip-audit for CVEs.
-- `stale.yml` — weekly stale-issue sweep (60d stale → 14d close; `P1`/`security`/`icebox` labels exempt).
+- `stale.yml` — weekly stale-issue sweep.
 
-Composite actions: `build-images` (base + api + worker + alloy → ops ECR), `ecs-roll` (render live task-def with new image + deploy via `aws-actions/amazon-ecs-*`, circuit breaker armed), `deploy-frontend` (build + S3 sync + CloudFront invalidation), `notify-failure` (open a GitHub issue).
+Composite actions (`.github/actions/`): `build-images` (base + api + worker → ops ECR), `bump-gitops` (mints a short-lived GitHub App installation token, commits the tag bump to the gitops repo — **the only path to a cluster**; retries on concurrent-push races), `deploy-frontend` (build + S3 sync + CloudFront invalidation), `smoke-check` (polls the env's public `/health` until the reported version equals the shipped tag — i.e. until ArgoCD has converged — then asserts a real API endpoint answers), `notify-slack` (posts to the env's Slack webhook on failure).
 
 When editing workflows:
-- Preserve the `detect-changes` job in `ci.yml` — it prevents unnecessary rebuilds
-- OIDC permissions block must stay on any job that calls AWS (`id-token: write`, `contents: read`)
-- The production approval is a **GitHub Environment required reviewer** (`production` env, `main`-only), configured in repo settings — not in YAML. Don't try to encode it as a workflow step.
-- Reusable-workflow secret names must be alphanumeric + underscore (no hyphens) — `_deploy.yml`'s `secrets:` use `ecs_role_arn`, `ops_ecr_registry`, etc.
-- Keep the prod approval on a **single** job in `_deploy.yml` — multiple jobs referencing a protected environment each prompt for approval.
+- Preserve the `detect-changes` job in `ci.yml` — it prevents unnecessary rebuilds.
+- OIDC permissions block must stay on any job that calls AWS or mints the app token (`id-token: write`, `contents: read`).
+- `cd.yml` must trigger off `ci.yml` **`workflow_run` success**, not a raw `push` — that's what guarantees a commit ships only after its own tests pass.
+- Keep `bump-gitops` as the sole route to a cluster — never add `kubectl`/`helm`/`argocd` cluster credentials to a workflow. CI writes desired state to git; ArgoCD reconciles.
+- Don't hardcode the prod frontend role onto a branch-triggered job — its OIDC trust is ref-locked to `refs/tags/v*` and will (correctly) refuse.
 
-## Infrastructure repo
-Terraform/OpenTofu lives in a separate repo (`rs-recruiting-infra`). Do not modify infrastructure from this repo.
-
-The **persistent staging** cluster + RDS + OIDC deploy role live in the infra repo. Images are built once into the **ops account** ECR and pulled cross-account by both staging and prod. App-repo secrets the pipeline needs: `AWS_OPS_ECR_PUSH_ROLE_ARN` + `OPS_ECR_REGISTRY` (build), `AWS_STAGING_ECS_DEPLOY_ROLE_ARN` + `S3_FRONTEND_BUCKET_STAGING` + `CLOUDFRONT_DISTRIBUTION_ID_STAGING` (staging), `AWS_ECS_DEPLOY_ROLE_ARN` (var) + `AWS_ROLE_ARN` + `S3_FRONTEND_BUCKET` + `CLOUDFRONT_DISTRIBUTION_ID` + `VITE_SENTRY_DSN` (prod).
+## Sibling repos
+Two sibling repos hold everything outside the app itself — **do not modify either from this repo** (though CI does commit image-tag bumps to gitops via the bot):
+- `rs-recruiting-course-infra` — Terragrunt IaC: AWS org (management/ops/non-prod/prod accounts), EKS, RDS (pgvector), SQS, S3, ECR, cluster add-ons, and the `app-config` unit that publishes SSM config.
+- `rs-recruiting-course-gitops` — Helm charts + per-env desired state; ArgoCD's source of truth. Images build once into the **ops account** ECR (`883627150418…`, repos `rs-recruiting-course/{api,worker}`) and are pulled cross-account by every env.
 
 ## Observability
 - Sentry: backend DSN in SSM, frontend DSN in build args
-- CloudWatch alarms → SNS `ops-alerts` topic
+- In-cluster kube-prometheus-stack (Grafana + Loki datasource); CloudWatch alarms → SNS `ops-alerts`
 - Inspector2 scans ECR images on push

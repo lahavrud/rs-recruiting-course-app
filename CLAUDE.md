@@ -216,7 +216,7 @@ Conventional Commits: `feat(auth): ...`, `fix(email): ...`, `chore: ...`
 Title = Conventional Commit style. Body **must** follow `.github/pull_request_template.md` (Summary / Why / Changes / How to Test / Related Issue). Write `N/A` if no issue. No extra sections.
 
 ### Issues
-Use matching template from `.github/ISSUE_TEMPLATE/` (`bug_report.md`, `feature_request.md`, `task.md`). Fill every section including Milestone.
+Use matching template from `.github/ISSUE_TEMPLATE/` (`bug_report.md`, `feature_request.md`, `infrastructure.md`, `task.md`). Fill every section including Milestone.
 
 ---
 

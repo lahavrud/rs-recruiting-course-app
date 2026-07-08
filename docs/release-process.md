@@ -1,58 +1,50 @@
 # Release Process
 
-Trunk-based **continuous delivery**. `main` is the only long-lived branch. Every
-commit that lands on `main` and passes CI is built once and promoted to
-production behind a single manual approval. There are no release-candidate tags
-and no hand-cut version tags — the `vX.Y.Z` tag is created *after* a production
-deploy, as a record of what shipped.
+Trunk-based **GitOps continuous delivery**. `main` is the only long-lived branch.
+Every commit that lands on `main` and passes CI is built once and shipped to
+**stage** automatically. **Prod** is promoted by a human publishing a GitHub
+Release — which re-tags the exact stage-tested images, no rebuild.
+
+CI never touches a cluster. It builds images and commits image-tag bumps to the
+gitops repo; each cluster's ArgoCD reconciles the change.
 
 ```
-merge to main → CI green → build image (by SHA)
-              → ⏸ manual approval → deploy PRODUCTION → tag vX.Y.Z + GitHub Release
+merge to main → CI green → build image (by SHA) → bump gitops STAGE → ArgoCD syncs → smoke
+publish Release vX.Y.Z    → re-tag stage images   → bump gitops PROD  → ArgoCD syncs → smoke
 ```
-
-> **Staging is retired** (cost). The pre-prod environment was on-demand
-> scale-to-zero and didn't justify the moving parts, so the build is promoted
-> straight to the production approval gate. The staging stage is preserved
-> (commented) in `deliver.yml` and the reusable `_deploy.yml` is environment-
-> agnostic, so re-enabling later is a config change, not a rewrite. Validate
-> risky changes via CI + the prod gate + fast `rollback.yml`.
 
 ## The flow
 
 1. **PR into `main`.** Feature branches go through the ruleset: CI green,
    code-owner review, squash merge with a Conventional Commit title.
+   *(Optional: label the PR `deploy` to ship it to the shared **dev** namespace
+   while it's open — `deploy-dev.yml` builds `pr-<num>-<sha>` images and bumps the
+   gitops dev env. Remove the label to stop.)*
 
-2. **Build is automatic.** When CI passes on the merge commit, `deliver.yml`
-   (triggered off CI *completion* for a `push` to `main`, so a commit only ships
-   after its own tests are green) builds the base + api + worker + alloy images,
-   tags them by commit SHA, and pushes to the **ops-account ECR**.
+2. **Stage is automatic.** When CI passes on the merge commit, `cd.yml` (triggered
+   off CI *completion* for a `push` to `main`, so a commit only ships after its own
+   tests are green) builds the base + api + worker images, tags them by commit SHA,
+   pushes them to the **ops-account ECR**, commits the tag into the gitops repo's
+   `stage` env (`bump-gitops`), deploys the frontend (S3 + CloudFront), and
+   smoke-checks the public domain once ArgoCD has converged.
 
-3. **Approve production.** The `deploy-prod` job runs under the `production`
-   GitHub Environment, so it **pauses for a required reviewer**. Approve it in the
-   run's UI (or the Environments page) to promote; reject it to abort. On approve,
-   `_deploy.yml` runs: `alembic upgrade head` (gated) → roll web → roll worker
-   (via `ecs-roll`) → frontend → smoke check.
-
-4. **Tag + Release are automatic.** After prod deploys, `tag-release` computes the
-   next `vX.Y.Z` from Conventional Commits since the last final tag
-   (`scripts/compute_next_release_tag.sh`), tags the shipped commit, and creates a
-   GitHub Release with generated notes.
+3. **Promote to prod.** Publish a GitHub Release with a `vX.Y.Z` tag on a `main`
+   commit that already shipped to stage. `release.yml` validates the tag, re-tags
+   that commit's existing stage images with the version (byte-identical to what was
+   smoked — no rebuild), bumps the gitops `prod` env, deploys the frontend, and
+   smoke-checks. The prod frontend deploy role's OIDC trust matches only
+   `refs/tags/v*`, so this cannot run from a branch.
 
 ## Backing out a bad change
 
-- **Before you approve prod:** **reject** the pending deployment — nothing ships.
-  Then `git revert` the bad commit on `main`; the next delivery rolls a clean
-  build forward.
-- **Already in production:** run **`rollback.yml`** (manual) — it re-points the
-  ECS service(s) to the previous task-definition revision (seconds, no rebuild).
-  Then `git revert` on `main` so git matches the deployed state and the next
-  delivery doesn't re-ship the bad commit. Note that `rollback.yml` moves **ECS
-  only** — it does not move git tags, so the newest `vX.Y.Z` still points at the
-  rolled-back commit until the `git revert` ships and gets its own tag. During an
-  active rollback, read the latest tag as "last *attempted*", not "currently live".
-- **Hotfix** is not a separate path any more: merge the fix to `main` and approve
-  prod quickly. The break-glass for an active incident is `rollback.yml`.
+- **Before it reaches prod:** `git revert` the bad commit on `main`; the next
+  delivery ships a clean build to stage. Simply don't cut a Release.
+- **Already in prod:** revert the offending tag-bump commit in the **gitops** repo
+  (or point the prod env at a prior tag) — ArgoCD reconciles back in minutes, no
+  rebuild. Then `git revert` on `main` in this repo so source matches the deployed
+  state and the next delivery doesn't re-ship the bad commit.
+- **Frontend-only respin** (e.g. a recreated S3 bucket): run `redeploy-frontend.yml`
+  (manual) — stage from `main`, prod from a `vX.Y.Z` tag.
 
 > ⚠️ A rollback restores previous **app code only** — it does **not** undo a
 > database migration. Migrations must stay backward-compatible with the running
@@ -63,41 +55,38 @@ merge to main → CI green → build image (by SHA)
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `deliver.yml` | CI completion on `main` (push) | Build by SHA → ⏸ approval → prod → tag + Release (staging stage retired/commented) |
-| `_deploy.yml` | `workflow_call` (from `deliver.yml`) | Migrate gate → roll web + worker (via `ecs-roll`) → frontend → smoke check, under `environment:` (env-agnostic; reusable for staging if re-enabled) |
-| `rollback.yml` | Manual | Re-point an ECS service to its previous (or a pinned) task-def revision |
 | `ci.yml` | PR / push / merge_group | Lint, test, docker-build (change-aware) |
+| `cd.yml` | CI completion on `main` (push) | Build by SHA → bump gitops **stage** → deploy frontend → smoke |
+| `release.yml` | GitHub Release published (`vX.Y.Z`) | Re-tag stage images → bump gitops **prod** → deploy frontend → smoke |
+| `deploy-dev.yml` | PR labeled `deploy` (+ pushes) | Build `pr-<num>-<sha>` → bump gitops **dev** |
+| `redeploy-frontend.yml` | Manual | Frontend-only S3 + CloudFront respin (ref-locked per env) |
 | `security-audit.yml` | Weekly | pip-audit for CVEs |
 
-## Manual approval setup (one-time)
+## Composite actions
 
-The production gate is the **`production` GitHub Environment** with a required
-reviewer (repo Settings → Environments), restricted to the `main` branch. These
-are configured in repo settings, not in YAML. (A `staging` environment also
-exists, kept for the eventual staging re-enable.)
+`build-images` (base + api + worker → ops ECR) · `bump-gitops` (mint a GitHub App
+token, commit the tag bump to the gitops repo — the only path to a cluster) ·
+`deploy-frontend` (`npm run build` + S3 sync + CloudFront invalidation) ·
+`smoke-check` (poll the public `/health` until the shipped version is live, then
+assert an API endpoint answers) · `notify-slack` (failure alerts).
 
 ## Environments & accounts
 
-Production runs on ECS Fargate in its own AWS account; images are built once into
-the **ops account** ECR and pulled cross-account. The deploy assumes a per-account
-OIDC role (`rs-recruiting-prod-ecs-deploy`) — no stored AWS keys. Staging lives in
-a separate account too but is **retired for now** (see the note at the top); its
-infra (`rs-recruiting-staging` cluster, deploy role) lives in the infra repo
-(`rs-recruiting-infra`) and should be destroyed there to actually stop charges —
-disabling the workflow stage alone doesn't.
+Dev + stage run in the **non-prod** account/cluster; prod is its own
+account/cluster. Images build once into the **ops-account** ECR and are pulled
+cross-account. CI authenticates via OIDC (ECR push role + per-env frontend deploy
+roles, ref-locked) and holds no cluster credentials — the only write to a cluster's
+desired state is the gitops tag-bump commit. See
+[`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md).
 
-## Version bump detection
+## Version tags
 
-`compute_next_release_tag.sh` scans commits since the last final tag (each a
-squashed PR with a Conventional Commit title) and takes the highest severity:
+A `vX.Y.Z` tag covers the backend image (API + worker run from the same image with
+different commands) and the frontend bundle — they deploy in lockstep and share the
+same release value for Sentry correlation. `scripts/compute_next_release_tag.sh` is
+a manual helper that suggests the next version from the Conventional Commits since
+the last tag:
 
 - any `!:` breaking-change marker or `BREAKING CHANGE:` footer → major
 - `feat:` → minor
 - everything else → patch
-
-## Tag scope
-
-One shared `vX.Y.Z` tag covers the backend image (API + worker run from the same
-image with different `command:`) and the frontend bundle. They deploy together in
-lockstep and share the same `VITE_RELEASE` / `SENTRY_RELEASE` value for Sentry
-correlation — there's no independent release cadence to version separately.

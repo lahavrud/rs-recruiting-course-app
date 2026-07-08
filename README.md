@@ -58,8 +58,9 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 | Email | Resend via SMTP relay (production) — provider abstraction; 10+ HTML templates |
 | Auth | JWT (PyJWT), bcrypt, HttpOnly refresh cookie, slowapi rate limiting |
 | Observability | Sentry (backend + frontend with source maps), Google Tag Manager, CloudWatch |
-| Infrastructure | ECS Fargate + RDS + S3 + SQS + ECR + SSM + CloudFront, Cloudflare (DNS only) |
-| CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL, continuous delivery to ECS with a manual prod gate |
+| Infrastructure | EKS + Karpenter + Envoy Gateway + RDS (pgvector) + S3 + SQS + ECR + SSM + CloudFront + Route 53; provisioned by Terragrunt (separate infra repo) |
+| Deployment | GitOps — Helm charts + ArgoCD reconcile each cluster from the gitops repo; CI only commits image-tag bumps and never touches a cluster |
+| CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL; continuous delivery to stage on green `main`, prod promoted by publishing a GitHub Release |
 | Code Quality | Ruff, ESLint, TypeScript strict, 5 custom validation scripts, weekly pip-audit |
 
 ---
@@ -68,7 +69,7 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 
 <img src="docs/screenshots/aws-architecture.png" width="750" alt="AWS architecture diagram" />
 
-<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or the ECS Fargate web service via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background jobs: SQS → ECS Fargate worker service. CI/CD path: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+<p><em>Request path: Users → Route 53 → CloudFront → S3 (frontend SPA) or the EKS-hosted API via the Envoy Gateway NLB (`/api/*`, `/auth/*`, `/health`). Background jobs: EventBridge Scheduler + SQS → in-cluster worker Deployment. Delivery: GitHub Actions builds images to the ops-account ECR and commits image-tag bumps to the gitops repo; each cluster's ArgoCD reconciles its namespace (CI never touches a cluster). Observability: in-cluster kube-prometheus-stack — Prometheus, Grafana, Loki (logs on S3, shipped by an Alloy DaemonSet) — plus Sentry. All secrets live in SSM Parameter Store as SecureStrings, synced into the cluster by External Secrets. (Regenerate the diagram via `docs/generate_diagram.py`.)</em></p>
 
 ### Data model
 
@@ -111,7 +112,7 @@ erDiagram
         int id
         int job_id
         int candidate_id
-        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN"
+        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN, JOB_CLOSED"
         text admin_notes
     }
 ```
@@ -128,7 +129,7 @@ erDiagram
 
 **Async task queue with AWS SQS** — Sending email from inside a request handler risks timeouts and drops on provider throttling. All outbound email is pushed to an SQS queue and processed by a separate worker service (`rs_worker/worker.py`) with retry logic. Ten transactional email templates cover the full company and candidate lifecycle. The `defer_after_commit` pattern ensures tasks are enqueued only after the originating transaction commits, preventing phantom messages on rollback.
 
-**OIDC-based continuous delivery with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR), then promoted to production behind a manual approval (a `production` GitHub Environment required reviewer). The prod roll runs a gated DB migration first and waits for service stability with the deployment circuit breaker armed.
+**OIDC-based GitOps continuous delivery** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR); CI then commits that tag into the gitops repo's stage environment and the cluster's ArgoCD reconciles it — CI never touches a cluster directly. Production is promoted by publishing a GitHub Release (`vX.Y.Z`): the exact stage-tested images are re-tagged with the version (no rebuild) and the gitops prod environment is pointed at them. A label-gated `deploy-dev` workflow ships any PR to a shared dev namespace on demand.
 
 **Custom CI validation scripts** — Beyond Ruff and TypeScript, five custom scripts run in CI: SOC import enforcement (services must not import FastAPI), blocking I/O detection in async functions (catches `open()`, `requests.*`, `time.sleep()`), type hint coverage on public functions, test file existence checks (1:1 mapping with source files), and file size limits. Catches architecture drift that standard linters miss.
 
@@ -168,25 +169,26 @@ uv run pytest -n auto
 **Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv), Docker + Docker Compose, Node 18+
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/lahavrud/rs-recruiting.git
-cd rs-recruiting
+# 1. Clone and install (uv provisions the whole workspace: shared + api + worker)
+git clone https://github.com/lahavrud/rs-recruiting-course-app.git
+cd rs-recruiting-course-app
 uv sync
 
-# 2. Start services (PostgreSQL + Mailpit local SMTP)
-docker-compose up -d
+# 2. Start backing services (PostgreSQL + Mailpit local SMTP + LocalStack)
+make services            # bare `docker compose up -d`
 
-# 3. Run migrations
-uv run alembic upgrade head
+# 3. Start backend — the schema is built by SQLModel create_all on startup.
+#    Do NOT run `alembic upgrade head` locally: the migration chain is designed
+#    to run on top of an existing prod schema, not a fresh database.
+uv run uvicorn rs_api.main:app --reload
 
-# 4. Start backend
-uv run uvicorn src.main:app --reload
-
-# 5. Start frontend (separate terminal)
+# 4. Start frontend (separate terminal)
 cd frontend
 npm install
 npm run dev
 ```
+
+For the full containerized split (api + worker images too) use `make up`; `make down` stops everything and `make logs` tails both services.
 
 The frontend proxies `/api/*` to `http://localhost:8000`. Outbound email goes to [Mailpit](http://localhost:8025) — no provider account needed in development. Tasks (email, exports) run inline in the API process when `SQS_QUEUE_URL` is unset.
 
@@ -210,31 +212,37 @@ cd frontend && npx tsc --noEmit && npm run lint
 
 ## Project Structure
 
+The backend is a `uv` workspace with three members; import roots are `rs_shared` / `rs_api` / `rs_worker` (no top-level `src.`).
+
 ```
-rs-recruiting/
-├── src/
-│   ├── api/          # Thin FastAPI routers (auth, admin, company, public, seo)
-│   ├── services/     # Business logic, decoupled from routers
-│   │   ├── auth/     # session, registration, activation, password_reset, candidate_registration, password_change
-│   │   ├── admin/    # companies, jobs, applications, candidates, invites, audit
-│   │   ├── company/  # jobs, profile, candidates
-│   │   └── utils/    # audit logging, contract PDF, legal text
-│   ├── core/         # Infrastructure abstractions: storage, email, task queue definitions
-│   ├── models.py     # SQLModel ORM models
-│   ├── templates/    # Transactional email templates (HTML)
-│   └── worker.py     # SQS worker — polls queue and dispatches to task registry
+rs-recruiting-course-app/
+├── libs/shared/rs_shared/    # framework-free domain — installed into BOTH images
+│   ├── models.py  enums.py   # SQLModel ORM models + enums
+│   ├── schemas/  templates/  assets/
+│   ├── services/             # business logic, one package per actor:
+│   │                         #   auth/ admin/ company/ candidate/ public/ utils/
+│   └── core/                 # tasks + task_contract + matching (SQS task queue),
+│                             #   infrastructure/ (config, db, security, …),
+│                             #   services/ (storage, email, embeddings, cv_extraction, …)
+├── services/
+│   ├── api/rs_api/           # FastAPI service — main.py, api/ routers, infrastructure/ (web plumbing)
+│   └── worker/rs_worker/     # SQS consumer — worker.py (console script: rs-worker)
 ├── frontend/src/
-│   ├── pages/        # public/, admin/, company/, candidate/ + auth pages
-│   ├── components/   # layout/, guards/, ui/ — shared React components
-│   ├── hooks/        # useAuth, useInfiniteList, useDebounce, usePageTitle…
-│   └── locales/he/   # per-namespace translation files (common, auth, admin, …)
-├── tests/            # 70+ test files, pytest-xdist parallel execution
-├── scripts/          # 5 CI validation scripts
-├── docs/             # Architecture decisions, API design, infrastructure, runbooks
+│   ├── pages/                # public/, admin/, company/, candidate/ + auth pages
+│   ├── components/           # guards/, layout/, ui/ — shared React components
+│   ├── hooks/                # useAuth, useInfiniteList, useDebounce, usePageTitle…
+│   └── locales/he/           # per-namespace translation files (common, auth, admin, …)
+├── tests/                    # single tree covering all three members, pytest-xdist parallel
+├── scripts/                  # 5 CI validation scripts
+├── alembic/                  # migrations (applied in prod only — local/test use create_all)
+├── docs/                     # Architecture decisions, API design, infrastructure, runbooks
 └── .github/workflows/
-    ├── ci.yml        # Lint, test, docker-build (change-aware)
-    ├── deliver.yml   # Build by SHA → manual approval → prod → tag
-    ├── _deploy.yml   # Reusable per-environment ECS deploy (migrate → roll → frontend)
-    ├── rollback.yml  # Re-point an ECS service to its previous task-def revision
-    └── security-audit.yml  # Weekly pip-audit for CVEs
+    ├── ci.yml                # Lint, test, docker-build (change-aware)
+    ├── cd.yml                # Green main → build by SHA → bump gitops stage → ArgoCD syncs
+    ├── deploy-dev.yml        # Label-gated PR deploys to the shared dev namespace
+    ├── release.yml           # Publish a GitHub Release → re-tag stage images → promote to prod
+    ├── redeploy-frontend.yml # Manual frontend-only respin (S3 + CloudFront)
+    └── security-audit.yml    # Weekly pip-audit for CVEs
 ```
+
+Helm charts and per-environment desired state live in the sibling **gitops** repo; Terragrunt IaC lives in the sibling **infra** repo.

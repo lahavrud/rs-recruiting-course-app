@@ -1,7 +1,7 @@
 [project]
 name = "rs-recruiting"
 # NOT the release version. What shipped lives in git tags / GitHub Releases
-# (scripts/compute_next_release_tag.sh computes vX.Y.Z after each prod deploy);
+# (a published vX.Y.Z Release promotes stage-tested images to prod via release.yml);
 # nothing reads this field. It is a static placeholder to satisfy PEP 621 — do
 # not bump it per release, it will only drift from the real version.
 version = "0.1.0"
