@@ -64,3 +64,13 @@ jobs:
             echo "### Deployed to dev"
             echo '`${{ steps.tag.outputs.tag }}` pushed; ArgoCD will roll the dev namespace within ~3 minutes.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  notify-failure:
+    needs: [build-and-deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}

@@ -1,0 +1,26 @@
+name: Notify Slack
+description: >-
+  Post a workflow-failure message to a Slack incoming webhook — the same
+  channels Alertmanager notifies, so pipeline failures and runtime alerts
+  land in one place. If the curl itself fails (revoked/misconfigured
+  webhook), the notify job goes red, which is the only remaining way to
+  surface that.
+
+inputs:
+  webhook-url:
+    description: "Slack incoming-webhook URL (repo secret)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post failure message
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+      run: |
+        set -euo pipefail
+        run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        text="❌ *${{ github.workflow }}* failed on \`${GITHUB_REF_NAME}\` — <${run_url}|view run>"
+        curl -sf -X POST -H 'Content-type: application/json' \
+          --data "$(jq -n --arg text "$text" '{text: $text}')" "$WEBHOOK_URL"

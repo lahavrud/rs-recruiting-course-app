@@ -350,3 +350,15 @@ jobs:
               sys.exit(1)
           print('All required jobs passed or were skipped.')
           "
+
+  # PR failures are visible on the PR itself; only a broken main (which
+  # blocks delivery) warrants a Slack ping.
+  notify-failure:
+    needs: [detect-changes, backend-checks, frontend-checks, docker-build, ci-gate]
+    if: failure() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}

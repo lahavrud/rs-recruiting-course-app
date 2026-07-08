@@ -60,3 +60,13 @@ jobs:
             sleep 10
           done
           echo "SPA still not serving after redeploy"; exit 1
+
+  notify-failure:
+    needs: [redeploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ inputs.env == 'prod' && secrets.SLACK_WEBHOOK_PROD || secrets.SLACK_WEBHOOK_NONPROD }}

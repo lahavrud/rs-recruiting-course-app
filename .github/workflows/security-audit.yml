@@ -34,3 +34,13 @@ jobs:
         # Export the locked runtime set (no dev/test deps) and pipe to pip-audit
         # so the audit reflects exactly what production runs.
         run: uv export --frozen --no-dev --no-emit-workspace --format requirements-txt | uv tool run pip-audit -r /dev/stdin
+
+  notify-failure:
+    needs: [pip-audit]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}
