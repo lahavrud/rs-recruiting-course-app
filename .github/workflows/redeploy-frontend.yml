@@ -1,0 +1,62 @@
+# Rebuild + redeploy the frontend WITHOUT a code delivery. Exists for one
+# scenario: an env respin recreates the S3 bucket empty, and the normal
+# pipelines only deploy the frontend as part of shipping a commit/release.
+# The backend recovers by itself (ArgoCD syncs the gitops-pinned tags);
+# this is the frontend's equivalent of that sync.
+#
+# Ref rules come from the deploy roles' OIDC trust (ref-locked per env):
+#   stage — run from main (the default)
+#   prod  — run with --ref <vX.Y.Z tag>, e.g.: gh workflow run redeploy-frontend.yml --ref v0.1.0 -f env=prod
+
+name: Redeploy frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Target env"
+        required: true
+        type: choice
+        options: [stage, prod]
+
+concurrency:
+  group: redeploy-frontend-${{ inputs.env }}
+  cancel-in-progress: false
+
+env:
+  STAGE_FRONTEND_ROLE: arn:aws:iam::704601633261:role/rs-course-stage-ci-frontend-deploy
+  PROD_FRONTEND_ROLE: arn:aws:iam::591626272274:role/rs-course-prod-ci-frontend-deploy
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for the env's frontend deploy role
+      contents: read
+    steps:
+      - name: Guard ref against env
+        run: |
+          set -euo pipefail
+          case "${{ inputs.env }}" in
+            stage) [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "stage redeploys must run from main (got $GITHUB_REF)"; exit 1; } ;;
+            prod)  [[ "$GITHUB_REF" == refs/tags/v* ]] || { echo "prod redeploys must run from a vX.Y.Z tag (got $GITHUB_REF)"; exit 1; } ;;
+          esac
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: ./.github/actions/deploy-frontend
+        id: frontend
+        with:
+          env: ${{ inputs.env }}
+          aws-role-arn: ${{ inputs.env == 'prod' && env.PROD_FRONTEND_ROLE || env.STAGE_FRONTEND_ROLE }}
+
+      - name: Verify SPA serves
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://${{ steps.frontend.outputs.domain }}/")
+            [[ "$code" == "200" ]] && { echo "OK: / -> 200"; exit 0; }
+            echo "attempt $i: / -> $code, retrying..."
+            sleep 10
+          done
+          echo "SPA still not serving after redeploy"; exit 1
