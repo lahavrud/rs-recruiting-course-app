@@ -84,8 +84,13 @@ def configure_telemetry(
 
     # Logs — bridge Python logging → OTel so existing logger.info(...) calls
     # are forwarded to Loki without changing any call sites.
+    # OTEL_LOGS_EXPORT=false opts out of the log signal only: in-cluster the
+    # collector ships pod stdout (which carries trace_id= via the
+    # LoggingInstrumentor below), so OTLP log export would double-ingest every
+    # line and the collector rejects the logs service (UNIMPLEMENTED spam).
+    logs_enabled = os.environ.get("OTEL_LOGS_EXPORT", "true").lower() != "false"
     _logger_provider = LoggerProvider(resource=resource)
-    if endpoint:
+    if endpoint and logs_enabled:
         _logger_provider.add_log_record_processor(
             BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint, insecure=True))
         )
