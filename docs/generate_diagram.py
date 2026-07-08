@@ -1,7 +1,7 @@
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import ECR, EKS
+from diagrams.aws.compute import ECR
 from diagrams.aws.database import RDS
-from diagrams.aws.integration import Eventbridge, SQS
+from diagrams.aws.integration import SQS, Eventbridge
 from diagrams.aws.management import SystemsManagerParameterStore
 from diagrams.aws.network import CloudFront, Route53
 from diagrams.aws.storage import S3
