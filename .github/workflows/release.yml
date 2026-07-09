@@ -33,17 +33,19 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Resolve source build
+      - name: Validate release tag
         id: tag
         run: |
           set -euo pipefail
           version="${{ github.event.release.tag_name }}"
           [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
             echo "release tag '$version' is not vX.Y.Z" >&2; exit 1; }
-          {
-            echo "version=$version"
-            echo "sha=$(git rev-parse --short=7 HEAD)"
-          } >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Recompute the exact content tags stage built for this commit — that is
+      # how we locate the byte-identical images to promote (no rebuild).
+      - uses: ./.github/actions/compute-tags
+        id: src
 
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -51,29 +53,37 @@ jobs:
           aws-region: eu-central-1
 
       - name: Re-tag stage images with the version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          API_SRC: ${{ steps.src.outputs.api }}
+          WORKER_SRC: ${{ steps.src.outputs.worker }}
         run: |
           set -euo pipefail
-          for repo in rs-recruiting-course/api rs-recruiting-course/worker; do
+          # repo:source-content-tag — the images stage built and smoked.
+          for pair in "rs-recruiting-course/api:${API_SRC}" "rs-recruiting-course/worker:${WORKER_SRC}"; do
+            repo="${pair%:*}"; src="${pair##*:}"
             manifest=$(aws ecr batch-get-image \
               --repository-name "$repo" \
-              --image-ids imageTag="${{ steps.tag.outputs.sha }}" \
+              --image-ids imageTag="$src" \
               --query 'images[0].imageManifest' --output text)
             if [ -z "$manifest" ] || [ "$manifest" = "None" ]; then
-              echo "no ${repo}:${{ steps.tag.outputs.sha }} image — tag a commit that shipped to stage" >&2
+              echo "no ${repo}:${src} image — tag a commit that shipped to stage" >&2
               exit 1
             fi
             out=$(aws ecr put-image \
               --repository-name "$repo" \
-              --image-tag "${{ steps.tag.outputs.version }}" \
+              --image-tag "$VERSION" \
               --image-manifest "$manifest" 2>&1) \
               || { grep -q ImageAlreadyExistsException <<<"$out" || { echo "$out" >&2; exit 1; }; }
-            echo "${repo}:${{ steps.tag.outputs.version }} ready"
+            echo "${repo}:${VERSION} ready"
           done
 
+      # Prod runs both images at the single human-readable release version.
       - uses: ./.github/actions/bump-gitops
         with:
           environment: prod
-          image-tag: ${{ steps.tag.outputs.version }}
+          api-tag: ${{ steps.tag.outputs.version }}
+          worker-tag: ${{ steps.tag.outputs.version }}
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
 
@@ -92,7 +102,7 @@ jobs:
         run: |
           {
             echo "### Prod is live"
-            echo '`${{ steps.tag.outputs.version }}` (build `${{ steps.tag.outputs.sha }}`) passed smoke on https://${{ steps.frontend.outputs.domain }}.'
+            echo '`${{ steps.tag.outputs.version }}` (from api `${{ steps.src.outputs.api }}` / worker `${{ steps.src.outputs.worker }}`) passed smoke on https://${{ steps.frontend.outputs.domain }}.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   notify-failure:

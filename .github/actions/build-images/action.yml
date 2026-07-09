@@ -6,12 +6,24 @@ description: >-
   base across separate buildx invocations is unreliable). Assumes the caller
   has already logged in to the registry (aws-actions/amazon-ecr-login).
 
+  Each image carries its own content-addressed tag (see the compute-tags
+  action). A tag that already exists in ECR means that exact content was built
+  before, so the build is skipped — that is what makes an unchanged service
+  cost nothing on a deploy. The base is always referenced as the FROM at its
+  tag whether or not it was (re)built this run: an unchanged base still exists.
+
 inputs:
   registry:
     description: "ECR registry host, e.g. <ops-account>.dkr.ecr.eu-central-1.amazonaws.com"
     required: true
-  image-tag:
-    description: "Tag for the api + worker images (and the base image)"
+  base-tag:
+    description: "Tag for the shared base image"
+    required: true
+  api-tag:
+    description: "Tag for the api image"
+    required: true
+  worker-tag:
+    description: "Tag for the worker image"
     required: true
 
 runs:
@@ -19,7 +31,30 @@ runs:
   steps:
     - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
+    # Content tags are immutable: if a tag is already in ECR, its bytes are
+    # already built. Skip those builds so an unchanged service is free.
+    - name: Resolve which images need building
+      id: need
+      shell: bash
+      run: |
+        set -euo pipefail
+        exists() {
+          aws ecr describe-images --repository-name "rs-recruiting-course/$1" \
+            --image-ids imageTag="$2" >/dev/null 2>&1
+        }
+        for pair in "base:${{ inputs.base-tag }}" "api:${{ inputs.api-tag }}" "worker:${{ inputs.worker-tag }}"; do
+          svc="${pair%%:*}"; tag="${pair#*:}"
+          if exists "$svc" "$tag"; then
+            echo "${svc}=false" >> "$GITHUB_OUTPUT"
+            echo "rs-recruiting-course/${svc}:${tag} already in ECR — skipping build"
+          else
+            echo "${svc}=true" >> "$GITHUB_OUTPUT"
+            echo "rs-recruiting-course/${svc}:${tag} not found — will build"
+          fi
+        done
+
     - name: Build & push shared base
+      if: steps.need.outputs.base == 'true'
       uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: .
@@ -27,34 +62,36 @@ runs:
         push: true
         provenance: false
         sbom: false
-        tags: ${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.base-tag }}
         cache-from: type=gha,scope=base
         cache-to: type=gha,mode=max,scope=base
 
     - name: Build & push api
+      if: steps.need.outputs.api == 'true'
       uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: .
         file: services/api/Dockerfile
         build-args: |
-          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
+          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.base-tag }}
         push: true
         provenance: false
         sbom: false
-        tags: ${{ inputs.registry }}/rs-recruiting-course/api:${{ inputs.image-tag }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/api:${{ inputs.api-tag }}
         cache-from: type=gha,scope=api
         cache-to: type=gha,mode=max,scope=api
 
     - name: Build & push worker
+      if: steps.need.outputs.worker == 'true'
       uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
       with:
         context: .
         file: services/worker/Dockerfile
         build-args: |
-          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.image-tag }}
+          BASE_IMAGE=${{ inputs.registry }}/rs-recruiting-course/base:${{ inputs.base-tag }}
         push: true
         provenance: false
         sbom: false
-        tags: ${{ inputs.registry }}/rs-recruiting-course/worker:${{ inputs.image-tag }}
+        tags: ${{ inputs.registry }}/rs-recruiting-course/worker:${{ inputs.worker-tag }}
         cache-from: type=gha,scope=worker
         cache-to: type=gha,mode=max,scope=worker

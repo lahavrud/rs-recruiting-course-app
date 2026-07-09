@@ -1,0 +1,75 @@
+name: Compute image tags
+description: >-
+  Derive a content-addressed tag for each image (base, api, worker) from the
+  committed files that actually feed that image's build context. An image's tag
+  changes only when one of its inputs changes, so an unchanged service keeps its
+  old tag — build-images then skips the rebuild and bump-gitops writes a no-op,
+  which means ArgoCD never rolls pods for a service whose bytes didn't change.
+
+  Correctness rule: a path set may be *over*-inclusive (an occasional needless
+  rebuild is harmless) but never *under*-inclusive (a stale image is not). The
+  api/worker sets both include docker/base.Dockerfile, so a base change cascades
+  into their tags — the FROM they build against would differ.
+
+  Tags are the first 7 hex chars of a git-blob hash over `git ls-tree` output
+  (mode+type+blob-sha+path per file, path-sorted → deterministic).
+
+outputs:
+  base:
+    description: "Content tag for the shared base image"
+    value: ${{ steps.compute.outputs.base }}
+  api:
+    description: "Content tag for the api image"
+    value: ${{ steps.compute.outputs.api }}
+  worker:
+    description: "Content tag for the worker image"
+    value: ${{ steps.compute.outputs.worker }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Hash the committed content of the given paths. Missing paths are
+        # silently omitted by ls-tree, so the set stays stable across renames.
+        hash_paths() {
+          git ls-tree -r HEAD -- "$@" | git hash-object --stdin | cut -c1-7
+        }
+
+        # Base: only its own Dockerfile — it installs no project files.
+        base=$(hash_paths docker/base.Dockerfile)
+
+        # api build context (services/api/Dockerfile): base + shared + api source
+        # + all member manifests + lockfile + alembic/scripts/entrypoint + the
+        # SEO article markdown baked into the image.
+        api=$(hash_paths \
+          docker/base.Dockerfile \
+          pyproject.toml uv.lock \
+          libs/shared \
+          services/api \
+          services/worker/pyproject.toml \
+          alembic alembic.ini \
+          scripts \
+          frontend/src/content/articles \
+          docker-entrypoint.sh)
+
+        # worker build context (services/worker/Dockerfile): base + shared +
+        # worker source + member manifests + lockfile + entrypoint.
+        worker=$(hash_paths \
+          docker/base.Dockerfile \
+          pyproject.toml uv.lock \
+          libs/shared \
+          services/worker \
+          services/api/pyproject.toml \
+          docker-entrypoint.sh)
+
+        {
+          echo "base=$base"
+          echo "api=$api"
+          echo "worker=$worker"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "base=$base  api=$api  worker=$worker"

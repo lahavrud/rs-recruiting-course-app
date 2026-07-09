@@ -42,9 +42,10 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
-      - name: Compute image tag
+      # Per-image content tags: a service whose inputs didn't change keeps its
+      # tag, so build-images skips it and its gitops chart is a no-op (no roll).
+      - uses: ./.github/actions/compute-tags
         id: tag
-        run: echo "tag=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -56,12 +57,15 @@ jobs:
       - uses: ./.github/actions/build-images
         with:
           registry: ${{ env.OPS_ECR_REGISTRY }}
-          image-tag: ${{ steps.tag.outputs.tag }}
+          base-tag: ${{ steps.tag.outputs.base }}
+          api-tag: ${{ steps.tag.outputs.api }}
+          worker-tag: ${{ steps.tag.outputs.worker }}
 
       - uses: ./.github/actions/bump-gitops
         with:
           environment: stage
-          image-tag: ${{ steps.tag.outputs.tag }}
+          api-tag: ${{ steps.tag.outputs.api }}
+          worker-tag: ${{ steps.tag.outputs.worker }}
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
 
@@ -73,16 +77,18 @@ jobs:
           env: stage
           aws-role-arn: ${{ env.STAGE_FRONTEND_ROLE }}
 
+      # /health reports the api image tag (APP_VERSION), so smoke waits on the
+      # api tag — that is the convergence signal ArgoCD produces for this deploy.
       - uses: ./.github/actions/smoke-check
         with:
           domain: ${{ steps.frontend.outputs.domain }}
-          expected-version: ${{ steps.tag.outputs.tag }}
+          expected-version: ${{ steps.tag.outputs.api }}
 
       - name: Summary
         run: |
           {
             echo "### Stage is live"
-            echo '`${{ steps.tag.outputs.tag }}` passed smoke on https://${{ steps.frontend.outputs.domain }}.'
+            echo 'api `${{ steps.tag.outputs.api }}` / worker `${{ steps.tag.outputs.worker }}` passed smoke on https://${{ steps.frontend.outputs.domain }}.'
             echo ""
             echo "Promote to prod by publishing a GitHub Release (tag \`vX.Y.Z\`) on this commit."
           } >> "$GITHUB_STEP_SUMMARY"
