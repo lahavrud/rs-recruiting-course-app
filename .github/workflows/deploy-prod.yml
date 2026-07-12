@@ -1,0 +1,132 @@
+# Per-service prod promotion. Fires on a `<service>-vX.Y.Z` tag pushed by
+# cut-release.yml (release.yml). Runs FROM the tag ref — that's what keeps the
+# prod frontend role's OIDC trust (ref-locked to refs/tags/frontend-v*)
+# meaningful; a branch-triggered job could not assume it.
+#
+# api / worker: re-tag the exact stage-built image (located by recomputing its
+# content tag on this commit — no rebuild, byte-identical to what stage smoked)
+# to the release version, then bump ONLY that service's gitops prod key.
+# frontend: rebuild + sync to S3/CloudFront (its version identity is this tag).
+#
+# Each service moves independently: releasing api-v1.4.0 never touches worker or
+# frontend. Prod is NOT reached on merge to main — stage is (cd.yml). This runs
+# only when a human cuts a release.
+
+name: Deploy prod
+
+on:
+  push:
+    tags:
+      - "api-v*"
+      - "worker-v*"
+      - "frontend-v*"
+
+# Serialize per service; never cancel a half-shipped promotion.
+concurrency:
+  group: deploy-prod-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  OPS_ECR_REGISTRY: 883627150418.dkr.ecr.eu-central-1.amazonaws.com
+  ECR_PUSH_ROLE: arn:aws:iam::883627150418:role/rs-course-ci-ecr-push
+  PROD_FRONTEND_ROLE: arn:aws:iam::591626272274:role/rs-course-prod-ci-frontend-deploy
+  # The stable custom domain (not a dynamic endpoint — the CloudFront/NLB
+  # hostnames are). Used to smoke an api release, which does not deploy the
+  # frontend and so has no deploy-frontend step to resolve the domain from SSM.
+  PROD_PUBLIC_DOMAIN: course.rs-recruiting.com
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for ECR push / frontend deploy roles
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 1 # the tagged commit
+
+      - name: Parse release tag
+        id: rel
+        run: bash scripts/ci/parse-release-tag.sh "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # ---------- api / worker: retag the proven stage image + bump gitops ----------
+
+      # Recompute this commit's stage content tags — that's how we locate the
+      # byte-identical image to promote.
+      - if: steps.rel.outputs.service != 'frontend'
+        uses: ./.github/actions/compute-tags
+        id: src
+
+      - if: steps.rel.outputs.service != 'frontend'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.ECR_PUSH_ROLE }}
+          aws-region: eu-central-1
+
+      - name: Re-tag the ${{ steps.rel.outputs.service }} image with the version
+        if: steps.rel.outputs.service != 'frontend'
+        env:
+          SERVICE: ${{ steps.rel.outputs.service }}
+          VERSION: ${{ steps.rel.outputs.version }}
+          API_SRC: ${{ steps.src.outputs.api }}
+          WORKER_SRC: ${{ steps.src.outputs.worker }}
+        run: bash scripts/ci/retag-images.sh
+
+      - name: Bump gitops prod (api)
+        if: steps.rel.outputs.service == 'api'
+        uses: ./.github/actions/bump-gitops
+        with:
+          environment: prod
+          api-tag: ${{ steps.rel.outputs.version }}
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+
+      - name: Bump gitops prod (worker)
+        if: steps.rel.outputs.service == 'worker'
+        uses: ./.github/actions/bump-gitops
+        with:
+          environment: prod
+          worker-tag: ${{ steps.rel.outputs.version }}
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+
+      # api reports its tag at /health, so smoke waits for ArgoCD to converge.
+      # worker has no public surface — it ships blind until the /health
+      # worker-version heartbeat lands (see .claude/rules/infra.md).
+      - name: Smoke (api)
+        if: steps.rel.outputs.service == 'api'
+        uses: ./.github/actions/smoke-check
+        with:
+          domain: ${{ env.PROD_PUBLIC_DOMAIN }}
+          expected-version: ${{ steps.rel.outputs.version }}
+
+      # ---------- frontend: rebuild + S3/CloudFront respin ----------
+
+      - name: Deploy frontend
+        if: steps.rel.outputs.service == 'frontend'
+        id: frontend
+        uses: ./.github/actions/deploy-frontend
+        with:
+          env: prod
+          aws-role-arn: ${{ env.PROD_FRONTEND_ROLE }}
+
+      - name: Verify SPA serves
+        if: steps.rel.outputs.service == 'frontend'
+        env:
+          DOMAIN: ${{ steps.frontend.outputs.domain }}
+        run: bash scripts/ci/verify-spa.sh
+
+      - name: Summary
+        run: |
+          {
+            echo "### Prod: ${{ github.ref_name }} shipped"
+            echo "Service \`${{ steps.rel.outputs.service }}\` promoted to \`${{ steps.rel.outputs.version }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  notify-failure:
+    needs: [promote]
+    if: failure()
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ secrets.SLACK_WEBHOOK_PROD }}

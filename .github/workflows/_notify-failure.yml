@@ -1,0 +1,22 @@
+# Reusable failure notifier — every pipeline's `notify-failure` job calls this
+# instead of copy-pasting the checkout + notify-slack pair. Callers pass the
+# env-appropriate webhook (non-prod vs prod). Leading underscore: it only runs
+# via workflow_call, never on its own trigger.
+name: notify-failure
+
+on:
+  workflow_call:
+    secrets:
+      webhook-url:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout, to reach the local notify-slack action
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: ./.github/actions/notify-slack
+        with:
+          webhook-url: ${{ secrets.webhook-url }}

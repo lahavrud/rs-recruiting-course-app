@@ -6,7 +6,7 @@
 #
 # Ref rules come from the deploy roles' OIDC trust (ref-locked per env):
 #   stage — run from main (the default)
-#   prod  — run with --ref <vX.Y.Z tag>, e.g.: gh workflow run redeploy-frontend.yml --ref v0.1.0 -f env=prod
+#   prod  — run from a frontend-vX.Y.Z tag, e.g.: gh workflow run redeploy-frontend.yml --ref frontend-v0.1.0 -f env=prod
 
 name: Redeploy frontend
 
@@ -39,10 +39,10 @@ jobs:
           set -euo pipefail
           case "${{ inputs.env }}" in
             stage) [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "stage redeploys must run from main (got $GITHUB_REF)"; exit 1; } ;;
-            prod)  [[ "$GITHUB_REF" == refs/tags/v* ]] || { echo "prod redeploys must run from a vX.Y.Z tag (got $GITHUB_REF)"; exit 1; } ;;
+            prod)  [[ "$GITHUB_REF" == refs/tags/frontend-v* || "$GITHUB_REF" == refs/tags/v* ]] || { echo "prod redeploys must run from a frontend-vX.Y.Z tag (got $GITHUB_REF)"; exit 1; } ;;
           esac
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
 
       - uses: ./.github/actions/deploy-frontend
         id: frontend
@@ -51,22 +51,13 @@ jobs:
           aws-role-arn: ${{ inputs.env == 'prod' && env.PROD_FRONTEND_ROLE || env.STAGE_FRONTEND_ROLE }}
 
       - name: Verify SPA serves
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "https://${{ steps.frontend.outputs.domain }}/")
-            [[ "$code" == "200" ]] && { echo "OK: / -> 200"; exit 0; }
-            echo "attempt $i: / -> $code, retrying..."
-            sleep 10
-          done
-          echo "SPA still not serving after redeploy"; exit 1
+        env:
+          DOMAIN: ${{ steps.frontend.outputs.domain }}
+        run: bash scripts/ci/verify-spa.sh
 
   notify-failure:
     needs: [redeploy]
     if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/notify-slack
-        with:
-          webhook-url: ${{ inputs.env == 'prod' && secrets.SLACK_WEBHOOK_PROD || secrets.SLACK_WEBHOOK_NONPROD }}
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ inputs.env == 'prod' && secrets.SLACK_WEBHOOK_PROD || secrets.SLACK_WEBHOOK_NONPROD }}

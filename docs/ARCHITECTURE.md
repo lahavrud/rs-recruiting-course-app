@@ -227,14 +227,14 @@ These principles guide all architectural decisions:
 **Decision:** GitHub Actions with OIDC-based AWS authentication, a PostgreSQL service container for tests, and **GitOps continuous delivery** — CI builds images and commits image-tag bumps to the gitops repo; each cluster's ArgoCD reconciles the change. CI has no cluster credentials. See [`release-process.md`](./release-process.md).
 
 **Implementation:**
-- **Workflows:** `.github/workflows/ci.yml` (checks) + `cd.yml` (stage) / `release.yml` (prod) / `deploy-dev.yml` (label-gated dev) delivery
+- **Workflows:** `.github/workflows/ci.yml` (checks) + `cd.yml` (stage) / `release.yml` + `deploy-prod.yml` (per-service prod) / `deploy-dev.yml` (label-gated dev) delivery
 - **On pull_request to main:**
   - `lint`: Ruff linter + formatter + 5 custom validation scripts
   - `test`: Pytest against a PostgreSQL 16 service container (dialect parity with production)
   - `docker-build`: Build image and verify `/health` endpoint
 - **On merge to main (after CI passes):** `cd.yml` fires off CI completion → builds base + api + worker by SHA into the ops-account ECR → `bump-gitops` points the gitops **stage** env at the new tag → stage ArgoCD reconciles → `deploy-frontend` (S3 + CloudFront) → `smoke-check`.
-- **Production:** promoted by publishing a GitHub Release (`vX.Y.Z`). `release.yml` re-tags the exact stage-tested images with the version (no rebuild), bumps the gitops **prod** env, deploys the frontend, and smoke-checks.
-- **Authentication:** GitHub Actions OIDC — per-environment deploy roles, ref-locked (stage from `main`, prod from `v*` tags); no stored AWS credentials.
+- **Production:** promoted **per service**. `release.yml` (Cut release, manual) computes the next semver and pushes `<service>-vX.Y.Z`; the tag triggers `deploy-prod.yml`, which re-tags that service's exact stage-tested image with the version (no rebuild) and bumps **only that key** in the gitops **prod** env — api/worker/frontend release independently.
+- **Authentication:** GitHub Actions OIDC — per-environment deploy roles, ref-locked (stage from `main`, prod frontend from `frontend-v*` tags, ops ECR push from `*-v*` tags); no stored AWS credentials.
 - **Deploy mechanism:** `bump-gitops` mints a short-lived GitHub App token and commits the tag bump to the gitops repo — the only path to a cluster. ArgoCD (polling the gitops repo) rolls the Deployments; the api Helm chart's pre-upgrade Job runs the migration. Terragrunt (infra repo) owns the cluster/topology; the gitops charts own the workload; CI owns only the image tag.
 - **Validation Scripts:**
   - `validate_imports.py` - SOC enforcement (separation of concerns)
@@ -658,14 +658,14 @@ EventBridge Scheduler      ← nightly retention-purge trigger → SQS
 
 ### 3. Environment Deployment Strategy
 
-**Decision:** Trunk-based **GitOps continuous delivery**. CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and ships it to **stage** automatically, and **prod** is promoted by publishing a GitHub Release. See [`release-process.md`](./release-process.md).
+**Decision:** Trunk-based **GitOps continuous delivery**. CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and ships it to **stage** automatically, and **prod** is promoted per service via the manual **Cut release** workflow (which pushes a `<service>-vX.Y.Z` tag). See [`release-process.md`](./release-process.md).
 
 **Environments:**
 
 1. **Local** – `make services` (PostgreSQL + Mailpit + LocalStack) with `uvicorn` on the host; tasks run inline
 2. **Dev** – shared EKS namespace; label a PR `deploy` to ship `pr-<num>-<sha>` images on demand (`deploy-dev.yml`)
 3. **Stage** – EKS namespace; every green `main` ships here automatically (`cd.yml`)
-4. **Prod** – EKS namespace; promoted by publishing a GitHub Release, which re-tags the exact stage-tested images (`release.yml`)
+4. **Prod** – EKS namespace; promoted per service by cutting a `<service>-vX.Y.Z` release, which re-tags that service's exact stage-tested image (`release.yml` → `deploy-prod.yml`)
 
 Dev + stage live in the non-prod account/cluster; prod is its own account/cluster. Each env's desired state is a directory in the gitops repo that its ArgoCD reconciles.
 

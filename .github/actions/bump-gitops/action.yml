@@ -11,11 +11,13 @@ inputs:
     description: "Target env directory under environments/ (dev | stage | prod)"
     required: true
   api-tag:
-    description: "New tag for the api image"
-    required: true
+    description: "New tag for the api image (omit to leave api unchanged)"
+    required: false
+    default: ""
   worker-tag:
-    description: "New tag for the worker image"
-    required: true
+    description: "New tag for the worker image (omit to leave worker unchanged)"
+    required: false
+    default: ""
   app-id:
     description: "GitHub App id (CI_BOT_APP_ID secret)"
     required: true
@@ -50,19 +52,33 @@ runs:
         git config user.name "rs-course-ci-bot[bot]"
         git config user.email "rs-course-ci-bot[bot]@users.noreply.github.com"
 
+        if [ -z "$API_TAG" ] && [ -z "$WORKER_TAG" ]; then
+          echo "neither api-tag nor worker-tag given — nothing to bump" >&2
+          exit 1
+        fi
+
         # Retry the push: concurrent pipeline runs may race on the same branch.
-        # api and worker carry independent content tags, so an unchanged service
-        # is written back to its existing value — git diff is then empty for it
-        # and only the changed chart(s) commit, so ArgoCD rolls only those pods.
+        # Only the services whose tag was passed are written (a per-service prod
+        # release bumps one; stage/dev pass both). An unchanged service is
+        # written back to its existing value, leaving git diff empty for it, so
+        # ArgoCD rolls only the chart(s) that actually changed.
         for attempt in 1 2 3; do
-          yq -i '.image.tag = strenv(API_TAG)' "environments/${ENV_NAME}/api.yaml"
-          yq -i '.image.tag = strenv(WORKER_TAG)' "environments/${ENV_NAME}/worker.yaml"
+          msg_parts=()
+          if [ -n "$API_TAG" ]; then
+            yq -i '.image.tag = strenv(API_TAG)' "environments/${ENV_NAME}/api.yaml"
+            msg_parts+=("api -> ${API_TAG}")
+          fi
+          if [ -n "$WORKER_TAG" ]; then
+            yq -i '.image.tag = strenv(WORKER_TAG)' "environments/${ENV_NAME}/worker.yaml"
+            msg_parts+=("worker -> ${WORKER_TAG}")
+          fi
+          summary=$(IFS=', '; echo "${msg_parts[*]}")
           if git diff --quiet; then
-            echo "environments/${ENV_NAME} already at api=${API_TAG} worker=${WORKER_TAG} — nothing to do"
+            echo "environments/${ENV_NAME} already at ${summary} — nothing to do"
             exit 0
           fi
           git add "environments/${ENV_NAME}"
-          git commit -m "deploy(${ENV_NAME}): api -> ${API_TAG}, worker -> ${WORKER_TAG}"
+          git commit -m "deploy(${ENV_NAME}): ${summary}"
           if git push origin main; then
             exit 0
           fi

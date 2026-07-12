@@ -1,9 +1,7 @@
 name: CI Pipeline
 
-# Cancel in-flight runs only for PRs — saves Actions minutes on rapid push
-# cycles (typo fixes, force-pushes). Pushes to main are never cancelled: a
-# green CI run on main is what triggers cd.yml (continuous delivery), so
-# cancelling it would silently skip a deploy.
+# Cancel superseded PR runs; never cancel main — a green main run triggers
+# cd.yml, so killing it would silently skip the deploy.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -20,12 +18,8 @@ permissions:
   contents: read
 
 jobs:
-  # Compute which areas of the repo changed in this PR so downstream jobs
-  # can skip when irrelevant. GitHub Actions bills per-job rounded up to
-  # the minute, so skipping a 4-second job saves a full billed minute.
-  #
-  # On push-to-main (or any non-PR event) every flag is forced to 'true'
-  # so the deploy gate runs the full suite.
+  # Flags which areas changed so unchanged ones skip their job (each skipped job
+  # saves a full billed minute). Non-PR events flag everything and run the lot.
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -33,160 +27,73 @@ jobs:
       frontend: ${{ steps.diff.outputs.frontend }}
       docker: ${{ steps.diff.outputs.docker }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
       - id: diff
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            {
-              echo "backend=true"
-              echo "frontend=true"
-              echo "docker=true"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          BASE="${{ github.event.pull_request.base.sha }}"
-          HEAD="${{ github.event.pull_request.head.sha }}"
-          FILES=$(git diff --name-only "$BASE" "$HEAD")
-          match() { grep -qE "$1" <<<"$FILES"; }
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ci/detect-changes.sh >> "$GITHUB_OUTPUT"
 
-          backend=false; frontend=false; docker=false
-
-          # Workflow edits invalidate every assumption — run everything.
-          if match '^\.github/workflows/'; then
-            backend=true; frontend=true; docker=true
-          fi
-          if match '^(libs/|services/|tests/|alembic/|scripts/.*\.py|pyproject\.toml|uv\.lock)'; then
-            backend=true
-          fi
-          if match '^frontend/'; then
-            frontend=true
-          fi
-          if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|docker-compose.*\.yml)'; then
-            docker=true
-            # docker-build smoke-tests the backend image, so guard it with
-            # the same checks the image depends on.
-            backend=true
-          fi
-
-          {
-            echo "backend=$backend"
-            echo "frontend=$frontend"
-            echo "docker=$docker"
-          } >> "$GITHUB_OUTPUT"
-
-  # Combined lint + tests + deploy-artifact validation. Merging three previously
-  # separate jobs (backend-checks, test, validate-deploy-artifacts) avoids paying
-  # the 1-minute billing floor three times. Backend steps are skipped on
-  # deploy-only changes; deploy validation is skipped on backend-only changes.
-  # CVE auditing lives in the weekly security-audit workflow.
+  # Lint + validators + tests in one job (pay the 1-min billing floor once).
+  # The job-level `if` gates every step, so no per-step guards are needed.
   backend-checks:
     needs: detect-changes
     if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-
     services:
       postgres:
-        # pgvector image — the suite's migrations CREATE EXTENSION vector.
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg16 # migrations CREATE EXTENSION vector
         env:
           POSTGRES_DB: rs_recruitment_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test # pragma: allowlist secret
         options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 5
         ports:
           - 5432:5432
-
     env:
       DATABASE_URL: "postgresql+asyncpg://test:test@localhost:5432/rs_recruitment_test" # pragma: allowlist secret
       JWT_SECRET_KEY: "test_secret_key_for_ci_only_min_32_chars_long" # pragma: allowlist secret
       JWT_ALGORITHM: "HS256"
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       PYTHONPATH: "."
-
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v7.0.0
 
       - name: Install uv
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        uses: astral-sh/setup-uv@v8.3.0
         with:
-          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
       - name: Set up Python
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
-      - name: Cache uv dependencies
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
-
-      - name: Cache pytest cache
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
-        with:
-          path: .pytest_cache
-          key: ${{ runner.os }}-pytest-${{ hashFiles('tests/**/*.py') }}
-          restore-keys: |
-            ${{ runner.os }}-pytest-
-
       - name: Install dependencies
-        if: needs.detect-changes.outputs.backend == 'true'
         run: uv sync --frozen --group dev --group test
 
       - name: Ruff lint
-        if: needs.detect-changes.outputs.backend == 'true'
         run: uv run ruff check .
 
       - name: Ruff format check
-        if: needs.detect-changes.outputs.backend == 'true'
         run: uv run ruff format --check .
 
-      - name: validate_imports
-        if: needs.detect-changes.outputs.backend == 'true'
-        run: uv run python scripts/validate_imports.py
-
-      - name: check_file_sizes
-        if: needs.detect-changes.outputs.backend == 'true'
-        run: uv run python scripts/check_file_sizes.py
-
-      - name: validate_type_hints
-        if: needs.detect-changes.outputs.backend == 'true'
-        run: uv run python scripts/validate_type_hints.py
-
-      - name: validate_blocking_io
-        if: needs.detect-changes.outputs.backend == 'true'
-        run: uv run python scripts/validate_blocking_io.py
-
-      - name: validate_test_files
-        if: needs.detect-changes.outputs.backend == 'true'
-        run: uv run python scripts/validate_test_files.py
+      - name: Static validators
+        run: make validators
 
       - name: Run Tests
-        if: needs.detect-changes.outputs.backend == 'true'
-        # -n auto: pytest-xdist creates one worker per CPU. tests/conftest.py
-        # provisions a per-worker DB so the autouse table.delete() cleanup
-        # does not race across workers.
+        # -n auto: one xdist worker per CPU, each with its own DB (conftest.py),
+        # so the autouse table cleanup can't race.
         run: uv run pytest -n auto --cov=rs_shared --cov=rs_api --cov=rs_worker --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
-        if: always() && needs.detect-changes.outputs.backend == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
@@ -196,169 +103,69 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v7.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
+      - run: npm ci
       - name: TypeScript type check
-        working-directory: frontend
         run: npx tsc -b --noEmit
-
       - name: ESLint
-        working-directory: frontend
         run: npm run lint
-
       - name: Tests
-        working-directory: frontend
         run: npm test
 
+  # Smoke-test the real compose stack (`make up`'s). `--wait` blocks on each
+  # service's healthcheck — the api's curls /health — so no retry loops here.
   docker-build:
-    runs-on: ubuntu-latest
-    # Skip on push to main (cd.yml builds and pushes the real images), on
-    # draft PRs, and when no Docker-relevant files changed (see detect-changes).
     needs: [detect-changes, backend-checks]
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect-changes.outputs.docker == 'true'
-    env:
-      JWT_SECRET_KEY: "test_secret_key_for_ci_only_min_32_chars_long" # pragma: allowlist secret
-      PG_TEST_PASSWORD: "test" # pragma: allowlist secret
-      TEST_DB_URL: "postgresql+asyncpg://test:test@test-db:5432/rs_recruitment_test" # pragma: allowlist secret
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v7.0.0
 
-      # Build the three images the split produces, in dependency order. Daemon
-      # BuildKit (default on the runner) resolves the local `FROM` base and
-      # honours the Dockerfiles' `--mount=type=cache` — no buildx registry/local
-      # base-sharing dance needed for a smoke build. Building the worker proves
-      # the lean image compiles; only the api is run + health-checked.
-      - name: Build shared base image
-        run: DOCKER_BUILDKIT=1 docker build -f docker/base.Dockerfile -t rs-recruiting-base:local .
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4.2.0
 
-      - name: Build api image
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f services/api/Dockerfile \
-            --build-arg BASE_IMAGE=rs-recruiting-base:local \
-            -t rs-recruiting-api:test .
+      - name: Build images (base → api → worker)
+        run: make images
 
-      - name: Build worker image
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f services/worker/Dockerfile \
-            --build-arg BASE_IMAGE=rs-recruiting-base:local \
-            -t rs-recruiting-worker:test .
+      - name: Start stack and wait for health
+        run: docker compose --profile app up -d --wait
 
-      - name: Start test network and postgres
-        run: |
-          docker network create test-net
-          docker run -d --name test-db --network test-net \
-            -e POSTGRES_DB=rs_recruitment_test \
-            -e POSTGRES_USER=test \
-            -e POSTGRES_PASSWORD="$PG_TEST_PASSWORD" \
-            pgvector/pgvector:pg16
-          docker run -d --name test-redis --network test-net redis:8-alpine
-          for i in {1..10}; do
-            docker exec test-db pg_isready -U test && break || sleep 2
-          done
-
-      - name: Start container
-        run: |
-          docker run -d \
-            --name rs-recruiting-test \
-            --network test-net \
-            -p 8000:8000 \
-            -e DATABASE_URL="$TEST_DB_URL" \
-            -e JWT_SECRET_KEY="$JWT_SECRET_KEY" \
-            -e REDIS_URL="redis://test-redis:6379/0" \
-            rs-recruiting-api:test
-
-      - name: Wait for service to be ready
-        run: |
-          # Wait for health endpoint with smart retry (max ~8s total)
-          for i in {1..8}; do
-            if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-              echo "✅ Service is ready"
-              exit 0
-            fi
-            # Start with quick checks, then longer waits
-            sleep $((i <= 3 ? 1 : 2))
-          done
-          echo "❌ Service failed to start"
-          docker logs rs-recruiting-test
-          docker ps -a
-          exit 1
-
-      - name: Verify health endpoint
-        run: |
-          # Use curl to get the response
-          response=$(curl -s http://localhost:8000/health)
-
-          # Use python3 to safely parse the JSON and verify the fields
-          # This avoids fragile string comparisons and shell syntax errors
-          echo "$response" | python3 -c "
-          import sys, json
-          try:
-              data = json.load(sys.stdin)
-              assert data['status'] == 'ok', f'Unexpected status: {data.get(\"status\")}'
-              assert data['environment'] == 'dev', f'Unexpected env: {data.get(\"environment\")}'
-              print('✅ Health endpoint verified')
-          except Exception as e:
-              print(f'❌ Verification failed: {e}')
-              sys.exit(1)
-          "
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --profile app logs
 
       - name: Cleanup
         if: always()
-        run: |
-          docker stop rs-recruiting-test || true
-          docker rm rs-recruiting-test || true
-          docker stop test-db || true
-          docker rm test-db || true
-          docker stop test-redis || true
-          docker rm test-redis || true
-          docker network rm test-net || true
+        run: docker compose --profile app down -v
 
-  # Single required-check gate. Replacing 5 individual required checks with
-  # this job means docs-only PRs (where all real jobs are skipped via
-  # detect-changes) still satisfy branch protection — skipped needs count as
-  # passing here. Required checks in the branch ruleset: ["CI Gate"] only.
+  # The single required check (branch ruleset: ["CI Gate"]). A skipped need
+  # isn't a failure, so docs-only PRs — where every real job skips — still pass.
   ci-gate:
     name: CI Gate
     if: always()
     needs: [backend-checks, frontend-checks, docker-build]
     runs-on: ubuntu-latest
     steps:
-      - name: All required jobs passed or were skipped
-        run: |
-          echo '${{ toJSON(needs) }}' | python3 -c "
-          import sys, json
-          needs = json.load(sys.stdin)
-          failed = [name for name, data in needs.items() if data['result'] not in ('success', 'skipped')]
-          if failed:
-              print('Failed jobs:', failed)
-              sys.exit(1)
-          print('All required jobs passed or were skipped.')
-          "
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
 
-  # PR failures are visible on the PR itself; only a broken main (which
-  # blocks delivery) warrants a Slack ping.
+  # Ping Slack only on a broken main (it blocks delivery); a broken PR is
+  # already visible on the PR itself.
   notify-failure:
     needs: [detect-changes, backend-checks, frontend-checks, docker-build, ci-gate]
     if: failure() && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/notify-slack
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}

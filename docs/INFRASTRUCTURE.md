@@ -142,7 +142,7 @@ flowchart LR
   CD --> BUILD["build base+api+worker<br/>by SHA → ops ECR"]
   BUILD --> BUMP["bump-gitops (stage)"] --> ARGO["stage ArgoCD reconciles"]
   BUILD --> FE["deploy-frontend (S3+CloudFront)"] --> SMOKE["smoke-check"]
-  REL["publish GitHub Release vX.Y.Z"] --> RELWF["release.yml<br/>re-tag stage images → bump-gitops (prod)"]
+  REL["Cut release (per service)<br/>release.yml → push &lt;service&gt;-vX.Y.Z"] --> RELWF["deploy-prod.yml<br/>re-tag that stage image → bump-gitops (prod, one key)"]
 ```
 
 - **Build once, by SHA;** promote the identical image (no rebuild for prod — the
