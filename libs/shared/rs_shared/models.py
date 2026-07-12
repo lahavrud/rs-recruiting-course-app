@@ -254,6 +254,29 @@ class EmailQuota(SQLModel, table=True):
     )
 
 
+class WorkerHeartbeat(SQLModel, table=True):
+    """Singleton row recording the version the SQS worker last booted with.
+
+    The worker has no HTTP surface, so a deploy pipeline can't poll it. On
+    startup the worker upserts row id=1 with its running image tag (see
+    ``core/services/worker_heartbeat.py``); the api's ``/health`` surfaces it as
+    ``worker_version`` so a worker release can be smoke-checked through the
+    public domain, mirroring how ``version`` reports the api's own tag. Modeled
+    here so ``create_all`` builds it in dev/test exactly as the Alembic
+    ``worker_heartbeat`` migration builds it in prod — keep the two in sync.
+    """
+
+    __tablename__ = "worker_heartbeat"
+
+    # Fixed at 1 — a single row upserted on every worker boot. autoincrement is
+    # off because we set the id explicitly rather than letting the DB assign it.
+    id: int = Field(sa_column=Column(Integer, primary_key=True, autoincrement=False))
+    version: str = Field(sa_column=Column(Text, nullable=False))
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
 class User(SQLModel, table=True):
     """Authenticated user entity (Admins, Companies, Candidates).
 

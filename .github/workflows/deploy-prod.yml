@@ -91,15 +91,23 @@ jobs:
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
 
-      # api reports its tag at /health, so smoke waits for ArgoCD to converge.
-      # worker has no public surface — it ships blind until the /health
-      # worker-version heartbeat lands (see .claude/rules/infra.md).
+      # Both services report their tag at /health — api directly, worker via the
+      # startup heartbeat it upserts (surfaced as worker_version) — so smoke
+      # waits for ArgoCD to converge either release through the public domain.
       - name: Smoke (api)
         if: steps.rel.outputs.service == 'api'
         uses: ./.github/actions/smoke-check
         with:
           domain: ${{ env.PROD_PUBLIC_DOMAIN }}
           expected-version: ${{ steps.rel.outputs.version }}
+
+      - name: Smoke (worker)
+        if: steps.rel.outputs.service == 'worker'
+        uses: ./.github/actions/smoke-check
+        with:
+          domain: ${{ env.PROD_PUBLIC_DOMAIN }}
+          expected-version: ${{ steps.rel.outputs.version }}
+          version-field: worker_version
 
       # ---------- frontend: rebuild + S3/CloudFront respin ----------
 
