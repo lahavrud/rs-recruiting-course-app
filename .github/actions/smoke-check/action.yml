@@ -13,6 +13,10 @@ inputs:
   expected-version:
     description: "Image tag that must be live before checks run"
     required: true
+  version-field:
+    description: "Which /health field to compare — 'version' (api) or 'worker_version' (worker)"
+    required: false
+    default: "version"
   timeout-seconds:
     description: "Max seconds to wait for the version to go live"
     required: false
@@ -27,7 +31,7 @@ runs:
         set -euo pipefail
         deadline=$(( $(date +%s) + ${{ inputs.timeout-seconds }} ))
         while true; do
-          live=$(curl -sf "https://${{ inputs.domain }}/health" | jq -r .version || echo "unreachable")
+          live=$(curl -sf "https://${{ inputs.domain }}/health" | jq -r --arg f "${{ inputs.version-field }}" '.[$f]' || echo "unreachable")
           if [ "$live" = "${{ inputs.expected-version }}" ]; then
             echo "version ${live} is live"
             break

@@ -23,11 +23,13 @@ from opentelemetry import trace as otel_trace
 from pythonjsonlogger import json as jsonlogger
 
 from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.infrastructure.database import async_session
 from rs_shared.core.infrastructure.request_context import RequestIdFilter
 from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
 )
+from rs_shared.core.services.worker_heartbeat import record_heartbeat
 from rs_shared.core.task_contract import TaskName, decode_message
 from rs_shared.core.tasks import TASK_REGISTRY
 
@@ -84,6 +86,17 @@ async def run(stop_event: asyncio.Event) -> None:
         sys.exit(1)
 
     logger.info("worker_starting", extra={"queue": settings.sqs_queue_url})
+
+    # Publish the running version so the api's /health can report it — the
+    # worker has no HTTP surface, so this DB row is the deploy pipeline's
+    # convergence signal for a worker release. Best-effort: a heartbeat failure
+    # must never stop the worker from draining the queue.
+    try:
+        async with async_session() as db:
+            await record_heartbeat(db, settings.app_version)
+            await db.commit()
+    except Exception:
+        logger.warning("worker_heartbeat_failed", exc_info=True)
 
     session = aioboto3.Session()
     async with session.client(

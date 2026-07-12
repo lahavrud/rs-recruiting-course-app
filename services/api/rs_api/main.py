@@ -65,11 +65,17 @@ from rs_api.infrastructure.middleware import (
     RequestMiddleware,
 )
 from rs_shared.core.infrastructure.config import settings, validate_settings
-from rs_shared.core.infrastructure.database import engine, init_db, warm_up_pool
+from rs_shared.core.infrastructure.database import (
+    async_session,
+    engine,
+    init_db,
+    warm_up_pool,
+)
 from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
 )
+from rs_shared.core.services.worker_heartbeat import read_worker_version
 
 if settings.sentry_dsn:
     try:
@@ -226,10 +232,25 @@ app.include_router(analytics.router)
 app.include_router(seo.router)
 
 
+async def _worker_version() -> str | None:
+    """Worker's last-reported version for /health, best-effort.
+
+    /health is the ALB/Route 53 liveness probe, so it must never fail on a DB
+    hiccup — any error degrades to a null worker_version, not a 5xx.
+    """
+    try:
+        async with async_session() as db:
+            return await read_worker_version(db)
+    except Exception:
+        logger.warning("health_worker_version_unavailable", exc_info=True)
+        return None
+
+
 @app.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str | None]:
     return {
         "status": "ok",
         "environment": settings.environment,
         "version": settings.app_version,
+        "worker_version": await _worker_version(),
     }
