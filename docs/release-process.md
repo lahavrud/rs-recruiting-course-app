@@ -2,16 +2,21 @@
 
 Trunk-based **GitOps continuous delivery**. `main` is the only long-lived branch.
 Every commit that lands on `main` and passes CI is built once and shipped to
-**stage** automatically. **Prod** is promoted by a human publishing a GitHub
-Release — which re-tags the exact stage-tested images, no rebuild.
+**stage** automatically. **Prod** is a separate, gated act: a human cuts a
+**per-service** release, and each service (api / worker / frontend) versions and
+ships **independently** — releasing `api-v1.4.0` never touches worker or frontend.
 
 CI never touches a cluster. It builds images and commits image-tag bumps to the
 gitops repo; each cluster's ArgoCD reconciles the change.
 
 ```
-merge to main → CI green → build image (by SHA) → bump gitops STAGE → ArgoCD syncs → smoke
-publish Release vX.Y.Z    → re-tag stage images   → bump gitops PROD  → ArgoCD syncs → smoke
+merge to main   → CI green → build (content tag) → bump gitops STAGE → ArgoCD → smoke
+Cut release api → compute semver → push api-vX.Y.Z tag
+     └─ tag push → re-tag stage image → bump gitops PROD (api only) → ArgoCD → smoke
 ```
+
+Stage uses **content tags** (a hash of each image's own build inputs); prod uses
+**per-service semver** tags (`<service>-vX.Y.Z`). Merging to `main` never deploys prod.
 
 ## The flow
 
@@ -28,23 +33,31 @@ publish Release vX.Y.Z    → re-tag stage images   → bump gitops PROD  → Ar
    `stage` env (`bump-gitops`), deploys the frontend (S3 + CloudFront), and
    smoke-checks the public domain once ArgoCD has converged.
 
-3. **Promote to prod.** Publish a GitHub Release with a `vX.Y.Z` tag on a `main`
-   commit that already shipped to stage. `release.yml` validates the tag, re-tags
-   that commit's existing stage images with the version (byte-identical to what was
-   smoked — no rebuild), bumps the gitops `prod` env, deploys the frontend, and
-   smoke-checks. The prod frontend deploy role's OIDC trust matches only
-   `refs/tags/v*`, so this cannot run from a branch.
+3. **Promote to prod (per service).** Run the **Cut release** workflow
+   (`release.yml`, `workflow_dispatch`) and pick a service. It computes the next
+   semver from the conventional commits that touched that service since its last
+   tag (`scripts/ci/next-version.sh`) and pushes `<service>-vX.Y.Z` — no version is
+   typed by hand. The tag push triggers `deploy-prod.yml`, which for **api/worker**
+   re-tags that commit's existing stage image with the version (byte-identical to
+   what was smoked — no rebuild) and bumps **only that service's** key in the gitops
+   `prod` env; for **frontend** it rebuilds + syncs S3/CloudFront. `deploy-prod.yml`
+   runs *from the tag ref*, so the prod frontend role's `refs/tags/frontend-v*`
+   ref-lock still applies; it cannot run from a branch. api smoke-checks on
+   `/health`; worker has no public endpoint and ships without a smoke gate.
+
+   > The tag is pushed with the `rs-course-ci-bot` App token, not the default
+   > `GITHUB_TOKEN` — a `GITHUB_TOKEN` push would not trigger `deploy-prod.yml`.
 
 ## Backing out a bad change
 
 - **Before it reaches prod:** `git revert` the bad commit on `main`; the next
-  delivery ships a clean build to stage. Simply don't cut a Release.
+  delivery ships a clean build to stage. Simply don't cut a release.
 - **Already in prod:** revert the offending tag-bump commit in the **gitops** repo
-  (or point the prod env at a prior tag) — ArgoCD reconciles back in minutes, no
-  rebuild. Then `git revert` on `main` in this repo so source matches the deployed
-  state and the next delivery doesn't re-ship the bad commit.
+  (or point that service's prod env at a prior tag) — ArgoCD reconciles back in
+  minutes, no rebuild. Then `git revert` on `main` in this repo so source matches
+  the deployed state and the next delivery doesn't re-ship the bad commit.
 - **Frontend-only respin** (e.g. a recreated S3 bucket): run `redeploy-frontend.yml`
-  (manual) — stage from `main`, prod from a `vX.Y.Z` tag.
+  (manual) — stage from `main`, prod from a `frontend-vX.Y.Z` tag.
 
 > ⚠️ A rollback restores previous **app code only** — it does **not** undo a
 > database migration. Migrations must stay backward-compatible with the running
@@ -56,8 +69,9 @@ publish Release vX.Y.Z    → re-tag stage images   → bump gitops PROD  → Ar
 | Workflow | Trigger | Does |
 |---|---|---|
 | `ci.yml` | PR / push / merge_group | Lint, test, docker-build (change-aware) |
-| `cd.yml` | CI completion on `main` (push) | Build by SHA → bump gitops **stage** → deploy frontend → smoke |
-| `release.yml` | GitHub Release published (`vX.Y.Z`) | Re-tag stage images → bump gitops **prod** → deploy frontend → smoke |
+| `cd.yml` | CI completion on `main` (push) | Build (content tag) → bump gitops **stage** → deploy frontend → smoke |
+| `release.yml` (**Cut release**) | Manual (pick a service) | Compute semver → push `<service>-vX.Y.Z` tag (no cloud creds) |
+| `deploy-prod.yml` | Push of a `<service>-v*` tag | Re-tag stage image (api/worker) → bump gitops **prod** (that key) → smoke; or frontend respin |
 | `deploy-dev.yml` | PR labeled `deploy` (+ pushes) | Build `pr-<num>-<sha>` → bump gitops **dev** |
 | `redeploy-frontend.yml` | Manual | Frontend-only S3 + CloudFront respin (ref-locked per env) |
 | `security-audit.yml` | Weekly | pip-audit for CVEs |
@@ -81,12 +95,16 @@ desired state is the gitops tag-bump commit. See
 
 ## Version tags
 
-A `vX.Y.Z` tag covers the backend image (API + worker run from the same image with
-different commands) and the frontend bundle — they deploy in lockstep and share the
-same release value for Sentry correlation. `scripts/compute_next_release_tag.sh` is
-a manual helper that suggests the next version from the Conventional Commits since
-the last tag:
+Each service has its **own** version line under a prefixed tag — `api-vX.Y.Z`,
+`worker-vX.Y.Z`, `frontend-vX.Y.Z` — so they release independently rather than in
+lockstep. `scripts/ci/next-version.sh <service>` computes the next version from the
+Conventional Commits that touched that service's path set (the same sets
+`compute-tags` uses) since its last tag; **Cut release** runs it for you, so no
+version is calculated by hand:
 
 - any `!:` breaking-change marker or `BREAKING CHANGE:` footer → major
 - `feat:` → minor
 - everything else → patch
+
+Tags are plain git tags, not GitHub Releases — the releases page stays clean, and
+each tag is the immutable anchor a prod deploy promotes.

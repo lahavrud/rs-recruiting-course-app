@@ -12,7 +12,6 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      # Pin to a SHA hash once a stable version is confirmed, matching repo policy.
       - uses: actions/stale@v10
         with:
           days-before-stale: 60

@@ -1,11 +1,7 @@
-# Trunk-based continuous delivery to stage. Triggered by CI *completing
-# successfully* on a push to main (workflow_run, not the push itself), so a
-# commit only ships after its own tests pass. Build once by SHA → commit the
-# tag to the gitops repo (ArgoCD rolls the stage namespace) → deploy the
-# frontend artifact → black-box smoke through the public domain.
-#
-# Prod is NOT deployed here — promotion is a human act: publishing a GitHub
-# Release (see release.yml).
+# Continuous delivery to stage. Fires when CI succeeds on a push to main
+# (workflow_run, not the push) so a commit ships only after its own tests pass:
+# build by SHA → bump the gitops tag (ArgoCD rolls stage) → deploy frontend →
+# smoke the public domain. Prod is a separate human act — see release.yml.
 
 name: CD (stage)
 
@@ -14,8 +10,8 @@ on:
     workflows: ["CI Pipeline"]
     types: [completed]
 
-# Serialize stage deploys; never cancel one mid-flight (a half-shipped
-# deploy would leave images without their gitops bump).
+# Serialize stage deploys, never cancel mid-flight — a half-shipped deploy
+# leaves images in ECR without their gitops bump.
 concurrency:
   group: cd-stage
   cancel-in-progress: false
@@ -36,23 +32,23 @@ jobs:
       id-token: write # OIDC for ECR push + frontend deploy roles
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
-          # The exact commit CI validated — not whatever main points at now.
+          # The exact commit CI validated, not wherever main points now.
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
-      # Per-image content tags: a service whose inputs didn't change keeps its
-      # tag, so build-images skips it and its gitops chart is a no-op (no roll).
+      # Per-image content tag: an unchanged service keeps its tag, so build-images
+      # skips it and its gitops bump is a no-op — ArgoCD never rolls it.
       - uses: ./.github/actions/compute-tags
         id: tag
 
-      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.ECR_PUSH_ROLE }}
           aws-region: eu-central-1
 
-      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+      - uses: aws-actions/amazon-ecr-login@v2.1.6
 
       - uses: ./.github/actions/build-images
         with:
@@ -69,16 +65,16 @@ jobs:
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
 
-      # Re-auth: deploy-frontend assumes the stage role in the non-prod
-      # account (the ECR session belongs to the ops account).
+      # deploy-frontend re-auths into the non-prod account; the ECR session
+      # above belongs to the ops account.
       - uses: ./.github/actions/deploy-frontend
         id: frontend
         with:
           env: stage
           aws-role-arn: ${{ env.STAGE_FRONTEND_ROLE }}
 
-      # /health reports the api image tag (APP_VERSION), so smoke waits on the
-      # api tag — that is the convergence signal ArgoCD produces for this deploy.
+      # /health echoes the api tag (APP_VERSION), so waiting on it is waiting
+      # for ArgoCD to converge this deploy.
       - uses: ./.github/actions/smoke-check
         with:
           domain: ${{ steps.frontend.outputs.domain }}
@@ -90,15 +86,12 @@ jobs:
             echo "### Stage is live"
             echo 'api `${{ steps.tag.outputs.api }}` / worker `${{ steps.tag.outputs.worker }}` passed smoke on https://${{ steps.frontend.outputs.domain }}.'
             echo ""
-            echo "Promote to prod by publishing a GitHub Release (tag \`vX.Y.Z\`) on this commit."
+            echo "Promote to prod per service: run the **Cut release** workflow (release.yml) for api / worker / frontend."
           } >> "$GITHUB_STEP_SUMMARY"
 
   notify-failure:
     needs: [ship-stage]
     if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/notify-slack
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}

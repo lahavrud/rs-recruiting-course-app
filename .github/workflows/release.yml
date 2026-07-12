@@ -1,116 +1,57 @@
-# Prod promotion — the one manual act in the pipeline. Publishing a GitHub
-# Release (tag vX.Y.Z on a main commit that already passed stage) promotes
-# that EXACT build: the images built for the commit's stage deploy are
-# re-tagged with the version (no rebuild — what ships is byte-identical to
-# what was smoked), the gitops prod env is pointed at the version tag, and
-# the frontend is rebuilt from the tag and synced. The prod frontend deploy
-# role's OIDC trust only matches refs/tags/v*, so this cannot run from a
-# branch.
+# Cut a prod release for ONE service. A human runs this (the deliberate prod
+# gate); the machine computes the next semver from conventional commits since
+# that service's last tag and pushes `<service>-vX.Y.Z`. Devs never calculate a
+# version. The tag push is what triggers deploy-prod.yml — so this workflow
+# touches no cloud and holds no deploy credentials.
+#
+# The tag MUST be pushed with the CI-bot App token, not the default
+# GITHUB_TOKEN: tags pushed by GITHUB_TOKEN do not trigger other workflows, so
+# deploy-prod.yml would never fire. (Requires the rs-course-ci-bot App to have
+# Contents:write on THIS repo — see .claude/rules/infra.md.)
 
-name: Release (prod)
+name: Cut release
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to release"
+        type: choice
+        options: [api, worker, frontend]
+        required: true
 
+# One release per service at a time; releases are cheap but never race the tag.
 concurrency:
-  group: release-prod
+  group: cut-release-${{ inputs.service }}
   cancel-in-progress: false
 
-env:
-  OPS_ECR_REGISTRY: 883627150418.dkr.ecr.eu-central-1.amazonaws.com
-  ECR_PUSH_ROLE: arn:aws:iam::883627150418:role/rs-course-ci-ecr-push
-  PROD_FRONTEND_ROLE: arn:aws:iam::591626272274:role/rs-course-prod-ci-frontend-deploy
+permissions:
+  contents: read # the tag is pushed via the App token, not GITHUB_TOKEN
 
 jobs:
-  promote:
+  cut:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Mint App token (push tag to this repo)
+        id: app-token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         with:
-          fetch-depth: 1
-
-      - name: Validate release tag
-        id: tag
-        run: |
-          set -euo pipefail
-          version="${{ github.event.release.tag_name }}"
-          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "release tag '$version' is not vX.Y.Z" >&2; exit 1; }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      # Recompute the exact content tags stage built for this commit — that is
-      # how we locate the byte-identical images to promote (no rebuild).
-      - uses: ./.github/actions/compute-tags
-        id: src
-
-      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
-        with:
-          role-to-assume: ${{ env.ECR_PUSH_ROLE }}
-          aws-region: eu-central-1
-
-      - name: Re-tag stage images with the version
-        env:
-          VERSION: ${{ steps.tag.outputs.version }}
-          API_SRC: ${{ steps.src.outputs.api }}
-          WORKER_SRC: ${{ steps.src.outputs.worker }}
-        run: |
-          set -euo pipefail
-          # repo:source-content-tag — the images stage built and smoked.
-          for pair in "rs-recruiting-course/api:${API_SRC}" "rs-recruiting-course/worker:${WORKER_SRC}"; do
-            repo="${pair%:*}"; src="${pair##*:}"
-            manifest=$(aws ecr batch-get-image \
-              --repository-name "$repo" \
-              --image-ids imageTag="$src" \
-              --query 'images[0].imageManifest' --output text)
-            if [ -z "$manifest" ] || [ "$manifest" = "None" ]; then
-              echo "no ${repo}:${src} image — tag a commit that shipped to stage" >&2
-              exit 1
-            fi
-            out=$(aws ecr put-image \
-              --repository-name "$repo" \
-              --image-tag "$VERSION" \
-              --image-manifest "$manifest" 2>&1) \
-              || { grep -q ImageAlreadyExistsException <<<"$out" || { echo "$out" >&2; exit 1; }; }
-            echo "${repo}:${VERSION} ready"
-          done
-
-      # Prod runs both images at the single human-readable release version.
-      - uses: ./.github/actions/bump-gitops
-        with:
-          environment: prod
-          api-tag: ${{ steps.tag.outputs.version }}
-          worker-tag: ${{ steps.tag.outputs.version }}
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+          owner: lahavrud
+          repositories: rs-recruiting-course-app
 
-      - uses: ./.github/actions/deploy-frontend
-        id: frontend
+      - uses: actions/checkout@v7.0.0
         with:
-          env: prod
-          aws-role-arn: ${{ env.PROD_FRONTEND_ROLE }}
+          fetch-depth: 0 # full history + all tags for next-version.sh
+          token: ${{ steps.app-token.outputs.token }} # so the tag push triggers deploy-prod.yml
 
-      - uses: ./.github/actions/smoke-check
-        with:
-          domain: ${{ steps.frontend.outputs.domain }}
-          expected-version: ${{ steps.tag.outputs.version }}
-
-      - name: Summary
-        run: |
-          {
-            echo "### Prod is live"
-            echo '`${{ steps.tag.outputs.version }}` (from api `${{ steps.src.outputs.api }}` / worker `${{ steps.src.outputs.worker }}`) passed smoke on https://${{ steps.frontend.outputs.domain }}.'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Compute version, tag & push
+        run: bash scripts/ci/cut-release.sh "${{ inputs.service }}"
 
   notify-failure:
-    needs: [promote]
+    needs: [cut]
     if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/notify-slack
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_PROD }}
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ secrets.SLACK_WEBHOOK_PROD }}

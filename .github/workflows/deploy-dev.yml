@@ -27,7 +27,7 @@ jobs:
       id-token: write # OIDC for the ECR push role
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -38,12 +38,12 @@ jobs:
           short=$(git rev-parse --short=7 HEAD)
           echo "tag=pr-${{ github.event.pull_request.number }}-${short}" >> "$GITHUB_OUTPUT"
 
-      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.ECR_PUSH_ROLE }}
           aws-region: eu-central-1
 
-      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+      - uses: aws-actions/amazon-ecr-login@v2.1.6
         id: ecr
 
       # Dev is a single throwaway namespace with cancel-in-progress, so pod
@@ -74,9 +74,6 @@ jobs:
   notify-failure:
     needs: [build-and-deploy]
     if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/notify-slack
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}
+    uses: ./.github/workflows/_notify-failure.yml
+    secrets:
+      webhook-url: ${{ secrets.SLACK_WEBHOOK_NONPROD }}
