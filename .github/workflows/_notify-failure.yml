@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: read # checkout, to reach the local notify-slack action
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/notify-slack
         with:
           webhook-url: ${{ secrets.webhook-url }}

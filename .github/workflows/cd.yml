@@ -32,7 +32,7 @@ jobs:
       id-token: write # OIDC for ECR push + frontend deploy roles
       contents: read
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           # The exact commit CI validated, not wherever main points now.
           ref: ${{ github.event.workflow_run.head_sha }}
