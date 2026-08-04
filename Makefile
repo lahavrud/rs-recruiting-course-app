@@ -14,7 +14,7 @@ IMAGE_TAG ?= local
 BASE_IMAGE ?= rs-recruiting-base:$(IMAGE_TAG)
 BUILD ?= docker buildx build --load
 
-.PHONY: images base api worker up services down logs check
+.PHONY: images base api worker up services down logs check validators
 
 # Full local validation with CI parity: everything ci.yml enforces, in one
 # target. Agents and the pre-PR checklist delegate here so the list of checks
@@ -25,13 +25,18 @@ check:
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run lint-imports
+	$(MAKE) validators
+	cd frontend && npx tsc --noEmit && npm run lint && npm test
+	uv run pytest -n auto -q
+
+# Backend static-analysis suite — the exact set CI's "Static validators" step
+# runs. Single source of truth: `make check` and CI both delegate here.
+validators:
 	uv run python scripts/validate_imports.py
 	uv run python scripts/check_file_sizes.py
 	uv run python scripts/validate_type_hints.py
 	uv run python scripts/validate_blocking_io.py
 	uv run python scripts/validate_test_files.py
-	cd frontend && npx tsc --noEmit && npm run lint && npm test
-	uv run pytest -n auto -q
 
 # Build every service image (base first).
 images: base api worker
