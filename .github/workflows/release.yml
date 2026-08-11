@@ -34,14 +34,14 @@ jobs:
     steps:
       - name: Mint App token (push tag to this repo)
         id: app-token
-        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
           owner: lahavrud
           repositories: rs-recruiting-course-app
 
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0 # full history + all tags for next-version.sh
           token: ${{ steps.app-token.outputs.token }} # so the tag push triggers deploy-prod.yml
