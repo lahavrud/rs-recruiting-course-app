@@ -42,7 +42,7 @@ jobs:
             prod)  [[ "$GITHUB_REF" == refs/tags/frontend-v* || "$GITHUB_REF" == refs/tags/v* ]] || { echo "prod redeploys must run from a frontend-vX.Y.Z tag (got $GITHUB_REF)"; exit 1; } ;;
           esac
 
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - uses: ./.github/actions/deploy-frontend
         id: frontend

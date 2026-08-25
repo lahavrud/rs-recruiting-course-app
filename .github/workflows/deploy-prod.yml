@@ -42,7 +42,7 @@ jobs:
       id-token: write # OIDC for ECR push / frontend deploy roles
       contents: read
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1 # the tagged commit
 
