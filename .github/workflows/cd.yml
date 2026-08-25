@@ -32,7 +32,7 @@ jobs:
       id-token: write # OIDC for ECR push + frontend deploy roles
       contents: read
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           # The exact commit CI validated, not wherever main points now.
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -48,7 +48,7 @@ jobs:
           role-to-assume: ${{ env.ECR_PUSH_ROLE }}
           aws-region: eu-central-1
 
-      - uses: aws-actions/amazon-ecr-login@v2.1.6
+      - uses: aws-actions/amazon-ecr-login@v2.1.7
 
       - uses: ./.github/actions/build-images
         with:

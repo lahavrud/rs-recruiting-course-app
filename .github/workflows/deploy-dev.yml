@@ -27,7 +27,7 @@ jobs:
       id-token: write # OIDC for the ECR push role
       contents: read
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -43,7 +43,7 @@ jobs:
           role-to-assume: ${{ env.ECR_PUSH_ROLE }}
           aws-region: eu-central-1
 
-      - uses: aws-actions/amazon-ecr-login@v2.1.6
+      - uses: aws-actions/amazon-ecr-login@v2.1.7
         id: ecr
 
       # Dev is a single throwaway namespace with cancel-in-progress, so pod
