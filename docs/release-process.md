@@ -42,8 +42,9 @@ Stage uses **content tags** (a hash of each image's own build inputs); prod uses
    what was smoked — no rebuild) and bumps **only that service's** key in the gitops
    `prod` env; for **frontend** it rebuilds + syncs S3/CloudFront. `deploy-prod.yml`
    runs *from the tag ref*, so the prod frontend role's `refs/tags/frontend-v*`
-   ref-lock still applies; it cannot run from a branch. api smoke-checks on
-   `/health`; worker has no public endpoint and ships without a smoke gate.
+   ref-lock still applies; it cannot run from a branch. Both smoke-check on
+   `/health` — api against `version`, worker against `worker_version` (the worker
+   upserts its tag into a heartbeat row on startup, since it has no HTTP surface).
 
    > The tag is pushed with the `rs-course-ci-bot` App token, not the default
    > `GITHUB_TOKEN` — a `GITHUB_TOKEN` push would not trigger `deploy-prod.yml`.

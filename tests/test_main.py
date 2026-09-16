@@ -13,10 +13,13 @@ async def test_health_endpoint_returns_200_with_json_status():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
     assert response.status_code == 200
+    # worker_version is a best-effort read of the worker heartbeat row; without
+    # a heartbeat (or DB) it degrades to null and never fails the probe.
     assert response.json() == {
         "status": "ok",
         "environment": "dev",
         "version": "unknown",
+        "worker_version": None,
     }
 
 

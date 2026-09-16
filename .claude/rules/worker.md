@@ -36,6 +36,16 @@ testing — they only exist with a real/localstack queue.
 3. `enqueue_*` producer function in `tasks.py`
 4. Tests for both producer and consumer sides (fake SQS lives in `tests/conftest.py`)
 
+## Startup heartbeat
+
+On boot the worker upserts its running version (`settings.app_version`) into the
+singleton `worker_heartbeat` row (`core/services/worker_heartbeat.py`), which the
+api's `/health` surfaces as `worker_version`. This is the **only** convergence
+signal a deploy pipeline has for a worker release — the worker has no HTTP
+surface. The write is **best-effort**: wrap it so a DB failure logs a warning but
+never stops the worker from draining the queue. Like every table, `worker_heartbeat`
+needs both the `WorkerHeartbeat` model and its migration (see `rules/migrations.md`).
+
 ## Boundaries
 
 `rs_worker` and `rs_shared` must stay web-stack-free (no fastapi/uvicorn/slowapi).
